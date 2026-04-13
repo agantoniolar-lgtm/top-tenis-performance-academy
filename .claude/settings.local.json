@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__c1fc4002-5f49-5f9d-a4e5-93c4ef5d6a75__google_drive_fetch",
+      "Bash(npm create:*)",
+      "Bash(npm install:*)",
+      "Bash(npx vite:*)",
+      "Bash(node -e \"const l = require\\('lucide-react'\\); console.log\\('Instagram' in l\\)\")",
+      "Bash(node --input-type=module -e \"import * as l from 'lucide-react'; console.log\\(Object.keys\\(l\\).filter\\(k => k.toLowerCase\\(\\).includes\\('instagram'\\)\\)\\)\")",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(git init:*)",
+      "Bash(git branch:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
