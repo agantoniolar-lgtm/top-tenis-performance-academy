@@ -1,30 +1,56 @@
 import { useState } from 'react';
-import { Outlet } from 'react-router-dom';
-import { Menu } from 'lucide-react';
+import { Outlet, useLocation } from 'react-router-dom';
+import { PortalProvider } from '../../contexts/PortalContext';
 import Sidebar from './Sidebar';
+import Topbar from './Topbar';
+import { Icon } from './ui';
 
-export default function PortalLayout() {
+function crumbsFor(pathname) {
+  if (pathname === '/portal')               return ['Dashboard'];
+  if (pathname.startsWith('/portal/alumnos')) return ['Atletas'];
+  if (pathname.startsWith('/portal/reportes')) return ['Reportes'];
+  if (pathname.startsWith('/portal/torneos'))  return ['Torneos'];
+  if (pathname.startsWith('/portal/ejercicios')) return ['Ejercicios'];
+  if (pathname.startsWith('/portal/perfil'))  return ['Mi perfil'];
+  return ['Portal'];
+}
+
+function Shell() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const location = useLocation();
+  const crumbs   = crumbsFor(location.pathname);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="flex min-h-screen portal-layout">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      {/* Mobile top bar */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-[#1B3A2A] flex items-center px-4 z-30">
-        <button
-          className="text-white mr-3"
-          onClick={() => setSidebarOpen(true)}
+      {/* Main area (offset for fixed sidebar on lg) */}
+      <main className="flex-1 min-w-0 flex flex-col lg:ml-[224px]">
+        {/* Mobile top bar */}
+        <div
+          className="lg:hidden flex items-center px-4 h-14 z-30 sticky top-0"
+          style={{ background: 'var(--green-deep)' }}
         >
-          <Menu size={24} />
-        </button>
-        <span className="text-white font-bold">Top Tenis</span>
-      </div>
+          <button className="text-white mr-3" onClick={() => setSidebarOpen(true)}>
+            <Icon name="more" size={20} />
+          </button>
+          <span className="text-white font-display font-bold text-[15px]">Top Tenis</span>
+        </div>
 
-      {/* Main content */}
-      <main className="lg:ml-60 pt-14 lg:pt-0 min-h-screen">
-        <Outlet />
+        <Topbar crumbs={crumbs} />
+
+        <div className="flex flex-1 min-w-0">
+          <Outlet />
+        </div>
       </main>
     </div>
+  );
+}
+
+export default function PortalLayout() {
+  return (
+    <PortalProvider>
+      <Shell />
+    </PortalProvider>
   );
 }

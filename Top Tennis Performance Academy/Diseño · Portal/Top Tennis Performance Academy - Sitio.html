@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Top Tennis Performance Academy — Sitio</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Manrope:wght@400;500;600;700;800&family=Big+Shoulders+Display:wght@500;700;800;900&family=Space+Grotesk:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,700;0,800;1,500;1,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      /* Logo-true greens (the current site uses these) */
+      --green-deep:   #0E2419;
+      --green:        #1B3A2A;
+      --green-mid:    #2D5A3D;
+      --green-soft:   #A7C4B0;
+      /* Neutrals */
+      --cream:        #F8F6F2;
+      --cream-warm:   #EFEBE2;
+      --paper:        #FFFFFF;
+      --ink:          #14110D;
+      --ink-soft:     #4A4842;
+      --line:         rgba(20,17,13,.10);
+      --line-strong:  rgba(20,17,13,.18);
+      /* Accent (overridden by tweaks) */
+      --accent:       #8B4513;
+      --accent-hi:    #A0522D;
+      --accent-ink:   #FFFFFF;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: var(--font-body, 'Manrope'), system-ui, sans-serif; color: var(--ink); background: var(--paper); -webkit-font-smoothing: antialiased; }
+    .font-display { font-family: var(--font-display, 'Bricolage Grotesque'), serif; font-optical-sizing: auto; letter-spacing: -0.02em; }
+    .font-num { font-family: 'Big Shoulders Display', sans-serif; font-feature-settings: "tnum" 1; font-variant-numeric: tabular-nums; }
+    .font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+    .eyebrow { font-family: var(--font-eyebrow, 'Manrope'), sans-serif; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; font-size: 11px; }
+
+    /* Density classes */
+    [data-density="compact"] .density-py { padding-top: 64px; padding-bottom: 64px; }
+    [data-density="regular"] .density-py { padding-top: 96px; padding-bottom: 96px; }
+    [data-density="comfy"]   .density-py { padding-top: 128px; padding-bottom: 128px; }
+
+    /* Subtle court-grid texture for green hero backgrounds */
+    .grid-texture {
+      background-image:
+        linear-gradient(to right, rgba(255,255,255,.04) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255,255,255,.04) 1px, transparent 1px);
+      background-size: 80px 80px;
+    }
+    .noise {
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .35 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+      mix-blend-mode: overlay;
+    }
+
+    /* Tennis ball */
+    .ball-seam {
+      background:
+        radial-gradient(circle at 50% 50%, #E9F377 0%, #D4E157 60%, #B5C82E 100%);
+      position: relative;
+    }
+    .ball-seam::before, .ball-seam::after {
+      content: ""; position: absolute; inset: 0; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,.55);
+      mask: radial-gradient(circle at 50% 50%, transparent 49%, black 50%);
+    }
+    .ball-seam::before { transform: rotate(20deg) scale(1.05, 0.4); }
+    .ball-seam::after  { transform: rotate(-20deg) scale(0.4, 1.05); }
+
+    /* Marquee */
+    @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+    .marquee-track { animation: marquee 40s linear infinite; }
+
+    /* Smooth fades for route change */
+    @keyframes pageIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .page-in { animation: pageIn .35s ease-out both; }
+
+    /* Talent card mini preview */
+    .data-rule { background: repeating-linear-gradient(90deg, currentColor 0 4px, transparent 4px 8px); }
+
+    /* For the dashed sport-field outlines on placeholders */
+    .court-bg {
+      background:
+        linear-gradient(135deg, #2D5A3D 0%, #1B3A2A 100%);
+      position: relative;
+      overflow: hidden;
+    }
+    .court-bg::before {
+      content: ""; position: absolute; inset: 6%; border: 2px solid rgba(255,255,255,.55); border-radius: 4px;
+    }
+    .court-bg::after {
+      content: ""; position: absolute; left: 50%; top: 6%; bottom: 6%; width: 2px; background: rgba(255,255,255,.45);
+    }
+
+    /* Hide scrollbars for horizontal scroll regions */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { scrollbar-width: none; }
+  </style>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script>
+    window.TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "accent": "#C5D62E",
+      "accentName": "Court Lime",
+      "typeFamily": "editorial",
+      "density": "compact",
+      "heroStyle": "fullbleed",
+      "lang": "es",
+      "dark": false
+    }/*EDITMODE-END*/;
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" src="proto/tweaks-panel.jsx"></script>
+  <script type="text/babel" src="proto/ui.jsx"></script>
+  <script type="text/babel" src="proto/nav.jsx"></script>
+  <script type="text/babel" src="proto/home.jsx"></script>
+  <script type="text/babel" src="proto/camino.jsx"></script>
+  <script type="text/babel" src="proto/nosotros.jsx"></script>
+  <script type="text/babel" src="proto/programas.jsx"></script>
+  <script type="text/babel" src="proto/app.jsx"></script>
+</body>
+</html>

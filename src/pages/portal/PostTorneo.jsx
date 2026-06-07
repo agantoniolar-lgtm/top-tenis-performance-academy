@@ -1,23 +1,144 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, Send, CheckCircle } from 'lucide-react';
 
-function ScaleButtons({ value, onChange }) {
+// ─── Escalas PTF ────────────────────────────────────────────────────────────
+// Percepción del atleta relativa al plan de torneo (verbal por ahora,
+// documentado en plataforma post-MVP con integración Swing Vision).
+// 1 = muy por debajo del plan · 5 = superó expectativas
+
+const TECNICA_LABELS = {
+  1: 'No lo ejecuté',
+  2: 'Por debajo de lo esperado',
+  3: 'Cumplí el plan',
+  4: 'Mejor de lo esperado',
+  5: 'Superé mis expectativas',
+};
+
+const MENTAL_LABELS = {
+  1: 'No lo manejé',
+  2: 'Me costó mantenerlo',
+  3: 'Lo mantuve',
+  4: 'Estuve sólido',
+  5: 'En mi mejor nivel',
+};
+
+const FISICO_LABELS = {
+  1: 'Sin energía',
+  2: 'Por debajo de lo normal',
+  3: 'Normal',
+  4: 'Buena condición',
+  5: 'Excelente condición',
+};
+
+const SATISFACCION_RANGES = [
+  { min: 1, max: 2, label: 'No di lo que tenía' },
+  { min: 3, max: 5, label: 'Por debajo de lo que esperaba' },
+  { min: 6, max: 8, label: 'Satisfecho con mi desempeño' },
+  { min: 9, max: 10, label: 'Superé mis expectativas' },
+];
+
+function getSatisfaccionLabel(value) {
+  return SATISFACCION_RANGES.find(r => value >= r.min && value <= r.max)?.label ?? '';
+}
+
+// ─── Placeholders aleatorios por campo ──────────────────────────────────────
+// Se elige uno al azar por sesión para no sesgar con un solo ejemplo.
+
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+const PH = {
+  comentarioTecnica: [
+    'Mi derecha cruzada salió más limpia que en práctica, pero el servicio en segunda bola lo sentí diferente bajo presión de torneo.',
+    'El revés slice lo usé más seguro de lo que esperaba — pero el saque plano se fue largo más de lo normal.',
+    'Sentí mis golpes más tensos que en práctica, como si no terminara de soltar el brazo — especialmente en los puntos importantes.',
+  ],
+  mejoraTecnica: [
+    'Empecé a apurar los golpes cuando el marcador se puso en contra — algo que no me pasa cuando entreno.',
+    'Mi saque segundo se acortó mucho cuando estaba nervioso — en práctica lo pego con más confianza.',
+    'Cuando el rival me presionaba empujaba la bola en vez de pegarla — en entrenamiento eso casi no me pasa.',
+  ],
+  comentarioPlan: [
+    'El plan funcionó bien en los primeros partidos, pero cuando el nivel subió tuve que improvisar más de lo esperado.',
+    'El plan era mantener la pelota en juego, pero los rivales eran más agresivos de lo que anticipaba y tuve que cambiar.',
+    'Seguí bastante bien el plan — la única excepción fue cuando enfrenté rivales que sacaban muy fuerte.',
+  ],
+  tacticaFunciono: [
+    'Los rivales usaron mucho el slice bajo, algo que no habíamos trabajado — me costó encontrar el ritmo al principio.',
+    'Varios rivales cambiaban el ritmo constantemente — no tenía un plan para eso y me tomó tiempo adaptarme.',
+    'El viento afectó mucho el juego — no tenía contemplado cómo ajustar mi saque en esas condiciones.',
+  ],
+  tacticaCambiar: [
+    'Sería más agresivo desde el primer punto en vez de esperar a estar cómodo para atacar.',
+    'Atacaría más la red — tuve situaciones donde me quedé en el fondo cuando debía avanzar.',
+    'Usaría más el slice de revés para cambiar ritmo — me lo guardé todo el torneo y creo que hubiera funcionado.',
+  ],
+  concentracion: [
+    'Cuando el torneo se puso difícil me repetía "juega tu juego" — a veces lo lograba, otras me perdía pensando en el resultado.',
+    'En los momentos clave me bloqueaba pensando en no fallar en vez de pensar en qué hacer.',
+    'Me mantuve bastante enfocado — cuando me distraía era fácil volver porque tenía claro el plan.',
+  ],
+  nutricion: [
+    'Los primeros partidos me sentí bien, pero hacia el final noté que me faltaba energía — creo que no tomé suficiente líquido.',
+    'Me sentí físicamente bien todo el torneo — el calentamiento antes de cada partido ayudó mucho.',
+    'En los partidos largos me empezaron a agarrar calambres — probablemente necesito ajustar lo que como antes de jugar.',
+  ],
+  hiceBien: [
+    'En el partido más difícil logré mantener la calma cuando iba perdiendo — eso no lo hubiera hecho antes.',
+    'Gané un partido que iba perdiendo en el tercer set — me mantuve creyendo cuando fue más fácil rendirse.',
+    'Mi nivel físico se mantuvo constante durante todo el torneo — no me vi limitado por el cansancio.',
+  ],
+  mejorar: [
+    'Soltaría más el juego desde el inicio en vez de esperar a estar cómodo para atacar.',
+    'Trabajaría más mi cabeza antes de los puntos importantes — me ponía nervioso y eso afectaba mi ejecución.',
+    'Planearía mejor mi descanso entre partidos — a veces llegué cansado porque no calculé bien los tiempos.',
+  ],
+  aprendizaje: [
+    'Necesito trabajar más la segunda bola bajo presión — es donde más puntos perdí en momentos clave.',
+    'Quiero trabajar los puntos de quiebre — bajo el nivel exactamente cuando más importa.',
+    'Tengo que entrenar más en condiciones de viento y sol — el ambiente me afectó más de lo que debería.',
+  ],
+  proximoTorneo: [
+    'Confía más en tu revés, lo tienes mejor de lo que crees.',
+    'Relájate desde el primer punto — cuando intentas demasiado fuerte es cuando más te trabas.',
+    'El entrenamiento que has hecho está ahí — suéltalo y juega sin miedo al error.',
+  ],
+};
+
+// ─── Componentes UI ──────────────────────────────────────────────────────────
+
+// Colores por valor 1-5 — estado normal y seleccionado
+const SCALE_COLORS = {
+  1: { bg: 'rgba(220,38,38,.08)',  color: '#b91c1c', selectedBg: '#991b1b' },
+  2: { bg: 'rgba(220,38,38,.04)',  color: '#dc2626', selectedBg: '#dc2626' },
+  3: { bg: 'rgba(249,250,251,1)', color: '#6b7280', selectedBg: '#374151' },
+  4: { bg: 'rgba(22,163,74,.04)', color: '#16a34a', selectedBg: '#16a34a' },
+  5: { bg: 'rgba(22,163,74,.08)', color: '#15803d', selectedBg: '#166534' },
+};
+
+function ScaleButtons({ value, onChange, labels }) {
   return (
-    <div className="flex gap-2">
-      {[1, 2, 3, 4, 5].map((n) => (
-        <button
-          key={n}
-          type="button"
-          onClick={() => onChange(n)}
-          className={`w-9 h-9 rounded-full text-sm font-semibold transition-colors ${
-            value === n
-              ? 'bg-[#1B3A2A] text-white'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
-        >
-          {n}
-        </button>
-      ))}
+    <div className="flex gap-0 overflow-hidden text-[10px] leading-tight" style={{ border: '0.5px solid #e5e7eb', borderRadius: 4 }}>
+      {[1, 2, 3, 4, 5].map((n) => {
+        const selected = value === n;
+        const { bg, color, selectedBg } = SCALE_COLORS[n];
+        return (
+          <button
+            key={n}
+            type="button"
+            onClick={() => onChange(n)}
+            className="flex-1 text-center py-1.5 px-1 transition-colors"
+            style={{
+              background: selected ? selectedBg : bg,
+              color: selected ? '#fff' : color,
+              borderRight: n < 5 ? '0.5px solid #e5e7eb' : 'none',
+              fontWeight: selected ? 700 : 400,
+            }}
+          >
+            <div className="font-bold text-[11px]">{n}</div>
+            {labels && <div style={{ opacity: selected ? 1 : 0.85 }}>{labels[n]}</div>}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -47,6 +168,9 @@ export default function PostTorneo() {
   const [expanded, setExpanded] = useState({ A: true, B: false, C: false, D: false, E: false });
   const [submitted, setSubmitted] = useState(false);
 
+  // Placeholders elegidos al azar una vez por sesión
+  const [ph] = useState(() => Object.fromEntries(Object.entries(PH).map(([k, v]) => [k, pick(v)])));
+
   // A - Técnica
   const [derecha, setDerecha] = useState(0);
   const [reves, setReves] = useState(0);
@@ -70,7 +194,7 @@ export default function PostTorneo() {
   // D - Físico
   const [nivelFisico, setNivelFisico] = useState(0);
   const [dolor, setDolor] = useState('');
-  const [dolorDonde, setDolorDonde] = useState('');
+  const [dolorZonas, setDolorZonas] = useState([]);
   const [nutricion, setNutricion] = useState('');
 
   // E - Reflexión
@@ -114,78 +238,66 @@ export default function PostTorneo() {
         {/* A — Técnica */}
         <Section title="Técnica" letter="A" expanded={expanded.A} onToggle={() => toggle('A')}>
           <div>
-            <label className={labelClass}>Derecha (1-5)</label>
-            <ScaleButtons value={derecha} onChange={setDerecha} />
+            <label className={labelClass}>Derecha</label>
+            <ScaleButtons value={derecha} onChange={setDerecha} labels={TECNICA_LABELS} />
           </div>
           <div>
-            <label className={labelClass}>Revés (1-5)</label>
-            <ScaleButtons value={reves} onChange={setReves} />
+            <label className={labelClass}>Revés</label>
+            <ScaleButtons value={reves} onChange={setReves} labels={TECNICA_LABELS} />
           </div>
           <div>
-            <label className={labelClass}>Servicio (1-5)</label>
-            <ScaleButtons value={servicio} onChange={setServicio} />
+            <label className={labelClass}>Servicio</label>
+            <ScaleButtons value={servicio} onChange={setServicio} labels={TECNICA_LABELS} />
           </div>
           <div>
-            <label className={labelClass}>Volea (1-5)</label>
-            <ScaleButtons value={volea} onChange={setVolea} />
+            <label className={labelClass}>Volea</label>
+            <ScaleButtons value={volea} onChange={setVolea} labels={TECNICA_LABELS} />
           </div>
           <div>
-            <label className={labelClass}>Comentarios sobre tu técnica</label>
-            <textarea className={textareaClass} rows={3} value={comentarioTecnica} onChange={(e) => setComentarioTecnica(e.target.value)} />
+            <label className={labelClass}>¿Qué diferencia notaste entre cómo ejecutas tus golpes en entrenamiento y cómo lo hiciste en este torneo?</label>
+            <textarea className={textareaClass} rows={3} value={comentarioTecnica} onChange={(e) => setComentarioTecnica(e.target.value)}
+              placeholder={ph.comentarioTecnica} />
           </div>
           <div>
-            <label className={labelClass}>Aspecto técnico a mejorar</label>
-            <textarea className={textareaClass} rows={2} value={mejoraTecnica} onChange={(e) => setMejoraTecnica(e.target.value)} />
+            <label className={labelClass}>¿Qué notaste en tu ejecución durante el torneo que normalmente no aparece en entrenamiento?</label>
+            <textarea className={textareaClass} rows={2} value={mejoraTecnica} onChange={(e) => setMejoraTecnica(e.target.value)}
+              placeholder={ph.mejoraTecnica} />
           </div>
         </Section>
 
         {/* B — Táctica */}
         <Section title="Táctica" letter="B" expanded={expanded.B} onToggle={() => toggle('B')}>
           <div>
-            <label className={labelClass}>¿Seguiste el plan de juego?</label>
-            <div className="flex gap-4 mt-1">
-              {['Sí', 'Parcialmente', 'No'].map((opt) => (
-                <label key={opt} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="siguioPlan"
-                    value={opt}
-                    checked={siguioPlan === opt}
-                    onChange={(e) => setSiguioPlan(e.target.value)}
-                    className="accent-[#1B3A2A]"
-                  />
-                  {opt}
-                </label>
-              ))}
-            </div>
+            <label className={labelClass}>¿Cómo se relacionó tu plan de juego con lo que realmente pasó en el torneo?</label>
+            <textarea className={textareaClass} rows={3} value={comentarioPlan} onChange={(e) => setComentarioPlan(e.target.value)}
+              placeholder={ph.comentarioPlan} />
           </div>
           <div>
-            <label className={labelClass}>Comentarios sobre el plan</label>
-            <textarea className={textareaClass} rows={3} value={comentarioPlan} onChange={(e) => setComentarioPlan(e.target.value)} />
+            <label className={labelClass}>¿Qué pasó en el torneo que no tenías contemplado en tu plan?</label>
+            <textarea className={textareaClass} rows={3} value={tacticaFunciono} onChange={(e) => setTacticaFunciono(e.target.value)}
+              placeholder={ph.tacticaFunciono} />
           </div>
           <div>
-            <label className={labelClass}>¿Qué tácticas funcionaron?</label>
-            <textarea className={textareaClass} rows={3} value={tacticaFunciono} onChange={(e) => setTacticaFunciono(e.target.value)} />
-          </div>
-          <div>
-            <label className={labelClass}>¿Qué cambiarías tácticamente?</label>
-            <textarea className={textareaClass} rows={3} value={tacticaCambiar} onChange={(e) => setTacticaCambiar(e.target.value)} />
+            <label className={labelClass}>¿Qué cambiarías tácticamente de cómo competiste en este torneo?</label>
+            <textarea className={textareaClass} rows={3} value={tacticaCambiar} onChange={(e) => setTacticaCambiar(e.target.value)}
+              placeholder={ph.tacticaCambiar} />
           </div>
         </Section>
 
         {/* C — Mental */}
         <Section title="Mental" letter="C" expanded={expanded.C} onToggle={() => toggle('C')}>
           <div>
-            <label className={labelClass}>Manejo de presión (1-5)</label>
-            <ScaleButtons value={presion} onChange={setPresion} />
+            <label className={labelClass}>Manejo de presión</label>
+            <ScaleButtons value={presion} onChange={setPresion} labels={MENTAL_LABELS} />
           </div>
           <div>
-            <label className={labelClass}>¿Cómo estuvo tu concentración?</label>
-            <textarea className={textareaClass} rows={3} value={concentracion} onChange={(e) => setConcentracion(e.target.value)} />
+            <label className={labelClass}>¿Qué pasaba por tu cabeza en los momentos más intensos del torneo?</label>
+            <textarea className={textareaClass} rows={3} value={concentracion} onChange={(e) => setConcentracion(e.target.value)}
+              placeholder={ph.concentracion} />
           </div>
           <div>
-            <label className={labelClass}>Nivel de confianza (1-5)</label>
-            <ScaleButtons value={confianza} onChange={setConfianza} />
+            <label className={labelClass}>Nivel de confianza</label>
+            <ScaleButtons value={confianza} onChange={setConfianza} labels={MENTAL_LABELS} />
           </div>
           <div>
             <label className={labelClass}>¿Cómo reaccionaste ante errores?</label>
@@ -206,8 +318,8 @@ export default function PostTorneo() {
         {/* D — Físico */}
         <Section title="Físico" letter="D" expanded={expanded.D} onToggle={() => toggle('D')}>
           <div>
-            <label className={labelClass}>Nivel físico general (1-5)</label>
-            <ScaleButtons value={nivelFisico} onChange={setNivelFisico} />
+            <label className={labelClass}>Nivel físico general</label>
+            <ScaleButtons value={nivelFisico} onChange={setNivelFisico} labels={FISICO_LABELS} />
           </div>
           <div>
             <label className={labelClass}>¿Sentiste dolor o molestia?</label>
@@ -229,40 +341,69 @@ export default function PostTorneo() {
           </div>
           {dolor === 'Sí' && (
             <div>
-              <label className={labelClass}>¿Dónde?</label>
-              <input
-                value={dolorDonde}
-                onChange={(e) => setDolorDonde(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A2A]/40 focus:border-[#1B3A2A]"
-              />
+              <label className={labelClass}>¿En qué zona(s)?</label>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2 mt-1">
+                {[
+                  'Hombro der.', 'Hombro izq.',
+                  'Codo der.',   'Codo izq.',
+                  'Muñeca der.', 'Muñeca izq.',
+                  'Espalda alta','Espalda baja (lumbar)',
+                  'Cadera',      'Muslo / Isquiotibiales',
+                  'Rodilla der.','Rodilla izq.',
+                  'Tobillo der.','Tobillo izq.',
+                  'Pantorrilla', 'Cuello',
+                ].map((zona) => (
+                  <label key={zona} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={dolorZonas.includes(zona)}
+                      onChange={(e) =>
+                        setDolorZonas((prev) =>
+                          e.target.checked ? [...prev, zona] : prev.filter((z) => z !== zona)
+                        )
+                      }
+                      className="w-4 h-4 accent-[#1B3A2A]"
+                    />
+                    {zona}
+                  </label>
+                ))}
+              </div>
             </div>
           )}
           <div>
-            <label className={labelClass}>¿Cómo fue tu alimentación e hidratación?</label>
-            <textarea className={textareaClass} rows={3} value={nutricion} onChange={(e) => setNutricion(e.target.value)} />
+            <label className={labelClass}>¿Cómo respondió tu cuerpo conforme avanzó el torneo?</label>
+            <textarea className={textareaClass} rows={3} value={nutricion} onChange={(e) => setNutricion(e.target.value)}
+              placeholder={ph.nutricion} />
           </div>
         </Section>
 
         {/* E — Reflexión */}
         <Section title="Reflexión" letter="E" expanded={expanded.E} onToggle={() => toggle('E')}>
           <div>
-            <label className={labelClass}>¿Qué hiciste bien?</label>
-            <textarea className={textareaClass} rows={3} value={hiceBien} onChange={(e) => setHiceBien(e.target.value)} />
+            <label className={labelClass}>¿De qué momento de este torneo te sientes más orgulloso?</label>
+            <textarea className={textareaClass} rows={3} value={hiceBien} onChange={(e) => setHiceBien(e.target.value)}
+              placeholder={ph.hiceBien} />
           </div>
           <div>
-            <label className={labelClass}>¿Qué puedes mejorar?</label>
-            <textarea className={textareaClass} rows={3} value={mejorar} onChange={(e) => setMejorar(e.target.value)} />
+            <label className={labelClass}>¿Qué cambiarías de cómo compites si volvieras a jugar este torneo?</label>
+            <textarea className={textareaClass} rows={3} value={mejorar} onChange={(e) => setMejorar(e.target.value)}
+              placeholder={ph.mejorar} />
           </div>
           <div>
-            <label className={labelClass}>¿Cuál fue tu mayor aprendizaje?</label>
-            <textarea className={textareaClass} rows={3} value={aprendizaje} onChange={(e) => setAprendizaje(e.target.value)} />
+            <label className={labelClass}>¿Qué te llevas de este torneo al siguiente entrenamiento?</label>
+            <textarea className={textareaClass} rows={3} value={aprendizaje} onChange={(e) => setAprendizaje(e.target.value)}
+              placeholder={ph.aprendizaje} />
           </div>
           <div>
-            <label className={labelClass}>¿Qué harás diferente en el próximo torneo?</label>
-            <textarea className={textareaClass} rows={3} value={proximoTorneo} onChange={(e) => setProximoTorneo(e.target.value)} />
+            <label className={labelClass}>¿Qué le dirías a tu yo de antes del torneo si pudieras?</label>
+            <textarea className={textareaClass} rows={3} value={proximoTorneo} onChange={(e) => setProximoTorneo(e.target.value)}
+              placeholder={ph.proximoTorneo} />
           </div>
           <div>
-            <label className={labelClass}>Satisfacción general (1-10): <span className="font-bold text-[#1B3A2A]">{satisfaccion}</span></label>
+            <label className={labelClass}>
+              Satisfacción general: <span className="font-bold text-[#1B3A2A]">{satisfaccion}</span>
+              {' '}<span className="font-normal text-gray-500 italic">— {getSatisfaccionLabel(satisfaccion)}</span>
+            </label>
             <input
               type="range"
               min={1}
@@ -272,8 +413,8 @@ export default function PostTorneo() {
               className="w-full accent-[#1B3A2A]"
             />
             <div className="flex justify-between text-xs text-gray-400">
-              <span>1</span>
-              <span>10</span>
+              <span>1 — No di lo que tenía</span>
+              <span>Superé mis expectativas — 10</span>
             </div>
           </div>
         </Section>

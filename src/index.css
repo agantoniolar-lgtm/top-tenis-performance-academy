@@ -1,9 +1,11 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,700;1,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Manrope:wght@400;500;600;700;800&family=Big+Shoulders+Display:wght@500;700;800;900&family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,700;1,700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @theme {
   --font-display: 'Playfair Display', serif;
   --font-sans: 'Inter', sans-serif;
+  --font-num: 'Big Shoulders Display', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
   --color-primary: #1B3A2A;
   --color-primary-light: #2D5A3D;
   --color-copper: #8B4513;
@@ -17,12 +19,33 @@
   --color-error: #DC2626;
 }
 
+/* ─── Design system CSS vars (portal) ───────────────────────────────────── */
+:root {
+  --green-deep:   #0E2419;
+  --green:        #1B3A2A;
+  --green-mid:    #2D5A3D;
+  --green-soft:   #A7C4B0;
+  --paper:        #FFFFFF;
+  --paper-2:      #FAFAF7;
+  --cream:        #F4F2EC;
+  --cream-warm:   #ECE8DD;
+  --ink:          #14110D;
+  --ink-soft:     #4A4842;
+  --ink-mute:     #8A8780;
+  --line:         rgba(20,17,13,.08);
+  --line-strong:  rgba(20,17,13,.16);
+  --accent:       #8B4513;
+  --accent-ink:   #FFFFFF;
+  --good:         #16A34A;
+  --bad:          #DC2626;
+  --warn:         #D97706;
+}
+
 @layer base {
   html {
     scroll-behavior: smooth;
     overflow-x: hidden;
   }
-
   body {
     font-family: 'Inter', sans-serif;
     color: #1A1A1A;
@@ -30,4 +53,60 @@
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
   }
+}
+
+/* ─── Portal typography utilities ──────────────────────────────────────── */
+.portal-layout {
+  font-family: 'Manrope', sans-serif;
+  color: var(--ink);
+  background: var(--paper-2);
+  -webkit-font-smoothing: antialiased;
+}
+.font-display { font-family: 'Bricolage Grotesque', sans-serif; font-optical-sizing: auto; letter-spacing: -0.02em; }
+.font-num     { font-family: 'Big Shoulders Display', sans-serif; font-feature-settings: "tnum" 1; font-variant-numeric: tabular-nums; }
+.font-mono    { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+.eyebrow      { font-family: 'Manrope', sans-serif; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; font-size: 10.5px; }
+.tnum         { font-variant-numeric: tabular-nums; }
+
+[data-density="compact"] { font-size: 13px; }
+[data-density="comfy"]   { font-size: 15px; }
+
+/* ─── Court background ──────────────────────────────────────────────────── */
+.court-bg {
+  background: linear-gradient(135deg, #2D5A3D 0%, #1B3A2A 100%);
+  position: relative;
+  overflow: hidden;
+}
+.court-bg::before { content: ""; position: absolute; inset: 12%; border: 1.5px solid rgba(255,255,255,.5); }
+.court-bg::after  { content: ""; position: absolute; left: 50%; top: 12%; bottom: 12%; width: 1.5px; background: rgba(255,255,255,.4); }
+
+/* ─── Hairlines ─────────────────────────────────────────────────────────── */
+.hairline        { border: 1px solid var(--line); }
+.hairline-b      { border-bottom: 1px solid var(--line); }
+.hairline-t      { border-top: 1px solid var(--line); }
+.hairline-r      { border-right: 1px solid var(--line); }
+.hairline-strong { border: 1px solid var(--line-strong); }
+
+/* ─── Tags ──────────────────────────────────────────────────────────────── */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-family: 'Manrope', sans-serif;
+}
+
+/* ─── Score ring ────────────────────────────────────────────────────────── */
+.ring-bg { stroke: var(--line); }
+
+/* ─── Scrollbar ─────────────────────────────────────────────────────────── */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }
+
+@media print {
+  .no-print { display: none !important; }
 }

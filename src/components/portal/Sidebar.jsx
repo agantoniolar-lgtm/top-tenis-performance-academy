@@ -1,107 +1,80 @@
-import { NavLink } from 'react-router-dom';
-import {
-  LayoutDashboard,
-  Trophy,
-  ClipboardList,
-  Dumbbell,
-  User,
-  Users,
-  FilePlus,
-  LogOut,
-} from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { Icon, Logo } from './ui';
 
-const mainNav = [
-  { to: '/portal', icon: LayoutDashboard, label: 'Dashboard', end: true },
-  { to: '/portal/torneos', icon: Trophy, label: 'Mis Torneos' },
-  { to: '/portal/reportes', icon: ClipboardList, label: 'Mis Reportes' },
-  { to: '/portal/ejercicios', icon: Dumbbell, label: 'Ejercicios' },
-  { to: '/portal/perfil', icon: User, label: 'Mi Perfil' },
-];
-
-const coachNav = [
-  { to: '/portal/alumnos', icon: Users, label: 'Alumnos' },
-  { to: '/portal/reportes/nuevo', icon: FilePlus, label: 'Crear Reporte' },
+// MVP: solo los features conectados a Supabase
+const NAV = [
+  { id: 'atletas',  label: 'Atletas',       icon: 'users', path: '/portal/alumnos' },
+  { id: 'reporte',  label: 'Nuevo reporte', icon: 'file',  path: '/portal/reportes/nuevo' },
 ];
 
 export default function Sidebar({ open, onClose }) {
+  const navigate         = useNavigate();
+  const location         = useLocation();
   const { user, logout } = useAuth();
-  const isCoachOrAdmin = user?.rol === 'Coach' || user?.rol === 'Admin';
 
-  const linkClass = ({ isActive }) =>
-    `flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition ${
-      isActive
-        ? 'bg-[#2D5A3D] text-white font-semibold'
-        : 'text-gray-300 hover:bg-[#2D5A3D]/50 hover:text-white'
-    }`;
+  const isActive = (path) =>
+    path === '/portal/alumnos'
+      ? location.pathname.startsWith('/portal/alumnos')
+      : location.pathname.startsWith(path);
 
   return (
     <>
-      {/* Mobile backdrop */}
       {open && (
-        <div
-          className="fixed inset-0 bg-black/40 z-40 lg:hidden"
-          onClick={onClose}
-        />
+        <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={onClose} />
       )}
-
       <aside
-        className={`fixed top-0 left-0 h-full w-60 bg-[#1B3A2A] text-white z-50 flex flex-col transition-transform duration-200 ${
+        className={`fixed top-0 left-0 h-full w-[224px] z-50 flex flex-col transition-transform duration-200 ${
           open ? 'translate-x-0' : '-translate-x-full'
         } lg:translate-x-0`}
+        style={{ background: 'var(--green-deep)' }}
       >
         {/* Logo */}
-        <div className="px-6 py-5 border-b border-[#2D5A3D]">
-          <span className="font-bold text-lg">Top Tenis</span>
-          <br />
-          <span className="text-[#A7C4B0] text-xs">Performance Academy</span>
+        <div className="px-5 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,.08)' }}>
+          <Logo />
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {mainNav.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={linkClass}
-              onClick={onClose}
-            >
-              <item.icon size={18} />
-              {item.label}
-            </NavLink>
-          ))}
-
-          {isCoachOrAdmin && (
-            <>
-              <div className="border-t border-[#2D5A3D] my-3" />
-              {coachNav.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  className={linkClass}
-                  onClick={onClose}
-                >
-                  <item.icon size={18} />
-                  {item.label}
-                </NavLink>
-              ))}
-            </>
-          )}
+        {/* Nav */}
+        <nav className="flex-1 py-4">
+          {NAV.map((item) => {
+            const active = isActive(item.path);
+            return (
+              <button
+                key={item.id}
+                onClick={() => { navigate(item.path); onClose?.(); }}
+                className={`w-full flex items-center gap-3 px-5 py-2.5 text-[13px] relative transition ${
+                  active ? 'text-white' : 'text-white/65 hover:text-white hover:bg-white/[0.03]'
+                }`}
+              >
+                {active && (
+                  <div
+                    className="absolute left-0 top-1.5 bottom-1.5 w-[2px]"
+                    style={{ background: 'var(--accent)' }}
+                  />
+                )}
+                <Icon name={item.icon} size={16} />
+                <span className="flex-1 text-left font-medium tracking-tight">{item.label}</span>
+              </button>
+            );
+          })}
         </nav>
 
-        {/* Footer */}
-        <div className="px-3 py-4 border-t border-[#2D5A3D]">
-          <button
-            onClick={logout}
-            className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-gray-300 hover:bg-red-900/40 hover:text-red-300 transition w-full"
-          >
-            <LogOut size={18} />
-            Salir
-          </button>
-          <p className="text-[#A7C4B0] text-[10px] text-center mt-3 opacity-60">
-            Powered by YONEX
-          </p>
+        {/* User */}
+        <div className="px-5 py-4" style={{ borderTop: '1px solid rgba(255,255,255,.08)' }}>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 court-bg shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="text-[12px] font-semibold text-white truncate">
+                {user?.nombre ?? '—'}
+              </div>
+              <div className="text-[10px] eyebrow truncate" style={{ color: 'var(--green-soft)' }}>
+                {user?.rol ?? 'coach'}
+              </div>
+            </div>
+            <button onClick={logout} className="text-white/45 hover:text-white transition">
+              <Icon name="logout" size={14} />
+            </button>
+          </div>
         </div>
       </aside>
     </>

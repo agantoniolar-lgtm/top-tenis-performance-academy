@@ -1,59 +1,93 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useState, useEffect, useCallback, createContext, useContext } from 'react';
-import { login as authLogin, logout as authLogout, getUser } from '../data/auth';
+import { supabase } from '../lib/supabase';
 
 const AuthContext = createContext(null);
 
-/**
- * Proveedor de autenticación para Top Tenis Performance Academy.
- * Envuelve la aplicación y provee el contexto de autenticación.
- */
+// user shape: { id (auth uid), email, nombre, rol, coach_id | athlete_id }
+
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
+  const [user,    setUser]    = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Enriquece el auth user con datos del perfil (coaches / athletes)
+  async function enrichUser(authUser) {
+    if (!authUser) { setUser(null); return; }
+
+    // Intentar como coach primero
+    const { data: coach } = await supabase
+      .from('coaches')
+      .select('id, nombre, apellido')
+      .eq('user_id', authUser.id)
+      .maybeSingle();
+
+    if (coach) {
+      setUser({
+        id:       authUser.id,
+        email:    authUser.email,
+        nombre:   `${coach.nombre} ${coach.apellido}`,
+        rol:      'Coach',
+        coach_id: coach.id,
+      });
+      return;
+    }
+
+    // Intentar como atleta
+    const { data: athlete } = await supabase
+      .from('athletes')
+      .select('id, nombre, apellido')
+      .eq('user_id', authUser.id)
+      .maybeSingle();
+
+    if (athlete) {
+      setUser({
+        id:         authUser.id,
+        email:      authUser.email,
+        nombre:     `${athlete.nombre} ${athlete.apellido}`,
+        rol:        'Atleta',
+        athlete_id: athlete.id,
+      });
+      return;
+    }
+
+    // Fallback: usuario sin perfil conocido
+    setUser({ id: authUser.id, email: authUser.email, nombre: authUser.email, rol: 'Desconocido' });
+  }
+
   useEffect(() => {
-    const usuario = getUser();
-    if (usuario) {
-      setUser(usuario);
-    }
-    setLoading(false);
+    // Sesión activa al montar
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      enrichUser(session?.user ?? null).finally(() => setLoading(false));
+    });
+
+    // Escuchar cambios de sesión
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      enrichUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const login = useCallback((email, password) => {
-    const usuario = authLogin(email, password);
-    if (usuario) {
-      setUser(usuario);
-    }
-    return usuario;
+  const login = useCallback(async (email, password) => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    return data;
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    await supabase.auth.signOut();
     setUser(null);
-    authLogout();
   }, []);
-
-  const value = {
-    user,
-    isAuthenticated: user !== null,
-    loading,
-    login,
-    logout,
-  };
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-/**
- * Hook de autenticación. Debe usarse dentro de un AuthProvider.
- */
 export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth debe usarse dentro de un AuthProvider');
-  }
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth debe usarse dentro de AuthProvider');
+  return ctx;
 }

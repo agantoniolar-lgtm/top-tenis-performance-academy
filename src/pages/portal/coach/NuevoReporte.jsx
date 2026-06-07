@@ -1,145 +1,385 @@
-import { useState } from 'react';
-import { alumnos } from '../../../data/dummy';
-import { FileText, CheckCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { supabase } from '../../../lib/supabase';
+import { useAuth } from '../../../hooks/useAuth';
 
-const dimensiones = ['Técnica', 'Táctica', 'Físico', 'Mental', 'Torneos'];
+// ─── On-court fields ───────────────────────────────────────────────────────
+const STROKES = [
+  { key: 'serve',    label: 'Saque' },
+  { key: 'forehand', label: 'Derecha' },
+  { key: 'backhand', label: 'Revés' },
+  { key: 'volea',    label: 'Volea' },
+  { key: 'devolucion', label: 'Devolución' },
+  { key: 'footwork', label: 'Movimiento' },
+];
+const TACTICS = [
+  { key: 'seleccion_golpe',      label: 'Selección de golpe' },
+  { key: 'manejo_riesgo',        label: 'Manejo de riesgo' },
+  { key: 'puntos_clave',         label: 'Puntos clave' },
+  { key: 'adaptacion_tactica',   label: 'Adaptación táctica' },
+  { key: 'transferencia_partido',label: 'Transferencia al partido' },
+];
+
+// ─── Physical fields ────────────────────────────────────────────────────────
+const PHYSICAL_NUM = [
+  { key: 'sprint_20m',         label: 'Sprint 20m (seg)', placeholder: '3.14' },
+  { key: 'salto_vertical_cm',  label: 'Salto vertical (cm)', placeholder: '42' },
+  { key: 'spider_drill_seg',   label: 'Spider drill (seg)', placeholder: '4.62' },
+  { key: 'sentadillas_1min',   label: 'Sentadillas 1 min (reps)', placeholder: '30' },
+  { key: 'lagartijas_1min',    label: 'Lagartijas 1 min (reps)', placeholder: '20' },
+  { key: 'beep_test_nivel',    label: 'Beep test nivel', placeholder: '8' },
+  { key: 'beep_test_rep',      label: 'Beep test rep', placeholder: '5' },
+];
+const FMS_FIELDS = [
+  { key: 'fms_squat',      label: 'Squat' },
+  { key: 'fms_lunge_izq',  label: 'Lunge izq.' },
+  { key: 'fms_lunge_der',  label: 'Lunge der.' },
+  { key: 'fms_hombro_izq', label: 'Hombro izq.' },
+  { key: 'fms_hombro_der', label: 'Hombro der.' },
+];
+
+// ─── Character fields ───────────────────────────────────────────────────────
+const CHAR_SCORES = [
+  { key: 'etica_trabajo', label: 'Ética de trabajo' },
+  { key: 'coachabilidad', label: 'Coachabilidad' },
+];
+
+const defScores = (fields, def = 0) => Object.fromEntries(fields.map(f => [f.key, def]));
+
+const TABS = [
+  { id: 'oncourt',   label: 'On-court' },
+  { id: 'physical',  label: 'Physical' },
+  { id: 'character', label: 'Character' },
+];
 
 export default function NuevoReporte() {
-  const [alumnoId, setAlumnoId] = useState('');
-  const [fechaInicio, setFechaInicio] = useState('');
-  const [fechaFin, setFechaFin] = useState('');
-  const [resumen, setResumen] = useState('');
-  const [scores, setScores] = useState(
-    Object.fromEntries(dimensiones.map((d) => [d, { puntaje: 5, nota: '' }]))
-  );
-  const [areas, setAreas] = useState('');
-  const [objetivos, setObjetivos] = useState('');
-  const [submitted, setSubmitted] = useState(false);
+  const { user }    = useAuth();
+  const navigate    = useNavigate();
+  const location    = useLocation();
 
-  const handleScoreChange = (dim, field, value) => {
-    setScores((prev) => ({
-      ...prev,
-      [dim]: { ...prev[dim], [field]: value },
-    }));
+  const [tab,       setTab]   = useState('oncourt');
+  const [athletes,  setAth]   = useState([]);
+  const [athleteId, setAtId]  = useState(location.state?.athleteId ?? '');
+  const [period,    setPer]   = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+  });
+
+  // On-court state
+  const [utr,      setUtr]   = useState('');
+  const [strokes,  setStr]   = useState(defScores(STROKES, 0));
+  const [tactics,  setTac]   = useState(defScores(TACTICS, 0));
+  const [tecNota,  setTecN]  = useState('');
+  const [tacNota,  setTacN]  = useState('');
+
+  // Physical state
+  const [phys,     setPhys]  = useState(Object.fromEntries(PHYSICAL_NUM.map(f => [f.key, ''])));
+  const [fms,      setFms]   = useState(Object.fromEntries(FMS_FIELDS.map(f => [f.key, false])));
+
+  // Character state
+  const [charScores, setChar] = useState(defScores(CHAR_SCORES, 3));
+  const [lideNota,  setLide]  = useState('');
+  const [conductaLog, setCond] = useState('');
+
+  const [saving,  setSav]  = useState(false);
+  const [error,   setErr]  = useState(null);
+  const [done,    setDone] = useState(false);
+  const [saved,   setSaved] = useState({ oncourt: false, physical: false, character: false });
+
+  useEffect(() => {
+    if (!user?.coach_id) return;
+    supabase.from('athletes').select('id, nombre, apellido')
+      .eq('coach_id', user.coach_id).eq('activo', true).order('nombre')
+      .then(({ data }) => setAth(data ?? []));
+  }, [user?.coach_id]);
+
+  // Upsert the report container, return report_id
+  const ensureReport = async () => {
+    const { data, error } = await supabase
+      .from('reports')
+      .upsert({ athlete_id: athleteId, coach_id: user.coach_id, period },
+               { onConflict: 'athlete_id,period', ignoreDuplicates: false })
+      .select('id').single();
+    if (error) throw error;
+    return data.id;
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setSubmitted(true);
+  const saveOnCourt = async () => {
+    if (!athleteId) return setErr('Selecciona un atleta.');
+    setSav(true); setErr(null);
+    try {
+      const reportId = await ensureReport();
+      const { error: ocErr } = await supabase.from('report_on_court').upsert({
+        report_id: reportId, ...strokes, ...tactics,
+        utr: utr ? parseFloat(utr) : null,
+        tecnica_nota: tecNota || null, tactica_nota: tacNota || null,
+        completed_at: new Date().toISOString(), completed_by: user.coach_id,
+      }, { onConflict: 'report_id' });
+      if (ocErr) throw ocErr;
+      setSaved(s => ({ ...s, oncourt: true }));
+      setTab('physical');
+    } catch (e) { setErr(e.message); }
+    finally { setSav(false); }
   };
 
-  if (submitted) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mb-4">
-          <CheckCircle className="w-8 h-8 text-green-600" />
+  const savePhysical = async () => {
+    if (!athleteId) return setErr('Selecciona un atleta.');
+    setSav(true); setErr(null);
+    try {
+      const reportId = await ensureReport();
+      const payload = { report_id: reportId, ...fms };
+      PHYSICAL_NUM.forEach(f => { if (phys[f.key]) payload[f.key] = parseFloat(phys[f.key]); });
+      const { error } = await supabase.from('report_physical')
+        .upsert({ ...payload, completed_at: new Date().toISOString(), completed_by: user.coach_id },
+                 { onConflict: 'report_id' });
+      if (error) throw error;
+      setSaved(s => ({ ...s, physical: true }));
+      setTab('character');
+    } catch (e) { setErr(e.message); }
+    finally { setSav(false); }
+  };
+
+  const saveCharacter = async () => {
+    if (!athleteId) return setErr('Selecciona un atleta.');
+    setSav(true); setErr(null);
+    try {
+      const reportId = await ensureReport();
+      const { error } = await supabase.from('report_character').upsert({
+        report_id: reportId, ...charScores,
+        liderazgo_nota: lideNota || null, conducta_log: conductaLog || null,
+        completed_at: new Date().toISOString(), completed_by: user.coach_id,
+      }, { onConflict: 'report_id' });
+      if (error) throw error;
+      setSaved(s => ({ ...s, character: true }));
+      setDone(true);
+    } catch (e) { setErr(e.message); }
+    finally { setSav(false); }
+  };
+
+  if (done) return (
+    <Shell>
+      <div className="max-w-md mx-auto text-center py-20">
+        <div className="w-14 h-14 flex items-center justify-center mx-auto mb-4"
+             style={{ background: 'rgba(22,163,74,.12)', color: 'var(--good)' }}>
+          <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12l5 5L20 7"/></svg>
         </div>
-        <h2 className="text-xl font-bold text-gray-900 mb-2">Reporte publicado exitosamente</h2>
-        <p className="text-gray-500 text-sm">El alumno y su familia podrán verlo en su portal.</p>
+        <h2 className="font-display font-extrabold text-[24px] mb-2">Reporte completo</h2>
+        <p className="text-[var(--ink-mute)] text-[13px] mb-6">
+          Secciones guardadas: {Object.entries(saved).filter(([,v]) => v).map(([k]) => k).join(', ')}.
+        </p>
+        <div className="flex justify-center gap-3">
+          <button onClick={() => navigate('/portal/alumnos')}
+                  className="px-4 py-2 text-[12px] font-semibold uppercase tracking-wide hairline hover:bg-[var(--cream)] transition">
+            Ver atletas
+          </button>
+          <button onClick={() => { setDone(false); setAtId(''); setUtr(''); setStr(defScores(STROKES, 0)); setTac(defScores(TACTICS, 0)); setPhys(Object.fromEntries(PHYSICAL_NUM.map(f=>[f.key,'']))); setChar(defScores(CHAR_SCORES, 3)); setSaved({oncourt:false,physical:false,character:false}); setTab('oncourt'); }}
+                  className="px-4 py-2 text-[12px] font-semibold uppercase tracking-wide text-white hover:opacity-90"
+                  style={{ background: 'var(--accent)' }}>
+            Nuevo reporte
+          </button>
+        </div>
       </div>
-    );
-  }
-
-  const inputClass =
-    'w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A2A]/40 focus:border-[#1B3A2A]';
-  const labelClass = 'block text-sm font-medium text-gray-700 mb-1';
+    </Shell>
+  );
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <FileText className="w-6 h-6 text-[#8B4513]" />
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Crear reporte periódico</h1>
-          <p className="text-gray-500 text-sm">Evalúa el progreso del alumno en todas las dimensiones.</p>
-        </div>
-      </div>
+    <Shell>
+      <div className="max-w-2xl">
+        <h1 className="font-display font-extrabold text-[28px] leading-none mb-1">Nuevo reporte</h1>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Alumno & period */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-          <div>
-            <label className={labelClass}>Alumno</label>
-            <select value={alumnoId} onChange={(e) => setAlumnoId(e.target.value)} className={inputClass} required>
-              <option value="">Seleccionar alumno...</option>
-              {alumnos.map((a) => (
-                <option key={a.id} value={a.id}>{a.nombre}</option>
-              ))}
+        {/* Atleta + Periodo */}
+        <div className="grid grid-cols-2 gap-4 mb-6 mt-4">
+          <Field label="Atleta" required>
+            <select value={athleteId} onChange={e => setAtId(e.target.value)} required
+                    className="w-full hairline px-3 py-2 text-[13px] bg-[var(--paper)] outline-none">
+              <option value="">— seleccionar —</option>
+              {athletes.map(a => <option key={a.id} value={a.id}>{a.nombre} {a.apellido}</option>)}
             </select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={labelClass}>Periodo — Desde</label>
-              <input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} className={inputClass} required />
-            </div>
-            <div>
-              <label className={labelClass}>Periodo — Hasta</label>
-              <input type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} className={inputClass} required />
-            </div>
-          </div>
-
-          <div>
-            <label className={labelClass}>Resumen general</label>
-            <textarea value={resumen} onChange={(e) => setResumen(e.target.value)} className={`${inputClass} resize-none`} rows={4} required />
-          </div>
+          </Field>
+          <Field label="Periodo (mes)">
+            <input type="month" value={period.slice(0,7)}
+                   onChange={e => setPer(`${e.target.value}-01`)}
+                   className="w-full hairline px-3 py-2 text-[13px] bg-[var(--paper)] outline-none" />
+          </Field>
         </div>
 
-        {/* Dimensions */}
-        {dimensiones.map((dim) => (
-          <div key={dim} className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-800">{dim}</h3>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-500">Puntaje:</span>
-                <span className="text-sm font-bold text-[#1B3A2A]">{scores[dim].puntaje}</span>
+        {/* Tabs */}
+        <div className="flex gap-0 hairline-b mb-6">
+          {TABS.map((t) => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+                    className={`px-4 py-3 text-[11px] uppercase tracking-[0.1em] font-semibold relative transition ${
+                      tab === t.id ? 'text-[var(--ink)]' : 'text-[var(--ink-mute)] hover:text-[var(--ink)]'
+                    }`}>
+              {t.label}
+              {saved[t.id] && <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full" style={{ background: 'var(--good)', verticalAlign: 'middle' }} />}
+              {tab === t.id && <div className="absolute bottom-[-1px] left-0 right-0 h-[2px]" style={{ background: 'var(--accent)' }} />}
+            </button>
+          ))}
+        </div>
+
+        {error && <div className="p-3 mb-4 text-[12px] text-red-700 hairline" style={{ background: 'rgba(220,38,38,.06)' }}>{error}</div>}
+
+        {/* On-court */}
+        {tab === 'oncourt' && (
+          <div className="space-y-6">
+            <Field label="UTR al momento del reporte">
+              <input type="number" step="0.01" min="1" max="16" value={utr}
+                     onChange={e => setUtr(e.target.value)} placeholder="ej. 9.2"
+                     className="w-32 hairline px-3 py-2 text-[13px] bg-[var(--paper)] outline-none" />
+            </Field>
+            <div>
+              <p className="eyebrow !text-[10px] mb-3 text-[var(--ink-mute)]">Técnica</p>
+              <ScaleLegend type="oncourt" />
+              <div className="space-y-3 mt-3">
+                {STROKES.map(s => <ScoreRow key={s.key} label={s.label} value={strokes[s.key]} onChange={v => setStr(p => ({ ...p, [s.key]: v }))} values={[-2,-1,0,1,2]} />)}
+              </div>
+              <textarea value={tecNota} onChange={e => setTecN(e.target.value)} rows={3}
+                        placeholder="Notas técnicas…"
+                        className="w-full mt-3 hairline px-3 py-2 text-[13px] bg-[var(--paper)] outline-none resize-none" />
+            </div>
+            <div>
+              <p className="eyebrow !text-[10px] mb-3 text-[var(--ink-mute)]">Táctica</p>
+              <div className="space-y-3">
+                {TACTICS.map(t => <ScoreRow key={t.key} label={t.label} value={tactics[t.key]} onChange={v => setTac(p => ({ ...p, [t.key]: v }))} values={[-2,-1,0,1,2]} />)}
+              </div>
+              <textarea value={tacNota} onChange={e => setTacN(e.target.value)} rows={3}
+                        placeholder="Notas tácticas…"
+                        className="w-full mt-3 hairline px-3 py-2 text-[13px] bg-[var(--paper)] outline-none resize-none" />
+            </div>
+            <SaveBtn onClick={saveOnCourt} saving={saving} label="Guardar y continuar →" />
+          </div>
+        )}
+
+        {/* Physical */}
+        {tab === 'physical' && (
+          <div className="space-y-6">
+            <div>
+              <p className="eyebrow !text-[10px] mb-3 text-[var(--ink-mute)]">Tests de rendimiento</p>
+              <div className="grid grid-cols-2 gap-4">
+                {PHYSICAL_NUM.map(f => (
+                  <Field key={f.key} label={f.label}>
+                    <input type="number" step="0.01" value={phys[f.key]}
+                           onChange={e => setPhys(p => ({ ...p, [f.key]: e.target.value }))}
+                           placeholder={f.placeholder}
+                           className="w-full hairline px-3 py-2 text-[13px] bg-[var(--paper)] outline-none" />
+                  </Field>
+                ))}
               </div>
             </div>
-            <input
-              type="range"
-              min={0}
-              max={10}
-              step={0.5}
-              value={scores[dim].puntaje}
-              onChange={(e) => handleScoreChange(dim, 'puntaje', Number(e.target.value))}
-              className="w-full accent-[#1B3A2A]"
-            />
-            <div className="flex justify-between text-xs text-gray-400">
-              <span>0</span>
-              <span>5</span>
-              <span>10</span>
-            </div>
             <div>
-              <label className={labelClass}>Notas sobre {dim.toLowerCase()}</label>
-              <textarea
-                value={scores[dim].nota}
-                onChange={(e) => handleScoreChange(dim, 'nota', e.target.value)}
-                className={`${inputClass} resize-none`}
-                rows={3}
-              />
+              <p className="eyebrow !text-[10px] mb-3 text-[var(--ink-mute)]">FMS simplificado (Pass / Fail)</p>
+              <div className="grid grid-cols-3 gap-3">
+                {FMS_FIELDS.map(f => (
+                  <label key={f.key} className="flex items-center gap-2 cursor-pointer text-[13px]">
+                    <input type="checkbox" checked={fms[f.key]}
+                           onChange={e => setFms(p => ({ ...p, [f.key]: e.target.checked }))}
+                           className="w-4 h-4 accent-[var(--accent)]" />
+                    {f.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setTab('oncourt')} className="px-4 py-2 text-[12px] font-semibold uppercase tracking-wide hairline hover:bg-[var(--cream)] transition">← Volver</button>
+              <SaveBtn onClick={savePhysical} saving={saving} label="Guardar y continuar →" />
             </div>
           </div>
-        ))}
+        )}
 
-        {/* Areas & objectives */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-          <div>
-            <label className={labelClass}>Áreas de oportunidad <span className="text-gray-400 font-normal">(una por línea)</span></label>
-            <textarea value={areas} onChange={(e) => setAreas(e.target.value)} className={`${inputClass} resize-none`} rows={4} />
+        {/* Character */}
+        {tab === 'character' && (
+          <div className="space-y-6">
+            <div>
+              <p className="eyebrow !text-[10px] mb-3 text-[var(--ink-mute)]">Evaluación de conducta</p>
+              <ScaleLegend type="character" />
+              <div className="space-y-3 mt-3">
+                {CHAR_SCORES.map(s => <ScoreRow key={s.key} label={s.label} value={charScores[s.key]} onChange={v => setChar(p => ({ ...p, [s.key]: v }))} values={[1,2,3,4,5]} />)}
+              </div>
+            </div>
+            <Field label="Liderazgo (narrativo)">
+              <textarea value={lideNota} onChange={e => setLide(e.target.value)} rows={3}
+                        placeholder="Describe el comportamiento de liderazgo del período…"
+                        className="w-full hairline px-3 py-2 text-[13px] bg-[var(--paper)] outline-none resize-none" />
+            </Field>
+            <Field label="Log de conducta (incidentes y momentos positivos)">
+              <textarea value={conductaLog} onChange={e => setCond(e.target.value)} rows={4}
+                        placeholder="Ej: 14 Jun — felicitó a rival después de perder en semifinal…"
+                        className="w-full hairline px-3 py-2 text-[13px] bg-[var(--paper)] outline-none resize-none" />
+            </Field>
+            <div className="flex gap-3">
+              <button onClick={() => setTab('physical')} className="px-4 py-2 text-[12px] font-semibold uppercase tracking-wide hairline hover:bg-[var(--cream)] transition">← Volver</button>
+              <SaveBtn onClick={saveCharacter} saving={saving} label="Finalizar reporte" />
+            </div>
           </div>
-          <div>
-            <label className={labelClass}>Próximos objetivos <span className="text-gray-400 font-normal">(uno por línea)</span></label>
-            <textarea value={objetivos} onChange={(e) => setObjetivos(e.target.value)} className={`${inputClass} resize-none`} rows={4} />
-          </div>
+        )}
+      </div>
+    </Shell>
+  );
+}
+
+const ONCOURT_LABELS = { '-2': 'Estancado', '-1': 'Rezagado', '0': 'Por buen camino', '1': 'Adelantado', '2': 'Superado' };
+const CHAR_LABELS    = { '1': 'Ausente', '2': 'Inconsistente', '3': 'Por buen camino', '4': 'Proactivo', '5': 'Consolidado' };
+
+function ScaleLegend({ type }) {
+  const items = type === 'oncourt'
+    ? [[-2,'Estancado'],[-1,'Rezagado'],[0,'Por buen camino'],[1,'Adelantado'],[2,'Superado']]
+    : [[1,'Ausente'],[2,'Inconsistente'],[3,'Por buen camino'],[4,'Proactivo'],[5,'Consolidado']];
+  return (
+    <div className="flex gap-0 text-[10px] hairline overflow-hidden" style={{ borderRadius: 2 }}>
+      {items.map(([v, lbl]) => (
+        <div key={v} className="flex-1 text-center py-1 px-0.5 leading-tight"
+             style={{ background: v < 0 ? 'rgba(220,38,38,.07)' : v === 0 ? 'var(--cream)' : 'rgba(22,163,74,.07)',
+                      color: v < 0 ? '#b91c1c' : v === 0 ? 'var(--ink-mute)' : '#15803d',
+                      borderRight: '0.5px solid var(--border)' }}>
+          <div className="font-bold">{v > 0 ? `+${v}` : v}</div>
+          <div style={{ opacity: 0.8 }}>{lbl}</div>
         </div>
-
-        <button
-          type="submit"
-          className="w-full bg-[#1B3A2A] hover:bg-[#2D5A3D] text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
-        >
-          <FileText className="w-4 h-4" />
-          Publicar reporte
-        </button>
-      </form>
+      ))}
     </div>
   );
+}
+
+function ScoreRow({ label, value, onChange, values = [-2,-1,0,1,2] }) {
+  const labels = values.includes(0) ? ONCOURT_LABELS : CHAR_LABELS;
+  const fmt = (n) => n > 0 ? `+${n}` : `${n}`;
+  return (
+    <div className="flex items-center gap-4">
+      <span className="text-[13px] w-44 shrink-0">{label}</span>
+      <div className="flex gap-1">
+        {values.map(n => (
+          <button key={n} type="button" onClick={() => onChange(n)}
+                  className="w-8 h-8 text-[12px] font-bold transition"
+                  style={value === n ? { background: 'var(--accent)', color: 'white' } : { background: 'var(--cream)', color: 'var(--ink-mute)' }}>
+            {fmt(n)}
+          </button>
+        ))}
+      </div>
+      <span className="text-[11px] text-[var(--ink-mute)] w-28 truncate">{labels[String(value)]}</span>
+    </div>
+  );
+}
+
+function SaveBtn({ onClick, saving, label }) {
+  return (
+    <button type="button" onClick={onClick} disabled={saving}
+            className="px-6 py-2 text-[12px] font-semibold uppercase tracking-wide text-white disabled:opacity-60 hover:opacity-90 transition"
+            style={{ background: 'var(--accent)' }}>
+      {saving ? 'Guardando…' : label}
+    </button>
+  );
+}
+
+function Field({ label, children, required }) {
+  return (
+    <div>
+      <label className="eyebrow !text-[10px] block mb-1.5 text-[var(--ink-mute)]">
+        {label}{required && <span className="text-red-500 ml-1">*</span>}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function Shell({ children }) {
+  return <div className="flex-1 p-8 portal-layout">{children}</div>;
 }

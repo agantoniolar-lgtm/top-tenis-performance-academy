@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Portal · Dashboards · Top Tenis Performance Academy</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Manrope:wght@400;500;600;700;800&family=Big+Shoulders+Display:wght@500;700;800;900&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --green-deep:   #0E2419;
+      --green:        #1B3A2A;
+      --green-mid:    #2D5A3D;
+      --green-soft:   #A7C4B0;
+      --paper:        #FFFFFF;
+      --paper-2:      #FAFAF7;
+      --cream:        #F4F2EC;
+      --cream-warm:   #ECE8DD;
+      --ink:          #14110D;
+      --ink-soft:     #4A4842;
+      --ink-mute:     #8A8780;
+      --line:         rgba(20,17,13,.08);
+      --line-strong:  rgba(20,17,13,.16);
+      --accent:       #8B4513;
+      --accent-ink:   #FFFFFF;
+      --good:         #16A34A;
+      --bad:          #DC2626;
+      --warn:         #D97706;
+      --info:         #1B3A2A;
+    }
+    html, body { height: 100%; }
+    body { font-family: var(--font-body, 'Manrope'), system-ui, sans-serif; color: var(--ink); background: var(--paper-2); -webkit-font-smoothing: antialiased; }
+    .font-display { font-family: var(--font-display, 'Bricolage Grotesque'), serif; font-optical-sizing: auto; letter-spacing: -0.02em; }
+    .font-num { font-family: 'Big Shoulders Display', sans-serif; font-feature-settings: "tnum" 1; font-variant-numeric: tabular-nums; }
+    .font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+    .eyebrow { font-family: 'Manrope', sans-serif; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; font-size: 10.5px; }
+    .tnum { font-variant-numeric: tabular-nums; }
+    [data-density="compact"] { font-size: 13px; }
+    [data-density="comfy"] { font-size: 15px; }
+    .grid-bg {
+      background-image:
+        linear-gradient(to right, rgba(20,17,13,.04) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(20,17,13,.04) 1px, transparent 1px);
+      background-size: 32px 32px;
+    }
+    .court-bg {
+      background: linear-gradient(135deg, #2D5A3D 0%, #1B3A2A 100%);
+      position: relative;
+      overflow: hidden;
+    }
+    .court-bg::before { content: ""; position: absolute; inset: 12%; border: 1.5px solid rgba(255,255,255,.5); }
+    .court-bg::after  { content: ""; position: absolute; left: 50%; top: 12%; bottom: 12%; width: 1.5px; background: rgba(255,255,255,.4); }
+
+    .hairline { border: 1px solid var(--line); }
+    .hairline-b { border-bottom: 1px solid var(--line); }
+    .hairline-t { border-top: 1px solid var(--line); }
+    .hairline-strong { border: 1px solid var(--line-strong); }
+
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { scrollbar-width: none; }
+
+    /* Score ring */
+    .ring-bg { stroke: var(--line); }
+
+    /* Tags */
+    .tag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; font-family: 'Manrope'; }
+
+    /* Print */
+    @media print {
+      .no-print { display: none !important; }
+      body { background: white !important; }
+    }
+  </style>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script>
+    window.PORTAL_DEFAULT_PAGE = 'dashboard';
+    window.PORTAL_TWEAKS = /*EDITMODE-BEGIN*/{
+      "accent": "#C8A24B",
+      "accentName": "Gold",
+      "density": "compact",
+      "viewerRole": "atleta",
+      "athleteId": "TTPA-014",
+      "lang": "es"
+    }/*EDITMODE-END*/;
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" src="portal/tweaks-panel.jsx"></script>
+  <script type="text/babel" src="portal/ui.jsx"></script>
+  <script type="text/babel" src="portal/data.jsx"></script>
+  <script type="text/babel" src="portal/shell.jsx"></script>
+  <script type="text/babel" src="portal/tabs.jsx"></script>
+  <script type="text/babel" src="portal/expediente.jsx"></script>
+  <script type="text/babel" src="portal/talent-card.jsx"></script>
+  <script type="text/babel" src="portal/dashboard.jsx"></script>
+  <script type="text/babel" src="portal/app.jsx"></script>
+</body>
+</html>
