@@ -87,10 +87,12 @@ export default function AtletaInicio() {
   if (loading) return <Shell><p style={{ color: 'var(--ink-mute)', fontSize: 13 }}>Cargando…</p></Shell>;
 
   const profileComplete    = !!(athlete?.altura_cm && athlete?.peso_kg && athlete?.escuela);
-  const recruitmentComplete = !!(recruitment?.division_objetivo && recruitment?.grad_year && recruitment?.english_level);
+  const edad = calcEdad(athlete?.fecha_nacimiento);
+  const showAdvancedRec = edad == null || edad >= 17;
+  const recruitmentComplete = !!(recruitment?.division_objetivo && recruitment?.grad_year &&
+    (!showAdvancedRec || recruitment?.english_level));
   const bothComplete        = profileComplete && recruitmentComplete;
 
-  const edad = calcEdad(athlete?.fecha_nacimiento);
   const cat  = calcCat(athlete?.fecha_nacimiento);
 
   // ── Vista: onboarding (falta al menos uno) ────────────────────────────────
