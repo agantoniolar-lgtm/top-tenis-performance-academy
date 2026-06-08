@@ -23,6 +23,7 @@ export function PortalProvider({ children }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function usePortal() {
   return useContext(PortalContext);
 }

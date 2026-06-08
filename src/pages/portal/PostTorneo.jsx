@@ -179,8 +179,8 @@ export default function PostTorneo() {
   const [comentarioTecnica, setComentarioTecnica] = useState('');
   const [mejoraTecnica, setMejoraTecnica] = useState('');
 
-  // B - Táctica
-  const [siguioPlan, setSiguioPlan] = useState('');
+  // B - Táctica (siguioPlan pendiente de conectar a Supabase)
+  const [_siguioPlan, setSiguioPlan] = useState(''); // eslint-disable-line no-unused-vars
   const [comentarioPlan, setComentarioPlan] = useState('');
   const [tacticaFunciono, setTacticaFunciono] = useState('');
   const [tacticaCambiar, setTacticaCambiar] = useState('');

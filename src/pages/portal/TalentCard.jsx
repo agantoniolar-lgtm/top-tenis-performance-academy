@@ -1,48 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-
-// ─── Config ───────────────────────────────────────────────────────────────────
-
-const STROKE_KEYS  = ['serve','forehand','backhand','volea','devolucion','footwork'];
-const TACTIC_KEYS  = ['seleccion_golpe','manejo_riesgo','puntos_clave','adaptacion_tactica','transferencia_partido'];
-
-const SCORE5_LABEL = { 1:'Estancado', 2:'Rezagado', 3:'Por buen camino', 4:'Adelantado', 5:'Superado' };
-const CHAR_LABEL   = { 1:'Ausente', 2:'Inconsistente', 3:'Por buen camino', 4:'Proactivo', 5:'Consolidado' };
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function calcCat(fechaNac) {
-  if (!fechaNac) return '—';
-  const e = new Date().getFullYear() - new Date(fechaNac).getFullYear();
-  return e <= 12 ? '12U' : e <= 14 ? '14U' : e <= 16 ? '16U' : '18U';
-}
-
-function calcEdad(fechaNac) {
-  if (!fechaNac) return null;
-  return new Date().getFullYear() - new Date(fechaNac).getFullYear();
-}
-
-function avg(obj, keys) {
-  const v = keys.map(k => obj?.[k]).filter(n => n != null && typeof n === 'number');
-  return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
-}
-
-// On-court avg (-2..+2) → 1..5
-function ocTo5(a) {
-  if (a == null) return null;
-  return Math.max(1, Math.min(5, Math.round(a + 3)));
-}
-
-function score5Color(v) {
-  if (v == null) return 'var(--ink-mute)';
-  return v <= 2 ? 'var(--bad)' : v === 3 ? 'var(--ink-mute)' : 'var(--good)';
-}
-
-function fmtPeriod(p) {
-  if (!p) return '—';
-  return new Date(p).toLocaleDateString('es-MX', { year: 'numeric', month: 'short' });
-}
+import {
+  calcCat, calcEdad, avg, ocTo5, score5Color, fmtPeriod,
+  STROKE_KEYS, TACTIC_KEYS, SCORE5_LABEL, CHAR_LABEL,
+} from '../../lib/athletics.js';
 
 // ─── Sparkline ────────────────────────────────────────────────────────────────
 

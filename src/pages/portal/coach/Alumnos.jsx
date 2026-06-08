@@ -2,15 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
-
-function calcCat(fechaNac) {
-  if (!fechaNac) return '—';
-  const edad = new Date().getFullYear() - new Date(fechaNac).getFullYear();
-  if (edad <= 12) return '12U';
-  if (edad <= 14) return '14U';
-  if (edad <= 16) return '16U';
-  return '18U';
-}
+import { calcCat } from '../../../lib/athletics.js';
 
 export default function Alumnos() {
   const { user }           = useAuth();
@@ -49,8 +41,7 @@ export default function Alumnos() {
         <button
           onClick={() => navigate('/portal/reportes/nuevo')}
           className="px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-white transition hover:opacity-90"
-          style={{ background: 'var(--accent)' }}
-        >
+          style={{ background: 'var(--accent)' }}>
           + Nuevo reporte
         </button>
       </div>

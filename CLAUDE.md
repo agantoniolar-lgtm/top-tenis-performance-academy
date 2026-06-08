@@ -88,3 +88,53 @@ Cuando se cree un documento no técnico, guardarlo siempre en `Top Tennis Perfor
 
 - Frontend: React + Vite
 - Linting: ESLint
+- Tests: Vitest (`npm test`)
+- CI: GitHub Actions — corre lint + tests en cada push a `main`
+
+---
+
+## Reglas de testing — seguir siempre
+
+### Antes de cada commit
+
+Correr siempre antes de hacer `git add`:
+
+```bash
+npm run lint && npm test
+```
+
+Ambos deben pasar sin errores. Si alguno falla, no hacer commit — arreglar primero.
+
+### Cuándo escribir tests nuevos
+
+Cada vez que se agregue una función pura a `src/lib/`, agregar sus tests en el archivo `src/lib/*.test.js` correspondiente. Una función pura es cualquier función que: recibe parámetros, devuelve un valor, y no tiene side effects (no llama a Supabase, no modifica estado, no toca el DOM).
+
+**Regla simple:** si una función tiene un `if (x == null)`, hay un test para `null`. Si tiene rangos o límites, hay tests para los extremos.
+
+### Dónde viven los tests
+
+- Funciones compartidas → `src/lib/athletics.test.js` (o el archivo que corresponda)
+- Las llamadas a Supabase, componentes React y rutas **no se testean** hasta que el MVP esté estable
+
+### Qué pasa si los tests fallan en CI
+
+GitHub Actions corre lint + tests en cada push a `main`. Si fallan, el badge en GitHub queda en rojo. Vercel bloquea el deploy porque el `buildCommand` en `vercel.json` incluye `npm run lint && npm test && npm run build` — si cualquiera falla, el build cancela y el deploy no ocurre.
+
+### Cómo agregar un test nuevo (patrón)
+
+```js
+import { describe, it, expect } from 'vitest';
+import { miFuncion } from './athletics.js';
+
+describe('miFuncion', () => {
+  it('caso normal', () => {
+    expect(miFuncion(valor)).toBe(resultado_esperado);
+  });
+  it('devuelve null si el input es null', () => {
+    expect(miFuncion(null)).toBeNull();
+  });
+  it('clampea/maneja el extremo inferior', () => {
+    expect(miFuncion(valorMínimo)).toBe(resultadoEsperado);
+  });
+});
+```

@@ -1,10 +1,8 @@
 import { usePortal } from '../../contexts/PortalContext';
 import { Icon } from './ui';
 
-const ROLES = ['coach', 'admin', 'atleta', 'padre'];
-
 export default function Topbar({ crumbs }) {
-  const { role, setRole } = usePortal();
+  usePortal(); // role vendrá del auth — switcher eliminado
 
   return (
     <header
@@ -29,23 +27,6 @@ export default function Topbar({ crumbs }) {
           <Icon name="search" size={14} />
           <span>Buscar atleta, torneo, reporte…</span>
           <span className="ml-auto font-mono text-[10px] px-1 py-0.5" style={{ background: 'var(--cream)' }}>⌘K</span>
-        </div>
-
-        {/* Role switcher */}
-        <div className="hidden lg:flex items-center hairline h-8 overflow-hidden">
-          <div className="px-2.5 eyebrow text-[var(--ink-mute)]">VER COMO</div>
-          {ROLES.map(r => (
-            <button
-              key={r}
-              onClick={() => setRole(r)}
-              className={`px-2.5 h-full text-[11px] uppercase font-semibold tracking-wider transition ${
-                role === r ? 'text-white' : 'text-[var(--ink-mute)] hover:text-[var(--ink)]'
-              }`}
-              style={role === r ? { background: 'var(--accent)' } : {}}
-            >
-              {r}
-            </button>
-          ))}
         </div>
 
         {/* Bell */}

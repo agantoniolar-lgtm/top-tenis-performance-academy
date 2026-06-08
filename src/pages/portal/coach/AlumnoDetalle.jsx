@@ -1,44 +1,22 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
+import {
+  calcCat, avg, ocAvgLabel, fmtSign,
+  STROKE_KEYS as OC_STROKE_KEYS,
+  TACTIC_KEYS as OC_TACTIC_KEYS,
+  STROKE_LABELS,
+  OC_LABEL,
+  CHAR_LABEL as CH_LABEL,
+} from '../../../lib/athletics.js';
 
-function calcCat(fechaNac) {
-  if (!fechaNac) return '—';
-  const edad = new Date().getFullYear() - new Date(fechaNac).getFullYear();
-  if (edad <= 12) return '12U'; if (edad <= 14) return '14U';
-  if (edad <= 16) return '16U'; return '18U';
-}
-
-const OC_STROKE_KEYS   = ['serve','forehand','backhand','volea','devolucion','footwork'];
-const OC_TACTIC_KEYS   = ['seleccion_golpe','manejo_riesgo','puntos_clave','adaptacion_tactica','transferencia_partido'];
-const OC_ALL_KEYS      = [...OC_STROKE_KEYS, ...OC_TACTIC_KEYS];
-
-const STROKE_LABELS    = { serve:'Saque', forehand:'Derecha', backhand:'Revés', volea:'Volea', devolucion:'Devolución', footwork:'Movimiento' };
-
-const OC_LABEL = { '-2':'Estancado', '-1':'Rezagado', '0':'Por buen camino', '1':'Adelantado', '2':'Superado' };
-const CH_LABEL = { '1':'Ausente', '2':'Inconsistente', '3':'Por buen camino', '4':'Proactivo', '5':'Consolidado' };
+const OC_ALL_KEYS = [...OC_STROKE_KEYS, ...OC_TACTIC_KEYS];
 
 function scoreColor(v) {
   if (v == null) return 'var(--ink-mute)';
   if (v < 0)    return 'var(--bad)';
   if (v === 0)  return 'var(--ink-mute)';
   return 'var(--good)';
-}
-
-function fmtSign(v) { return v > 0 ? `+${v}` : `${v}`; }
-
-function avg(obj, keys) {
-  const vals = keys.map(k => obj?.[k]).filter(v => v != null && typeof v === 'number');
-  return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
-}
-
-function ocAvgLabel(a) {
-  if (a == null) return null;
-  if (a <= -1.5) return 'Estancado';
-  if (a <= -0.5) return 'Rezagado';
-  if (a <=  0.5) return 'Por buen camino';
-  if (a <=  1.5) return 'Adelantado';
-  return 'Superado';
 }
 
 export default function AlumnoDetalle() {
@@ -60,7 +38,9 @@ export default function AlumnoDetalle() {
     async function load() {
       // 1. Athlete
       const { data: ath, error: e1 } = await supabase
-        .from('athletes').select('*').eq('id', id).single();
+        .from('athletes')
+        .select('id, nombre, apellido, fecha_nacimiento, mano_dominante, tipo_reves, altura_cm, peso_kg, email, telefono, nombre_padre, telefono_padre, escuela, grado_escolar, fecha_ingreso, utr_actual, activo')
+        .eq('id', id).single();
       if (e1) { setErr(e1.message); setLoad(false); return; }
 
       // 2. Reports (last 6)
@@ -140,12 +120,34 @@ export default function AlumnoDetalle() {
               <span><b style={{ color: 'var(--ink)' }}>{calcCat(athlete.fecha_nacimiento)}</b></span>
               <span style={{ color: 'var(--ink-mute)' }}>·</span>
               <span className="capitalize">{athlete.mano_dominante ?? '—'}</span>
+              {athlete.tipo_reves && (
+                <><span style={{ color: 'var(--ink-mute)' }}>·</span>
+                <span>Revés {athlete.tipo_reves === 'una_mano' ? '1 mano' : '2 manos'}</span></>
+              )}
+              {athlete.altura_cm && (
+                <><span style={{ color: 'var(--ink-mute)' }}>·</span><span>{athlete.altura_cm} cm</span></>
+              )}
+              {athlete.peso_kg && (
+                <><span style={{ color: 'var(--ink-mute)' }}>·</span><span>{athlete.peso_kg} kg</span></>
+              )}
               {athlete.fecha_ingreso && <>
                 <span style={{ color: 'var(--ink-mute)' }}>·</span>
                 <span>Ingreso <b style={{ color: 'var(--ink)' }}>
                   {new Date(athlete.fecha_ingreso).toLocaleDateString('es-MX', { year:'numeric', month:'short' })}
                 </b></span>
               </>}
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-[11px]" style={{ color: 'var(--ink-mute)' }}>
+              {athlete.email && <span>{athlete.email}</span>}
+              {athlete.telefono && <><span>·</span><span>{athlete.telefono}</span></>}
+              {athlete.escuela && (
+                <><span>·</span>
+                <span>{athlete.escuela}{athlete.grado_escolar ? ` · ${athlete.grado_escolar}` : ''}</span></>
+              )}
+              {athlete.nombre_padre && (
+                <><span>·</span>
+                <span>Tutor: {athlete.nombre_padre}{athlete.telefono_padre ? ` · ${athlete.telefono_padre}` : ''}</span></>
+              )}
             </div>
           </div>
         </div>
