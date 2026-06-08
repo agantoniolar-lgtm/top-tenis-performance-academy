@@ -2,16 +2,22 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { Icon, Logo } from './ui';
 
-// MVP: solo los features conectados a Supabase
-const NAV = [
+const COACH_NAV = [
   { id: 'atletas',  label: 'Atletas',       icon: 'users', path: '/portal/alumnos' },
   { id: 'reporte',  label: 'Nuevo reporte', icon: 'file',  path: '/portal/reportes/nuevo' },
+];
+
+const ATLETA_NAV = [
+  { id: 'inicio',  label: 'Inicio',       icon: 'home',   path: '/portal/inicio' },
+  { id: 'torneos', label: 'Mis torneos',   icon: 'trophy', path: '/portal/mis-torneos' },
 ];
 
 export default function Sidebar({ open, onClose }) {
   const navigate         = useNavigate();
   const location         = useLocation();
   const { user, logout } = useAuth();
+
+  const NAV = user?.rol === 'Atleta' ? ATLETA_NAV : COACH_NAV;
 
   const isActive = (path) =>
     path === '/portal/alumnos'

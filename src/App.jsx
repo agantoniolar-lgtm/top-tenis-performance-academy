@@ -23,6 +23,8 @@ const AlumnoDetalle = lazy(() => import('./pages/portal/coach/AlumnoDetalle'));
 const NuevoReporte  = lazy(() => import('./pages/portal/coach/NuevoReporte'));
 const NuevoAtleta   = lazy(() => import('./pages/portal/coach/NuevoAtleta'));
 const TalentCard    = lazy(() => import('./pages/portal/TalentCard'));
+const AtletaInicio  = lazy(() => import('./pages/portal/atleta/Inicio'));
+const Signup        = lazy(() => import('./pages/public/Signup'));
 
 function Loading() {
   return (
@@ -49,17 +51,27 @@ export default function App() {
               <Route path="/contacto"   element={<Contacto />} />
             </Route>
 
-            <Route path="/login" element={<Login />} />
+            <Route path="/login"    element={<Login />} />
+            <Route path="/registro" element={<Signup />} />
 
             {/* Portal — protegido */}
             <Route element={<ProtectedRoute />}>
               <Route element={<PortalLayout />}>
-                <Route path="/portal"                   element={<Dashboard />} />
-                <Route path="/portal/alumnos"           element={<Alumnos />} />
-                <Route path="/portal/alumnos/:id"       element={<AlumnoDetalle />} />
-                <Route path="/portal/reportes/nuevo"    element={<NuevoReporte />} />
-                <Route path="/portal/alumnos/nuevo"     element={<NuevoAtleta />} />
-                <Route path="/portal/alumnos/:id/talent-card" element={<TalentCard />} />
+                <Route path="/portal" element={<Dashboard />} />
+
+                {/* Rutas de coach */}
+                <Route element={<ProtectedRoute allowedRoles={['Coach']} />}>
+                  <Route path="/portal/alumnos"                    element={<Alumnos />} />
+                  <Route path="/portal/alumnos/nuevo"              element={<NuevoAtleta />} />
+                  <Route path="/portal/alumnos/:id"                element={<AlumnoDetalle />} />
+                  <Route path="/portal/alumnos/:id/talent-card"    element={<TalentCard />} />
+                  <Route path="/portal/reportes/nuevo"             element={<NuevoReporte />} />
+                </Route>
+
+                {/* Rutas de atleta */}
+                <Route element={<ProtectedRoute allowedRoles={['Atleta']} />}>
+                  <Route path="/portal/inicio" element={<AtletaInicio />} />
+                </Route>
               </Route>
             </Route>
 

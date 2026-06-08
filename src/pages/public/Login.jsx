@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { CircleDot, LogIn, AlertCircle } from 'lucide-react';
 
@@ -18,8 +19,12 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      await login(email, password);
-      navigate('/portal/alumnos');
+      const { data } = await login(email, password);
+      const uid = data.user?.id;
+
+      // Redirect por rol: coach → /portal/alumnos, atleta → /portal/inicio
+      const { data: coach } = await supabase.from('coaches').select('id').eq('user_id', uid).maybeSingle();
+      navigate(coach ? '/portal/alumnos' : '/portal/inicio');
     } catch (err) {
       setError(err.message || 'Error al iniciar sesión.');
     } finally {
@@ -86,18 +91,12 @@ export default function Login() {
             </button>
           </form>
 
-          {/* Demo hint */}
-          <div className="mt-8 p-4 bg-gray-50 rounded-lg border border-gray-200 text-sm text-gray-600">
-            <p className="font-semibold text-gray-700 mb-1">Cuenta de acceso (MVP)</p>
-            <p><span className="font-mono text-gray-800">{DEMO.email}</span> · <span className="font-mono">{DEMO.password}</span></p>
-            <button
-              type="button"
-              onClick={() => { setEmail(DEMO.email); setPassword(DEMO.password); setError(''); }}
-              className="mt-2 text-[#8B4513] hover:underline text-xs font-medium"
-            >
-              Autocompletar →
-            </button>
-          </div>
+          <p className="mt-6 text-center text-sm text-gray-500">
+            ¿Eres atleta nuevo?{' '}
+            <Link to="/registro" className="text-[#8B4513] font-medium hover:underline">
+              Crea tu cuenta
+            </Link>
+          </p>
         </div>
       </div>
     </div>
