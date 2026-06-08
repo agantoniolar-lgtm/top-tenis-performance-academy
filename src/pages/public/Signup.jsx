@@ -54,6 +54,13 @@ export default function Signup() {
       const uid = authData.user?.id;
       if (!uid) throw new Error('No se pudo crear la cuenta. Intenta de nuevo.');
 
+      // Si no hay sesión, Supabase requiere confirmación de email.
+      // En ese caso pedimos al usuario que confirme antes de continuar.
+      if (!authData.session) {
+        navigate('/registro-pendiente');
+        return;
+      }
+
       // 2. Crear el perfil del atleta vinculado al auth user
       const { error: dbErr } = await supabase.from('athletes').insert({
         user_id:          uid,

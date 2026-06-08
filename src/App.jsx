@@ -24,7 +24,8 @@ const NuevoReporte  = lazy(() => import('./pages/portal/coach/NuevoReporte'));
 const NuevoAtleta   = lazy(() => import('./pages/portal/coach/NuevoAtleta'));
 const TalentCard    = lazy(() => import('./pages/portal/TalentCard'));
 const AtletaInicio  = lazy(() => import('./pages/portal/atleta/Inicio'));
-const Signup        = lazy(() => import('./pages/public/Signup'));
+const Signup             = lazy(() => import('./pages/public/Signup'));
+const RegistroPendiente  = lazy(() => import('./pages/public/RegistroPendiente'));
 
 function Loading() {
   return (
@@ -51,8 +52,9 @@ export default function App() {
               <Route path="/contacto"   element={<Contacto />} />
             </Route>
 
-            <Route path="/login"    element={<Login />} />
-            <Route path="/registro" element={<Signup />} />
+            <Route path="/login"               element={<Login />} />
+            <Route path="/registro"            element={<Signup />} />
+            <Route path="/registro-pendiente"  element={<RegistroPendiente />} />
 
             {/* Portal — protegido */}
             <Route element={<ProtectedRoute />}>
