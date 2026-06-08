@@ -27,7 +27,21 @@ El kanban tiene dos vistas: **Board** (todos los tasks) y **Team Tasks** (filtra
 
 Cuando una tarea esté en progreso o se complete, actualizar su estado en el kanban de Notion en ese momento, no al final.
 
-### 3. Cerrar sesión con el comando de fin de sesión
+### 3. Hacer commit antes de cerrar la sesión
+
+Antes de cerrar cualquier sesión, hacer commit de todos los cambios realizados durante ella:
+
+```bash
+git add -A
+git restore --staged "Top Tennis Performance Academy/.~lock.*" 2>/dev/null || true
+git commit -m "descripción de lo trabajado en la sesión"
+```
+
+El push lo hace Marco desde su terminal local (`git push`). El sandbox de Cowork no tiene acceso de red a GitHub.
+
+> **Nota sobre el index.lock:** si `git add -A` deja un `.git/index.lock` que bloquea el commit, Marco debe borrarlo manualmente: `rm .git/index.lock`
+
+### 4. Cerrar sesión con el comando de fin de sesión
 
 Cuando Marco dé la instrucción **"let's end the session and log progress for today"** (o equivalente), hacer lo siguiente:
 

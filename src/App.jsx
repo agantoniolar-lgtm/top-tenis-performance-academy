@@ -21,6 +21,7 @@ const Dashboard     = lazy(() => import('./pages/portal/Dashboard'));        // 
 const Alumnos       = lazy(() => import('./pages/portal/coach/Alumnos'));
 const AlumnoDetalle = lazy(() => import('./pages/portal/coach/AlumnoDetalle'));
 const NuevoReporte  = lazy(() => import('./pages/portal/coach/NuevoReporte'));
+const TalentCard    = lazy(() => import('./pages/portal/TalentCard'));
 
 function Loading() {
   return (
@@ -56,6 +57,7 @@ export default function App() {
                 <Route path="/portal/alumnos"           element={<Alumnos />} />
                 <Route path="/portal/alumnos/:id"       element={<AlumnoDetalle />} />
                 <Route path="/portal/reportes/nuevo"    element={<NuevoReporte />} />
+                <Route path="/portal/alumnos/:id/talent-card" element={<TalentCard />} />
               </Route>
             </Route>
 

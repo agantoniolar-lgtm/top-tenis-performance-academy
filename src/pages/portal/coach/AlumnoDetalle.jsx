@@ -149,12 +149,19 @@ export default function AlumnoDetalle() {
             </div>
           </div>
         </div>
-        <button
-          onClick={() => navigate('/portal/reportes/nuevo', { state: { athleteId: id } })}
-          className="px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-white hover:opacity-90 transition"
-          style={{ background: 'var(--accent)' }}>
-          + Nuevo reporte
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate(`/portal/alumnos/${id}/talent-card`)}
+            className="px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.08em] hairline hover:bg-[var(--cream)] transition">
+            Talent Card
+          </button>
+          <button
+            onClick={() => navigate('/portal/reportes/nuevo', { state: { athleteId: id } })}
+            className="px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-white hover:opacity-90 transition"
+            style={{ background: 'var(--accent)' }}>
+            + Nuevo reporte
+          </button>
+        </div>
       </div>
 
       {/* Headline metrics */}
