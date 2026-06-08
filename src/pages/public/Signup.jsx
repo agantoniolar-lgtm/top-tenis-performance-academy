@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../hooks/useAuth';
 import { CircleDot, UserPlus, AlertCircle } from 'lucide-react';
 
 export default function Signup() {
   const navigate = useNavigate();
+  const { refreshUser } = useAuth();
 
   const [coaches,  setCoaches]  = useState([]);
   const [step,     setStep]     = useState(1); // 1 = datos personales, 2 = cuenta
@@ -75,6 +77,8 @@ export default function Signup() {
 
       if (dbErr) throw dbErr;
 
+      // Re-enriquecer el usuario ahora que el row de athletes existe
+      await refreshUser();
       navigate('/portal/inicio');
     } catch (err) {
       setError(err.message || 'Error al crear la cuenta.');

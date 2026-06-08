@@ -79,8 +79,14 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
+  // Re-enriquecer el usuario después de operaciones que crean el perfil (ej: signup)
+  const refreshUser = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) await enrichUser(session.user);
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, loading, login, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

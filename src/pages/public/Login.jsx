@@ -19,8 +19,8 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      const { data } = await login(email, password);
-      const uid = data.user?.id;
+      const data = await login(email, password);
+      const uid = data?.user?.id;
 
       // Redirect por rol: coach → /portal/alumnos, atleta → /portal/inicio
       const { data: coach } = await supabase.from('coaches').select('id').eq('user_id', uid).maybeSingle();

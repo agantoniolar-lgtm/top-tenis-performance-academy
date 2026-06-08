@@ -23,7 +23,12 @@ const AlumnoDetalle = lazy(() => import('./pages/portal/coach/AlumnoDetalle'));
 const NuevoReporte  = lazy(() => import('./pages/portal/coach/NuevoReporte'));
 const NuevoAtleta   = lazy(() => import('./pages/portal/coach/NuevoAtleta'));
 const TalentCard    = lazy(() => import('./pages/portal/TalentCard'));
-const AtletaInicio  = lazy(() => import('./pages/portal/atleta/Inicio'));
+const AtletaInicio        = lazy(() => import('./pages/portal/atleta/Inicio'));
+const AtletaPerfil        = lazy(() => import('./pages/portal/atleta/Perfil'));
+const AtletaReclutamiento = lazy(() => import('./pages/portal/atleta/Reclutamiento'));
+const AtletaRendimiento   = lazy(() => import('./pages/portal/atleta/Rendimiento'));
+const MisTorneos          = lazy(() => import('./pages/portal/MisTorneos'));
+const PostTorneo          = lazy(() => import('./pages/portal/PostTorneo'));
 const Signup             = lazy(() => import('./pages/public/Signup'));
 const RegistroPendiente  = lazy(() => import('./pages/public/RegistroPendiente'));
 
@@ -72,7 +77,13 @@ export default function App() {
 
                 {/* Rutas de atleta */}
                 <Route element={<ProtectedRoute allowedRoles={['Atleta']} />}>
-                  <Route path="/portal/inicio" element={<AtletaInicio />} />
+                  <Route path="/portal/inicio"           element={<AtletaInicio />} />
+                  <Route path="/portal/mi-perfil"        element={<AtletaPerfil />} />
+                  <Route path="/portal/mi-reclutamiento" element={<AtletaReclutamiento />} />
+                  <Route path="/portal/mi-rendimiento"   element={<AtletaRendimiento />} />
+                  <Route path="/portal/mis-torneos"      element={<MisTorneos />} />
+                  <Route path="/portal/post-torneo"          element={<PostTorneo />} />
+                  <Route path="/portal/post-torneo/:torneoId" element={<PostTorneo />} />
                 </Route>
               </Route>
             </Route>

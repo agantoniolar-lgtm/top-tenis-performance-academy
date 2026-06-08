@@ -8,8 +8,9 @@ const COACH_NAV = [
 ];
 
 const ATLETA_NAV = [
-  { id: 'inicio',  label: 'Inicio',       icon: 'home',   path: '/portal/inicio' },
-  { id: 'torneos', label: 'Mis torneos',   icon: 'trophy', path: '/portal/mis-torneos' },
+  { id: 'inicio',      label: 'Inicio',         icon: 'home',   path: '/portal/inicio' },
+  { id: 'rendimiento', label: 'Mi rendimiento',  icon: 'pulse',  path: '/portal/mi-rendimiento' },
+  { id: 'torneos',     label: 'Mis torneos',     icon: 'trophy', path: '/portal/mis-torneos' },
 ];
 
 export default function Sidebar({ open, onClose }) {
