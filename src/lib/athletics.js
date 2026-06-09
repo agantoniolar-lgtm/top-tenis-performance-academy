@@ -27,10 +27,13 @@ export const SCORE5_LABEL = {
   1: 'Estancado', 2: 'Rezagado', 3: 'Por buen camino',
   4: 'Adelantado', 5: 'Superado',
 };
-/** Escala carácter 1..5 */
+/**
+ * Escala carácter — ahora -2..+2 igual que on-court.
+ * @deprecated usar SCORE5_LABEL después de ocTo5(), o OC_LABEL directo.
+ */
 export const CHAR_LABEL = {
-  1: 'Ausente', 2: 'Inconsistente', 3: 'Por buen camino',
-  4: 'Proactivo', 5: 'Consolidado',
+  1: 'Estancado', 2: 'Rezagado', 3: 'Por buen camino',
+  4: 'Adelantado', 5: 'Superado',
 };
 
 // ─── Funciones de identidad ───────────────────────────────────────────────────

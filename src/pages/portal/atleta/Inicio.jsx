@@ -58,6 +58,9 @@ export default function AtletaInicio() {
   const [athlete,     setAthlete]     = useState(null);
   const [recruitment, setRecruitment] = useState(null);
   const [hasPTF] = useState(false); // TODO: conectar cuando PTF guarde en Supabase
+  // Athlete Voice: null = no report yet, false = pending, true = done
+  const [avStatus,    setAvStatus]    = useState(null);
+  const [avPeriod,    setAvPeriod]    = useState(null);
   const [loading,     setLoading]     = useState(true);
 
   useEffect(() => {
@@ -65,17 +68,34 @@ export default function AtletaInicio() {
     let cancelled = false;
 
     async function load() {
-      const [athRes, recRes] = await Promise.all([
+      const d = new Date();
+      const period = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+
+      const [athRes, recRes, reportRes] = await Promise.all([
         supabase.from('athletes')
           .select('id, nombre, apellido, fecha_nacimiento, mano_dominante, tipo_reves, altura_cm, peso_kg, escuela, grado_escolar, coaches(nombre, apellido)')
           .eq('user_id', user.id).single(),
         supabase.from('athlete_recruitment_profile')
           .select('*').eq('athlete_id', user.athlete_id).maybeSingle(),
+        supabase.from('reports')
+          .select('id, report_athlete_voice(completed_at)')
+          .eq('athlete_id', user.athlete_id)
+          .eq('period', period)
+          .maybeSingle(),
       ]);
 
       if (!cancelled) {
         setAthlete(athRes.data);
         setRecruitment(recRes.data);
+        setAvPeriod(period);
+        if (reportRes.data) {
+          const av = Array.isArray(reportRes.data.report_athlete_voice)
+            ? reportRes.data.report_athlete_voice[0]
+            : reportRes.data.report_athlete_voice;
+          setAvStatus(av?.completed_at ? true : false);
+        } else {
+          setAvStatus(null); // no report exists this period
+        }
         setLoading(false);
       }
     }
@@ -220,6 +240,45 @@ export default function AtletaInicio() {
             </button>
           </div>
         </div>
+
+        {/* Card: Athlete Voice */}
+        {avStatus !== null && (
+          <div className="hairline" style={{ background: 'var(--paper)' }}>
+            <div style={{ height: 3, background: avStatus ? 'var(--good)' : 'var(--accent)' }} />
+            <div className="p-5 flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="font-display font-bold text-[15px]">Athlete Voice</p>
+                  {!avStatus && (
+                    <span className="text-[10px] font-mono px-2 py-0.5 uppercase tracking-wide"
+                          style={{ background: 'rgba(220,38,38,.08)', color: 'var(--bad)' }}>
+                      Pendiente
+                    </span>
+                  )}
+                  {avStatus && (
+                    <span className="text-[10px] font-mono px-2 py-0.5 uppercase tracking-wide"
+                          style={{ background: 'rgba(22,163,74,.1)', color: 'var(--good)' }}>
+                      Completo
+                    </span>
+                  )}
+                </div>
+                <p className="text-[12px]" style={{ color: 'var(--ink-mute)', lineHeight: 1.5 }}>
+                  {avStatus
+                    ? 'Ya enviaste tu auto-evaluación de este período. Tu coach puede verla.'
+                    : 'Tu coach ya creó tu reporte. Agrega tu perspectiva — cómo te sentiste este período en cancha, físicamente y en carácter.'}
+                </p>
+              </div>
+              {!avStatus && (
+                <button
+                  onClick={() => navigate(`/portal/athlete-voice?period=${avPeriod}`)}
+                  className="ml-6 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-white hover:opacity-90 transition shrink-0"
+                  style={{ background: 'var(--accent)' }}>
+                  Evalúate →
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
       </div>
     </Shell>

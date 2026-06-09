@@ -28,6 +28,7 @@ const AtletaInicio        = lazy(() => import('./pages/portal/atleta/Inicio'));
 const AtletaPerfil        = lazy(() => import('./pages/portal/atleta/Perfil'));
 const AtletaReclutamiento = lazy(() => import('./pages/portal/atleta/Reclutamiento'));
 const AtletaRendimiento   = lazy(() => import('./pages/portal/atleta/Rendimiento'));
+const AthleteVoice        = lazy(() => import('./pages/portal/atleta/AthleteVoice'));
 const MisTorneos          = lazy(() => import('./pages/portal/MisTorneos'));
 const PostTorneo          = lazy(() => import('./pages/portal/PostTorneo'));
 const Signup             = lazy(() => import('./pages/public/Signup'));
@@ -86,6 +87,7 @@ export default function App() {
                   <Route path="/portal/mis-torneos"      element={<MisTorneos />} />
                   <Route path="/portal/post-torneo"          element={<PostTorneo />} />
                   <Route path="/portal/post-torneo/:torneoId" element={<PostTorneo />} />
+                  <Route path="/portal/athlete-voice"        element={<AthleteVoice />} />
                 </Route>
               </Route>
             </Route>

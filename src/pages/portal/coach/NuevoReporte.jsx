@@ -78,7 +78,7 @@ export default function NuevoReporte() {
   const [fms,      setFms]   = useState(Object.fromEntries(FMS_FIELDS.map(f => [f.key, false])));
 
   // Character state
-  const [charScores, setChar] = useState(defScores(CHAR_SCORES, 3));
+  const [charScores, setChar] = useState(defScores(CHAR_SCORES, 0));
   const [lideNota,  setLide]  = useState('');
   const [conductaLog, setCond] = useState('');
 
@@ -145,7 +145,7 @@ export default function NuevoReporte() {
         }
         const ch = Array.isArray(data.report_character) ? data.report_character[0] : data.report_character;
         if (ch) {
-          setChar({ etica_trabajo: ch.etica_trabajo ?? 3, coachabilidad: ch.coachabilidad ?? 3 });
+          setChar({ etica_trabajo: ch.etica_trabajo ?? 0, coachabilidad: ch.coachabilidad ?? 0 });
           setLide(ch.liderazgo_nota ?? '');
           setCond(ch.conducta_log ?? '');
           if (ch.completed_at) setSaved(s => ({ ...s, character: true }));
@@ -232,7 +232,7 @@ export default function NuevoReporte() {
                   className="px-4 py-2 text-[12px] font-semibold uppercase tracking-wide hairline hover:bg-[var(--cream)] transition">
             Ver atletas
           </button>
-          <button onClick={() => { setDone(false); setAtId(''); setUtr(''); setStr(defScores(STROKES, 0)); setTac(defScores(TACTICS, 0)); setPhys(Object.fromEntries(PHYSICAL_NUM.map(f=>[f.key,'']))); setChar(defScores(CHAR_SCORES, 3)); setSaved({oncourt:false,physical:false,character:false}); setTab('oncourt'); }}
+          <button onClick={() => { setDone(false); setAtId(''); setUtr(''); setStr(defScores(STROKES, 0)); setTac(defScores(TACTICS, 0)); setPhys(Object.fromEntries(PHYSICAL_NUM.map(f=>[f.key,'']))); setChar(defScores(CHAR_SCORES, 0)); setSaved({oncourt:false,physical:false,character:false}); setTab('oncourt'); }}
                   className="px-4 py-2 text-[12px] font-semibold uppercase tracking-wide text-white hover:opacity-90"
                   style={{ background: 'var(--accent)' }}>
             Nuevo reporte
@@ -351,9 +351,9 @@ export default function NuevoReporte() {
           <div className="space-y-6">
             <div>
               <p className="eyebrow !text-[10px] mb-3 text-[var(--ink-mute)]">Evaluación de conducta</p>
-              <ScaleLegend type="character" />
+              <ScaleLegend type="oncourt" />
               <div className="space-y-3 mt-3">
-                {CHAR_SCORES.map(s => <ScoreRow key={s.key} label={s.label} value={charScores[s.key]} onChange={v => setChar(p => ({ ...p, [s.key]: v }))} values={[1,2,3,4,5]} />)}
+                {CHAR_SCORES.map(s => <ScoreRow key={s.key} label={s.label} value={charScores[s.key]} onChange={v => setChar(p => ({ ...p, [s.key]: v }))} values={[-2,-1,0,1,2]} />)}
               </div>
             </div>
             <Field label="Liderazgo (narrativo)">

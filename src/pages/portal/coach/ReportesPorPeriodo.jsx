@@ -42,12 +42,8 @@ function onCourtColor(a) {
   if (a >  0.4) return { bg: 'rgba(22,163,74,.12)', text: '#15803d' };
   return { bg: 'rgba(249,213,77,.18)', text: '#92650a' };
 }
-function charColor(a) {
-  if (a == null) return { bg: 'var(--cream)', text: 'var(--ink-mute)' };
-  if (a < 2.5) return { bg: 'rgba(220,38,38,.1)', text: '#b91c1c' };
-  if (a > 3.5) return { bg: 'rgba(22,163,74,.12)', text: '#15803d' };
-  return { bg: 'rgba(249,213,77,.18)', text: '#92650a' };
-}
+// Character is now -2/+2 — same thresholds as on-court
+const charColor = onCourtColor;
 function ScoreBadge({ value, fmt, colors, title }) {
   return (
     <span
@@ -84,7 +80,7 @@ function SectionCell({ data, type, noReport }) {
   if (type === 'character') {
     const score = avg([data.etica_trabajo, data.coachabilidad]);
     return <ScoreBadge value={score} colors={charColor(score)}
-      fmt={v => v == null ? '—' : v.toFixed(1)}
+      fmt={v => v == null ? '—' : (v > 0 ? `+${v.toFixed(1)}` : v.toFixed(1))}
       title={`Character avg · ${date}`} />;
   }
   if (type === 'physical') {

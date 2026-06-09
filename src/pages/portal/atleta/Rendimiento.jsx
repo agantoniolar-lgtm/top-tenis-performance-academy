@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
-import { avg, ocTo5, score5Color, fmtPeriod, SCORE5_LABEL, CHAR_LABEL,
+import { avg, ocTo5, score5Color, fmtPeriod, SCORE5_LABEL,
          STROKE_KEYS, TACTIC_KEYS } from '../../../lib/athletics.js';
 
 // ─── Mini sparkline ───────────────────────────────────────────────────────────
@@ -95,11 +95,12 @@ export default function AtletaRendimiento() {
   const chrono = [...reports].reverse();
   const tecSeries  = chrono.map(r => { const a = avg(ocMap[r.id], STROKE_KEYS); return a != null ? ocTo5(a) : null; });
   const tacSeries  = chrono.map(r => { const a = avg(ocMap[r.id], TACTIC_KEYS); return a != null ? ocTo5(a) : null; });
+  // Character is -2/+2 like on-court — convert to 1-5 via ocTo5 for consistent display
   const charSeries = chrono.map(r => {
     const c = chMap[r.id];
     if (!c) return null;
-    const v = [c.etica_trabajo, c.coachabilidad].filter(x => x != null);
-    return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+    const a = avg(c, ['etica_trabajo', 'coachabilidad']);
+    return a != null ? ocTo5(a) : null;
   });
   const utrSeries  = chrono.map(r => ocMap[r.id]?.utr ? Number(ocMap[r.id].utr) : null);
 
@@ -214,7 +215,7 @@ export default function AtletaRendimiento() {
                     <span style={{ fontSize: 11, color: 'var(--ink-mute)' }}>/5</span>
                   </div>
                   <p className="text-[11px] font-semibold mt-0.5" style={{ color: score5Color(charScore ? Math.round(charScore) : null) }}>
-                    {CHAR_LABEL[charScore ? Math.round(charScore) : null] ?? '—'}
+                    {SCORE5_LABEL[charScore ? Math.round(charScore) : null] ?? '—'}
                   </p>
                   <div className="mt-3"><Sparkline values={charSeries} w={80} h={32} /></div>
                   {lastCh?.liderazgo_nota && (
@@ -247,10 +248,7 @@ export default function AtletaRendimiento() {
                         const ch  = chMap[r.id];
                         const tec = oc ? ocTo5(avg(oc, STROKE_KEYS)) : null;
                         const tac = oc ? ocTo5(avg(oc, TACTIC_KEYS)) : null;
-                        const chv = ch ? (() => {
-                          const v = [ch.etica_trabajo, ch.coachabilidad].filter(x => x != null);
-                          return v.length ? Math.round(v.reduce((a,b)=>a+b,0)/v.length) : null;
-                        })() : null;
+                        const chv = ch ? ocTo5(avg(ch, ['etica_trabajo', 'coachabilidad'])) : null;
                         return (
                           <tr key={r.id} className="hairline-t">
                             <td className="px-4 py-2.5 font-display font-bold text-[12px]">
