@@ -7,7 +7,6 @@ import {
   TACTIC_KEYS as OC_TACTIC_KEYS,
   STROKE_LABELS,
   OC_LABEL,
-  CHAR_LABEL as CH_LABEL,
 } from '../../../lib/athletics.js';
 
 const OC_ALL_KEYS = [...OC_STROKE_KEYS, ...OC_TACTIC_KEYS];
@@ -170,8 +169,8 @@ export default function AlumnoDetalle() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-px hairline bg-[var(--line)] mb-6">
         <MetricCard label="UTR"            value={currentUTR ? Number(currentUTR).toFixed(1) : '—'} delta={deltaUTR} deltaLabel="vs mes ant." />
         <MetricCard label="On-court"       value={ocLabel ?? '—'} delta={deltaAvg} deltaLabel="vs mes ant." textValue />
-        <MetricCard label="Ética trabajo"  value={CH_LABEL[String(lastCh?.etica_trabajo)] ?? '—'} textValue />
-        <MetricCard label="Coachabilidad"  value={CH_LABEL[String(lastCh?.coachabilidad)] ?? '—'} textValue />
+        <MetricCard label="Ética trabajo"  value={OC_LABEL[String(lastCh?.etica_trabajo)] ?? '—'} textValue />
+        <MetricCard label="Coachabilidad"  value={OC_LABEL[String(lastCh?.coachabilidad)] ?? '—'} textValue />
       </div>
 
       {/* Strokes del último reporte */}

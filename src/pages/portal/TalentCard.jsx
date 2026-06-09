@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import {
   calcCat, calcEdad, avg, ocTo5, score5Color, fmtPeriod,
-  STROKE_KEYS, TACTIC_KEYS, SCORE5_LABEL, CHAR_LABEL,
+  STROKE_KEYS, TACTIC_KEYS, SCORE5_LABEL,
 } from '../../lib/athletics.js';
 
 // ─── Sparkline ────────────────────────────────────────────────────────────────
@@ -179,8 +179,8 @@ export default function TalentCard() {
   const charSeries = chrono.map(r => {
     const c = chMap[r.id];
     if (!c) return null;
-    const v = [c.etica_trabajo, c.coachabilidad].filter(x => x != null);
-    return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+    const a = avg(c, ['etica_trabajo', 'coachabilidad']);
+    return a != null ? ocTo5(a) : null;
   });
 
   // Overall: promedio de las 3 dimensiones disponibles por período
@@ -381,19 +381,19 @@ export default function TalentCard() {
                     Señal de carácter · diferenciador para recruiters
                   </p>
                   <div className="flex gap-8">
-                    {lastCh.etica_trabajo && (
+                    {lastCh.etica_trabajo != null && (
                       <div>
                         <p className="text-[10px] font-mono uppercase tracking-wide mb-1" style={{ color: 'var(--ink-mute)' }}>Ética de trabajo</p>
-                        <p className="text-[14px] font-semibold" style={{ color: score5Color(lastCh.etica_trabajo) }}>
-                          {CHAR_LABEL[lastCh.etica_trabajo]}
+                        <p className="text-[14px] font-semibold" style={{ color: score5Color(ocTo5(lastCh.etica_trabajo)) }}>
+                          {SCORE5_LABEL[ocTo5(lastCh.etica_trabajo)]}
                         </p>
                       </div>
                     )}
-                    {lastCh.coachabilidad && (
+                    {lastCh.coachabilidad != null && (
                       <div>
                         <p className="text-[10px] font-mono uppercase tracking-wide mb-1" style={{ color: 'var(--ink-mute)' }}>Coachabilidad</p>
-                        <p className="text-[14px] font-semibold" style={{ color: score5Color(lastCh.coachabilidad) }}>
-                          {CHAR_LABEL[lastCh.coachabilidad]}
+                        <p className="text-[14px] font-semibold" style={{ color: score5Color(ocTo5(lastCh.coachabilidad)) }}>
+                          {SCORE5_LABEL[ocTo5(lastCh.coachabilidad)]}
                         </p>
                       </div>
                     )}
