@@ -30,25 +30,74 @@ function nextPeriod(dateStr) {
 
 // ─── cell components ──────────────────────────────────────────────────────────
 
-function SectionCell({ completedAt, noReport }) {
-  if (noReport) return <span className="font-mono text-[13px]" style={{ color: 'var(--ink-mute)' }}>—</span>;
-  if (completedAt) {
-    return (
-      <span
-        className="inline-flex items-center justify-center w-6 h-6 rounded-full"
-        style={{ background: 'var(--good)', color: '#fff' }}
-        title={new Date(completedAt).toLocaleDateString('es-MX')}
-      >
-        <Icon name="check" size={13} stroke={2.5} />
-      </span>
-    );
-  }
+// ─── score helpers ────────────────────────────────────────────────────────────
+function avg(vals) {
+  const nums = vals.filter(v => v != null);
+  if (!nums.length) return null;
+  return nums.reduce((a, b) => a + b, 0) / nums.length;
+}
+function onCourtColor(a) {
+  if (a == null) return { bg: 'var(--cream)', text: 'var(--ink-mute)' };
+  if (a < -0.4) return { bg: 'rgba(220,38,38,.1)', text: '#b91c1c' };
+  if (a >  0.4) return { bg: 'rgba(22,163,74,.12)', text: '#15803d' };
+  return { bg: 'rgba(249,213,77,.18)', text: '#92650a' };
+}
+function charColor(a) {
+  if (a == null) return { bg: 'var(--cream)', text: 'var(--ink-mute)' };
+  if (a < 2.5) return { bg: 'rgba(220,38,38,.1)', text: '#b91c1c' };
+  if (a > 3.5) return { bg: 'rgba(22,163,74,.12)', text: '#15803d' };
+  return { bg: 'rgba(249,213,77,.18)', text: '#92650a' };
+}
+function ScoreBadge({ value, fmt, colors, title }) {
   return (
     <span
-      className="inline-block w-6 h-6 rounded-full"
-      style={{ border: '1.5px solid var(--ink-mute)', opacity: 0.35 }}
-    />
+      className="inline-flex items-center justify-center text-[11px] font-bold tabular-nums px-2 py-0.5"
+      style={{ background: colors.bg, color: colors.text, borderRadius: 4, minWidth: 36 }}
+      title={title}
+    >
+      {fmt(value)}
+    </span>
   );
+}
+
+function SectionCell({ data, type, noReport }) {
+  if (noReport) return <span className="font-mono text-[13px]" style={{ color: 'var(--ink-mute)' }}>—</span>;
+  if (!data?.completed_at) {
+    return (
+      <span
+        className="inline-block w-6 h-6 rounded-full"
+        style={{ border: '1.5px solid var(--ink-mute)', opacity: 0.25 }}
+      />
+    );
+  }
+  const date = new Date(data.completed_at).toLocaleDateString('es-MX');
+
+  if (type === 'oncourt') {
+    const score = avg([data.serve, data.forehand, data.backhand, data.volea,
+                       data.devolucion, data.footwork, data.seleccion_golpe,
+                       data.manejo_riesgo, data.puntos_clave, data.adaptacion_tactica,
+                       data.transferencia_partido]);
+    return <ScoreBadge value={score} colors={onCourtColor(score)}
+      fmt={v => v == null ? '—' : (v > 0 ? `+${v.toFixed(1)}` : v.toFixed(1))}
+      title={`On-court avg · ${date}`} />;
+  }
+  if (type === 'character') {
+    const score = avg([data.etica_trabajo, data.coachabilidad]);
+    return <ScoreBadge value={score} colors={charColor(score)}
+      fmt={v => v == null ? '—' : v.toFixed(1)}
+      title={`Character avg · ${date}`} />;
+  }
+  if (type === 'physical') {
+    const done = [data.sprint_20m, data.salto_vertical_cm, data.spider_drill_seg,
+                  data.sentadillas_1min, data.lagartijas_1min, data.beep_test_nivel]
+                 .filter(v => v != null).length;
+    const colors = done >= 4 ? { bg: 'rgba(22,163,74,.12)', text: '#15803d' }
+                 : done >= 2 ? { bg: 'rgba(249,213,77,.18)', text: '#92650a' }
+                 :             { bg: 'var(--cream)', text: 'var(--ink-mute)' };
+    return <ScoreBadge value={done} colors={colors} fmt={v => `${v}/6`}
+      title={`${done} de 6 tests · ${date}`} />;
+  }
+  return null;
 }
 
 function AthleteVoiceCell({ completedAt, noReport }) {
@@ -108,14 +157,17 @@ export default function ReportesPorPeriodo() {
       if (aErr) { setErr(aErr.message); setLoad(false); return; }
       if (!athletes?.length) { setRows([]); setLoad(false); return; }
 
-      // 2. Reports for this period (with sub-sections)
+      // 2. Reports for this period (with sub-sections + scores for badge display)
       const { data: reports, error: rErr } = await supabase
         .from('reports')
         .select(`
           id, athlete_id, period,
-          report_on_court ( completed_at ),
-          report_physical ( completed_at ),
-          report_character ( completed_at ),
+          report_on_court ( completed_at, serve, forehand, backhand, volea, devolucion,
+            footwork, seleccion_golpe, manejo_riesgo, puntos_clave, adaptacion_tactica,
+            transferencia_partido ),
+          report_physical ( completed_at, sprint_20m, salto_vertical_cm, spider_drill_seg,
+            sentadillas_1min, lagartijas_1min, beep_test_nivel ),
+          report_character ( completed_at, etica_trabajo, coachabilidad ),
           report_athlete_voice ( completed_at )
         `)
         .in('athlete_id', athletes.map(a => a.id))
@@ -199,10 +251,12 @@ export default function ReportesPorPeriodo() {
             <tbody>
               {rows.map(({ athlete: a, report: r }) => {
                 const noReport = !r;
-                const oc  = r?.report_on_court?.[0]?.completed_at ?? null;
-                const ph  = r?.report_physical?.[0]?.completed_at ?? null;
-                const ch  = r?.report_character?.[0]?.completed_at ?? null;
-                const av  = r?.report_athlete_voice?.[0]?.completed_at ?? null;
+                // Supabase returns one-to-one (unique FK) relations as objects, not arrays
+                const one = (rel) => Array.isArray(rel) ? rel[0] : (rel ?? null);
+                const oc  = one(r?.report_on_court);
+                const ph  = one(r?.report_physical);
+                const ch  = one(r?.report_character);
+                const av  = one(r?.report_athlete_voice)?.completed_at ?? null;
 
                 return (
                   <tr
@@ -222,13 +276,13 @@ export default function ReportesPorPeriodo() {
 
                     {/* Sections */}
                     <td className="px-4 py-4 text-center">
-                      <SectionCell completedAt={oc} noReport={noReport} />
+                      <SectionCell data={oc} type="oncourt" noReport={noReport} />
                     </td>
                     <td className="px-4 py-4 text-center">
-                      <SectionCell completedAt={ph} noReport={noReport} />
+                      <SectionCell data={ph} type="physical" noReport={noReport} />
                     </td>
                     <td className="px-4 py-4 text-center">
-                      <SectionCell completedAt={ch} noReport={noReport} />
+                      <SectionCell data={ch} type="character" noReport={noReport} />
                     </td>
                     <td className="px-4 py-4 text-center">
                       <AthleteVoiceCell completedAt={av} noReport={noReport} />

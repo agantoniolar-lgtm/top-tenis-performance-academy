@@ -61,6 +61,7 @@ export default function NuevoReporte() {
   const [athletes,  setAth]   = useState([]);
   const [athleteId, setAtId]  = useState(location.state?.athleteId ?? '');
   const [period,    setPer]   = useState(() => {
+    if (location.state?.period) return location.state.period;
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
   });
@@ -92,6 +93,65 @@ export default function NuevoReporte() {
       .eq('coach_id', user.coach_id).eq('activo', true).order('nombre')
       .then(({ data }) => setAth(data ?? []));
   }, [user?.coach_id]);
+
+  // Pre-cargar datos existentes cuando viene del botón "Editar"
+  useEffect(() => {
+    if (!athleteId || !period || !user?.coach_id) return;
+    supabase
+      .from('reports')
+      .select(`
+        id,
+        report_on_court ( serve, forehand, backhand, volea, devolucion, footwork,
+          seleccion_golpe, manejo_riesgo, puntos_clave, adaptacion_tactica, transferencia_partido,
+          utr, tecnica_nota, tactica_nota, completed_at ),
+        report_physical ( sprint_20m, salto_vertical_cm, spider_drill_seg,
+          sentadillas_1min, lagartijas_1min, beep_test_nivel, beep_test_rep,
+          fms_squat, fms_lunge_izq, fms_lunge_der, fms_hombro_izq, fms_hombro_der, completed_at ),
+        report_character ( etica_trabajo, coachabilidad, liderazgo_nota, conducta_log, completed_at )
+      `)
+      .eq('athlete_id', athleteId)
+      .eq('period', period)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data) return;
+        // Supabase returns one-to-one (unique FK) relations as objects, not arrays
+        const oc = Array.isArray(data.report_on_court) ? data.report_on_court[0] : data.report_on_court;
+        if (oc) {
+          if (oc.utr) setUtr(String(oc.utr));
+          setStr({ serve: oc.serve ?? 0, forehand: oc.forehand ?? 0, backhand: oc.backhand ?? 0,
+                   volea: oc.volea ?? 0, devolucion: oc.devolucion ?? 0, footwork: oc.footwork ?? 0 });
+          setTac({ seleccion_golpe: oc.seleccion_golpe ?? 0, manejo_riesgo: oc.manejo_riesgo ?? 0,
+                   puntos_clave: oc.puntos_clave ?? 0, adaptacion_tactica: oc.adaptacion_tactica ?? 0,
+                   transferencia_partido: oc.transferencia_partido ?? 0 });
+          setTecN(oc.tecnica_nota ?? '');
+          setTacN(oc.tactica_nota ?? '');
+          if (oc.completed_at) setSaved(s => ({ ...s, oncourt: true }));
+        }
+        const ph = Array.isArray(data.report_physical) ? data.report_physical[0] : data.report_physical;
+        if (ph) {
+          setPhys({
+            sprint_20m:        ph.sprint_20m        != null ? String(ph.sprint_20m)        : '',
+            salto_vertical_cm: ph.salto_vertical_cm != null ? String(ph.salto_vertical_cm) : '',
+            spider_drill_seg:  ph.spider_drill_seg  != null ? String(ph.spider_drill_seg)  : '',
+            sentadillas_1min:  ph.sentadillas_1min  != null ? String(ph.sentadillas_1min)  : '',
+            lagartijas_1min:   ph.lagartijas_1min   != null ? String(ph.lagartijas_1min)   : '',
+            beep_test_nivel:   ph.beep_test_nivel   != null ? String(ph.beep_test_nivel)   : '',
+            beep_test_rep:     ph.beep_test_rep     != null ? String(ph.beep_test_rep)     : '',
+          });
+          setFms({ fms_squat: ph.fms_squat ?? false, fms_lunge_izq: ph.fms_lunge_izq ?? false,
+                   fms_lunge_der: ph.fms_lunge_der ?? false, fms_hombro_izq: ph.fms_hombro_izq ?? false,
+                   fms_hombro_der: ph.fms_hombro_der ?? false });
+          if (ph.completed_at) setSaved(s => ({ ...s, physical: true }));
+        }
+        const ch = Array.isArray(data.report_character) ? data.report_character[0] : data.report_character;
+        if (ch) {
+          setChar({ etica_trabajo: ch.etica_trabajo ?? 3, coachabilidad: ch.coachabilidad ?? 3 });
+          setLide(ch.liderazgo_nota ?? '');
+          setCond(ch.conducta_log ?? '');
+          if (ch.completed_at) setSaved(s => ({ ...s, character: true }));
+        }
+      });
+  }, [athleteId, period, user?.coach_id]);
 
   // Upsert the report container, return report_id
   const ensureReport = async () => {
