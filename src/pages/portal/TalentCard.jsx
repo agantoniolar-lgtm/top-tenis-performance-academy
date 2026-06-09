@@ -125,8 +125,20 @@ export default function TalentCard() {
     if (!id) return;
     let cancelled = false;
     async function load() {
-      const { data: ath, error: e1 } = await supabase.from('athletes').select('*').eq('id', id).single();
+      const [{ data: ath, error: e1 }, { data: recProfile }] = await Promise.all([
+        supabase.from('athletes').select('*').eq('id', id).single(),
+        supabase.from('athlete_recruitment_profile').select('*').eq('athlete_id', id).maybeSingle(),
+      ]);
       if (e1 || !ath) { setErr(e1?.message ?? 'Atleta no encontrado'); setLoad(false); return; }
+
+      // Map DB column names → component shape
+      ath.recruitment_profile = recProfile ? {
+        division:      recProfile.division_objetivo,
+        grad_year:     recProfile.grad_year,
+        gpa:           recProfile.gpa,
+        english_level: recProfile.english_level,
+        study_area:    recProfile.study_area,
+      } : null;
 
       const { data: reps, error: e2 } = await supabase
         .from('reports').select('id, period')

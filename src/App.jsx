@@ -20,7 +20,8 @@ const Login     = lazy(() => import('./pages/public/Login'));
 const Dashboard     = lazy(() => import('./pages/portal/Dashboard'));        // redirect → /portal/alumnos
 const Alumnos       = lazy(() => import('./pages/portal/coach/Alumnos'));
 const AlumnoDetalle = lazy(() => import('./pages/portal/coach/AlumnoDetalle'));
-const NuevoReporte  = lazy(() => import('./pages/portal/coach/NuevoReporte'));
+const NuevoReporte       = lazy(() => import('./pages/portal/coach/NuevoReporte'));
+const ReportesPorPeriodo = lazy(() => import('./pages/portal/coach/ReportesPorPeriodo'));
 const NuevoAtleta   = lazy(() => import('./pages/portal/coach/NuevoAtleta'));
 const TalentCard    = lazy(() => import('./pages/portal/TalentCard'));
 const AtletaInicio        = lazy(() => import('./pages/portal/atleta/Inicio'));
@@ -72,7 +73,8 @@ export default function App() {
                   <Route path="/portal/alumnos/nuevo"              element={<NuevoAtleta />} />
                   <Route path="/portal/alumnos/:id"                element={<AlumnoDetalle />} />
                   <Route path="/portal/alumnos/:id/talent-card"    element={<TalentCard />} />
-                  <Route path="/portal/reportes/nuevo"             element={<NuevoReporte />} />
+                  <Route path="/portal/reportes"       element={<ReportesPorPeriodo />} />
+                  <Route path="/portal/reportes/nuevo" element={<NuevoReporte />} />
                 </Route>
 
                 {/* Rutas de atleta */}

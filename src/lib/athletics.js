@@ -123,5 +123,8 @@ export function fmtSign(n) {
  */
 export function fmtPeriod(p) {
   if (!p) return '—';
-  return new Date(p).toLocaleDateString('es-MX', { year: 'numeric', month: 'short' });
+  // Parse date parts manually to avoid UTC-vs-local timezone offset
+  // new Date('2026-06-01') parses as UTC midnight = May 31 in UTC-6
+  const [y, m] = p.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('es-MX', { year: 'numeric', month: 'short' });
 }

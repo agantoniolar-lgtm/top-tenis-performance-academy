@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   calcCat, calcEdad,
-  avg, ocTo5, ocAvgLabel, score5Color, fmtSign,
+  avg, ocTo5, ocAvgLabel, score5Color, fmtSign, fmtPeriod,
   SCORE5_LABEL, CHAR_LABEL,
 } from './athletics.js';
 
@@ -158,5 +158,26 @@ describe('constantes', () => {
   it('SCORE5_LABEL y CHAR_LABEL comparten el label del centro', () => {
     expect(SCORE5_LABEL[3]).toBe('Por buen camino');
     expect(CHAR_LABEL[3]).toBe('Por buen camino');
+  });
+});
+
+describe('fmtPeriod', () => {
+  it('devuelve — para null', () => {
+    expect(fmtPeriod(null)).toBe('—');
+  });
+  it('devuelve — para undefined', () => {
+    expect(fmtPeriod(undefined)).toBe('—');
+  });
+  it('muestra el mes correcto sin offset UTC (junio no se convierte en mayo)', () => {
+    // '2026-06-01' parseado como UTC midnight = May 31 en UTC-6 → bug anterior
+    const result = fmtPeriod('2026-06-01');
+    expect(result).toContain('2026');
+    expect(result.toLowerCase()).not.toContain('may');
+    expect(result.toLowerCase()).toMatch(/jun/);
+  });
+  it('muestra enero correctamente', () => {
+    const result = fmtPeriod('2026-01-01');
+    expect(result).toContain('2026');
+    expect(result.toLowerCase()).toMatch(/ene/);
   });
 });
