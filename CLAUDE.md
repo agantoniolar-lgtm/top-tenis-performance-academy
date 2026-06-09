@@ -37,6 +37,8 @@ git restore --staged "Top Tennis Performance Academy/.~lock.*" 2>/dev/null || tr
 git commit -m "descripción de lo trabajado en la sesión"
 ```
 
+**Regla de mensajes de commit:** cada commit debe tener un mensaje descriptivo que explique qué se hizo, no genérico. Ejemplos de mensajes malos: "update", "changes", "fix". Ejemplos de mensajes buenos: "feat: conectar PTF a Supabase con tabla post_tournament_forms", "fix: RLS en report_character bloqueaba a atletas", "chore: fix useEffect dependency warning en Reclutamiento.jsx". Usar prefijos: `feat:`, `fix:`, `chore:`, `refactor:`. Esto evita que el historial en GitHub se llene de commits sin contexto.
+
 El push lo hace Marco desde su terminal local (`git push`). El sandbox de Cowork no tiene acceso de red a GitHub.
 
 > **Nota sobre el index.lock:** si `git add -A` deja un `.git/index.lock` que bloquea el commit, Marco debe borrarlo manualmente: `rm .git/index.lock`

@@ -44,7 +44,7 @@ export default function AtletaReclutamiento() {
       setAtletaEdad(calcEdad(athRes.data?.fecha_nacimiento));
       setLoading(false);
     });
-  }, [user?.athlete_id]);
+  }, [user?.athlete_id, user?.id]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

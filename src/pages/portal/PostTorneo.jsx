@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, Send, CheckCircle } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../hooks/useAuth';
 
 // ─── Escalas PTF ────────────────────────────────────────────────────────────
 // Percepción del atleta relativa al plan de torneo (verbal por ahora,
@@ -165,8 +167,15 @@ function Section({ title, letter, expanded, onToggle, children }) {
 }
 
 export default function PostTorneo() {
+  const { user } = useAuth();
   const [expanded, setExpanded] = useState({ A: true, B: false, C: false, D: false, E: false });
   const [submitted, setSubmitted] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+
+  // Metadata del partido
+  const [matchDate, setMatchDate] = useState('');
+  const [tournamentName, setTournamentName] = useState('');
 
   // Placeholders elegidos al azar una vez por sesión
   const [ph] = useState(() => Object.fromEntries(Object.entries(PH).map(([k, v]) => [k, pick(v)])));
@@ -206,8 +215,47 @@ export default function PostTorneo() {
 
   const toggle = (key) => setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!matchDate) { setSaveError('Indica la fecha del partido.'); return; }
+    setSaving(true);
+    setSaveError('');
+
+    const { error } = await supabase.from('post_tournament_forms').insert({
+      athlete_id:      user?.athlete_id,
+      match_date:      matchDate,
+      tournament_name: tournamentName || null,
+      // A – Técnica
+      tecnica_derecha:          derecha   || null,
+      tecnica_reves:            reves     || null,
+      tecnica_servicio:         servicio  || null,
+      tecnica_volea:            volea     || null,
+      tecnica_comentario:       comentarioTecnica || null,
+      tecnica_mejora:           mejoraTecnica     || null,
+      // B – Táctica
+      tactica_comentario_plan:  comentarioPlan  || null,
+      tactica_funciono:         tacticaFunciono || null,
+      tactica_cambiar:          tacticaCambiar  || null,
+      // C – Mental
+      mental_presion:           presion     || null,
+      mental_concentracion:     concentracion || null,
+      mental_confianza:         confianza   || null,
+      mental_reaccion_error:    reaccionError || null,
+      // D – Físico
+      fisico_nivel:             nivelFisico || null,
+      fisico_dolor:             dolor === 'Sí',
+      fisico_dolor_zonas:       dolorZonas.length ? dolorZonas : null,
+      fisico_nutricion:         nutricion || null,
+      // E – Reflexión
+      reflexion_hice_bien:      hiceBien      || null,
+      reflexion_mejorar:        mejorar       || null,
+      reflexion_aprendizaje:    aprendizaje   || null,
+      reflexion_proximo_torneo: proximoTorneo || null,
+      reflexion_satisfaccion:   satisfaccion,
+    });
+
+    setSaving(false);
+    if (error) { setSaveError(error.message); return; }
     setSubmitted(true);
   };
 
@@ -235,6 +283,33 @@ export default function PostTorneo() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Metadata del partido */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-4">Partido</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass}>Fecha *</label>
+              <input
+                type="date"
+                value={matchDate}
+                onChange={(e) => setMatchDate(e.target.value)}
+                required
+                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A2A]/40 focus:border-[#1B3A2A]"
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Torneo</label>
+              <input
+                type="text"
+                value={tournamentName}
+                onChange={(e) => setTournamentName(e.target.value)}
+                placeholder="ej. Torneo Nacional Junior"
+                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A2A]/40 focus:border-[#1B3A2A]"
+              />
+            </div>
+          </div>
+        </div>
+
         {/* A — Técnica */}
         <Section title="Técnica" letter="A" expanded={expanded.A} onToggle={() => toggle('A')}>
           <div>
@@ -419,12 +494,16 @@ export default function PostTorneo() {
           </div>
         </Section>
 
+        {saveError && (
+          <p className="text-sm text-red-600 px-1">{saveError}</p>
+        )}
         <button
           type="submit"
-          className="w-full bg-[#1B3A2A] hover:bg-[#2D5A3D] text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
+          disabled={saving}
+          className="w-full bg-[#1B3A2A] hover:bg-[#2D5A3D] disabled:opacity-60 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
         >
           <Send className="w-4 h-4" />
-          Enviar análisis al coach
+          {saving ? 'Guardando…' : 'Enviar análisis al coach'}
         </button>
       </form>
     </div>
