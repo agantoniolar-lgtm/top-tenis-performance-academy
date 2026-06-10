@@ -1,9 +1,15 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Trophy, Save } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../hooks/useAuth';
+import { TIPOS_TORNEO, CATEGORIAS_TORNEO, RONDAS_TORNEO } from '../../data/torneoOpciones';
 
 export default function NuevoTorneo() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [form, setForm] = useState({
     nombre: '',
     tipo: '',
@@ -13,6 +19,7 @@ export default function NuevoTorneo() {
     modalidad: 'Individual',
     ronda: '',
     resultado: '',
+    victoria: '',
     notas: '',
   });
 
@@ -20,13 +27,47 @@ export default function NuevoTorneo() {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const existing = JSON.parse(localStorage.getItem('ttpa_torneos') || '[]');
-    const newTorneo = { ...form, id: Date.now(), createdAt: new Date().toISOString() };
-    existing.push(newTorneo);
-    localStorage.setItem('ttpa_torneos', JSON.stringify(existing));
-    navigate('/portal/post-torneo/new');
+    setSaving(true);
+    setSaveError('');
+
+    // 1. Insertar el torneo en el catálogo
+    const { data: tournament, error: tError } = await supabase
+      .from('tournaments')
+      .insert({
+        nombre: form.nombre,
+        tipo: form.tipo || null,
+        categoria: form.categoria || null,
+        fecha: form.fecha,
+        sede: form.sede || null,
+        created_by: user?.id,
+      })
+      .select('id')
+      .single();
+
+    if (tError) { setSaveError(tError.message); setSaving(false); return; }
+
+    // 2. Registrar la participación del atleta
+    const { data: athleteTournament, error: atError } = await supabase
+      .from('athlete_tournaments')
+      .insert({
+        athlete_id: user?.athlete_id,
+        tournament_id: tournament.id,
+        modalidad: form.modalidad,
+        ronda: form.ronda || null,
+        resultado: form.resultado || null,
+        victoria: form.victoria === 'true' ? true : form.victoria === 'false' ? false : null,
+        notas: form.notas || null,
+      })
+      .select('id')
+      .single();
+
+    setSaving(false);
+    if (atError) { setSaveError(atError.message); return; }
+
+    // 3. Redirigir al PTF vinculado a este registro
+    navigate(`/portal/post-torneo/${athleteTournament.id}`);
   };
 
   const inputClass =
@@ -54,28 +95,21 @@ export default function NuevoTorneo() {
             <label className={labelClass}>Tipo</label>
             <select name="tipo" value={form.tipo} onChange={handleChange} className={inputClass} required>
               <option value="">Seleccionar...</option>
-              <option value="AMTP">AMTP</option>
-              <option value="ITF Junior">ITF Junior</option>
-              <option value="UTR">UTR</option>
-              <option value="Otro">Otro</option>
+              {TIPOS_TORNEO.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
           <div>
             <label className={labelClass}>Categoría</label>
             <select name="categoria" value={form.categoria} onChange={handleChange} className={inputClass} required>
               <option value="">Seleccionar...</option>
-              <option value="U12">U12</option>
-              <option value="U14">U14</option>
-              <option value="U16">U16</option>
-              <option value="U18">U18</option>
-              <option value="Open">Open</option>
+              {CATEGORIAS_TORNEO.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className={labelClass}>Fecha</label>
+            <label className={labelClass}>Fecha de inicio del torneo</label>
             <input type="date" name="fecha" value={form.fecha} onChange={handleChange} className={inputClass} required />
           </div>
           <div>
@@ -107,13 +141,7 @@ export default function NuevoTorneo() {
           <label className={labelClass}>Ronda alcanzada</label>
           <select name="ronda" value={form.ronda} onChange={handleChange} className={inputClass} required>
             <option value="">Seleccionar...</option>
-            <option value="Primera ronda">Primera ronda</option>
-            <option value="Segunda ronda">Segunda ronda</option>
-            <option value="Tercera ronda">Tercera ronda</option>
-            <option value="Cuartos de final">Cuartos de final</option>
-            <option value="Semifinal">Semifinal</option>
-            <option value="Final">Final</option>
-            <option value="Campeón">Campeón</option>
+            {RONDAS_TORNEO.map(r => <option key={r} value={r}>{r}</option>)}
           </select>
         </div>
 
@@ -129,6 +157,26 @@ export default function NuevoTorneo() {
         </div>
 
         <div>
+          <label className={labelClass}>¿Ganaste el último partido?</label>
+          <div className="flex gap-6 mt-1">
+            {[{ value: 'true', label: 'Sí, gané' }, { value: 'false', label: 'No, perdí' }].map(({ value, label }) => (
+              <label key={value} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="radio"
+                  name="victoria"
+                  value={value}
+                  checked={form.victoria === value}
+                  onChange={handleChange}
+                  className="accent-[#1B3A2A]"
+                  required
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div>
           <label className={labelClass}>Notas (opcional)</label>
           <textarea
             name="notas"
@@ -139,12 +187,15 @@ export default function NuevoTorneo() {
           />
         </div>
 
+        {saveError && <p className="text-sm text-red-600">{saveError}</p>}
+
         <button
           type="submit"
-          className="w-full bg-[#1B3A2A] hover:bg-[#2D5A3D] text-white font-semibold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
+          disabled={saving}
+          className="w-full bg-[#1B3A2A] hover:bg-[#2D5A3D] disabled:opacity-60 text-white font-semibold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
         >
           <Save className="w-4 h-4" />
-          Guardar resultado
+          {saving ? 'Guardando…' : 'Guardar resultado'}
         </button>
       </form>
     </div>

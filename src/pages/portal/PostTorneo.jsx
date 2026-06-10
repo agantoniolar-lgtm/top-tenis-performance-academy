@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { ChevronDown, ChevronUp, Send, CheckCircle } from 'lucide-react';
+import { RONDAS_TORNEO } from '../../data/torneoOpciones';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -168,6 +170,7 @@ function Section({ title, letter, expanded, onToggle, children }) {
 
 export default function PostTorneo() {
   const { user } = useAuth();
+  const { torneoId: athleteTournamentId } = useParams();
   const [expanded, setExpanded] = useState({ A: true, B: false, C: false, D: false, E: false });
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -176,6 +179,30 @@ export default function PostTorneo() {
   // Metadata del partido
   const [matchDate, setMatchDate] = useState('');
   const [tournamentName, setTournamentName] = useState('');
+
+  // Resultado del partido (se guarda también en athlete_tournaments)
+  const [rondaAlcanzada, setRondaAlcanzada] = useState('');
+  const [resultadoPartido, setResultadoPartido] = useState('');
+  const [victoriaPartido, setVictoriaPartido] = useState('');
+  const [modalidad, setModalidad] = useState('Individual');
+
+  // Pre-cargar datos desde athlete_tournaments si hay ID en URL
+  useEffect(() => {
+    if (!athleteTournamentId || athleteTournamentId === 'new') return;
+    supabase
+      .from('athlete_tournaments')
+      .select('ronda, resultado, victoria, modalidad, tournaments (nombre, fecha)')
+      .eq('id', athleteTournamentId)
+      .single()
+      .then(({ data }) => {
+        if (data?.tournaments?.nombre) setTournamentName(data.tournaments.nombre);
+        if (data?.tournaments?.fecha) setMatchDate(data.tournaments.fecha);
+        if (data?.ronda) setRondaAlcanzada(data.ronda);
+        if (data?.resultado) setResultadoPartido(data.resultado);
+        if (data?.victoria !== null && data?.victoria !== undefined) setVictoriaPartido(String(data.victoria));
+        if (data?.modalidad) setModalidad(data.modalidad);
+      });
+  }, [athleteTournamentId]);
 
   // Placeholders elegidos al azar una vez por sesión
   const [ph] = useState(() => Object.fromEntries(Object.entries(PH).map(([k, v]) => [k, pick(v)])));
@@ -222,9 +249,10 @@ export default function PostTorneo() {
     setSaveError('');
 
     const { error } = await supabase.from('post_tournament_forms').insert({
-      athlete_id:      user?.athlete_id,
-      match_date:      matchDate,
-      tournament_name: tournamentName || null,
+      athlete_id:            user?.athlete_id,
+      athlete_tournament_id: (athleteTournamentId && athleteTournamentId !== 'new') ? athleteTournamentId : null,
+      match_date:            matchDate,
+      tournament_name:       tournamentName || null,
       // A – Técnica
       tecnica_derecha:          derecha   || null,
       tecnica_reves:            reves     || null,
@@ -254,8 +282,23 @@ export default function PostTorneo() {
       reflexion_satisfaccion:   satisfaccion,
     });
 
+    if (error) { setSaving(false); setSaveError(error.message); return; }
+
+    // Actualizar athlete_tournament con el resultado del partido
+    if (athleteTournamentId && athleteTournamentId !== 'new') {
+      await supabase
+        .from('athlete_tournaments')
+        .update({
+          ronda: rondaAlcanzada || null,
+          resultado: resultadoPartido || null,
+          victoria: victoriaPartido === 'true' ? true : victoriaPartido === 'false' ? false : null,
+          modalidad: modalidad || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', athleteTournamentId);
+    }
+
     setSaving(false);
-    if (error) { setSaveError(error.message); return; }
     setSubmitted(true);
   };
 
@@ -284,8 +327,9 @@ export default function PostTorneo() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Metadata del partido */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-4">Partido</p>
+        <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Partido</p>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>Fecha *</label>
@@ -306,6 +350,69 @@ export default function PostTorneo() {
                 placeholder="ej. Torneo Nacional Junior"
                 className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A2A]/40 focus:border-[#1B3A2A]"
               />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass}>Ronda alcanzada</label>
+              <select
+                value={rondaAlcanzada}
+                onChange={(e) => setRondaAlcanzada(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A2A]/40 focus:border-[#1B3A2A]"
+              >
+                <option value="">Seleccionar...</option>
+                {RONDAS_TORNEO.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Resultado último partido</label>
+              <input
+                type="text"
+                value={resultadoPartido}
+                onChange={(e) => setResultadoPartido(e.target.value)}
+                placeholder="6-4 3-6 6-3"
+                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A2A]/40 focus:border-[#1B3A2A]"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <label className={labelClass}>¿Ganaste el último partido?</label>
+              <div className="flex gap-4 mt-1">
+                {[{ value: 'true', label: 'Sí' }, { value: 'false', label: 'No' }].map(({ value, label }) => (
+                  <label key={value} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="victoriaPartido"
+                      value={value}
+                      checked={victoriaPartido === value}
+                      onChange={(e) => setVictoriaPartido(e.target.value)}
+                      className="accent-[#1B3A2A]"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className={labelClass}>Modalidad</label>
+              <div className="flex gap-4 mt-1">
+                {['Individual', 'Dobles', 'Ambas'].map((m) => (
+                  <label key={m} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="modalidad"
+                      value={m}
+                      checked={modalidad === m}
+                      onChange={(e) => setModalidad(e.target.value)}
+                      className="accent-[#1B3A2A]"
+                    />
+                    {m}
+                  </label>
+                ))}
+              </div>
             </div>
           </div>
         </div>
