@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
+import { TACTIC_DESCS, minPeriodFor, isPeriodAllowed, fmtPeriodLong } from '../../../lib/athletics.js';
 
 // ─── On-court fields ───────────────────────────────────────────────────────
 const STROKES = [
@@ -18,7 +19,7 @@ const TACTICS = [
   { key: 'puntos_clave',         label: 'Puntos clave' },
   { key: 'adaptacion_tactica',   label: 'Adaptación táctica' },
   { key: 'transferencia_partido',label: 'Transferencia al partido' },
-];
+].map(t => ({ ...t, desc: TACTIC_DESCS[t.key] }));
 
 // ─── Physical fields ────────────────────────────────────────────────────────
 const PHYSICAL_NUM = [
@@ -89,7 +90,7 @@ export default function NuevoReporte() {
 
   useEffect(() => {
     if (!user?.coach_id) return;
-    supabase.from('athletes').select('id, nombre, apellido')
+    supabase.from('athletes').select('id, nombre, apellido, fecha_ingreso')
       .eq('coach_id', user.coach_id).eq('activo', true).order('nombre')
       .then(({ data }) => setAth(data ?? []));
   }, [user?.coach_id]);
@@ -153,8 +154,16 @@ export default function NuevoReporte() {
       });
   }, [athleteId, period, user?.coach_id]);
 
+  // B3: el reporte no puede ser anterior al mes de ingreso del atleta
+  const selectedAthlete = athletes.find(a => a.id === athleteId);
+  const minPeriod = minPeriodFor(selectedAthlete?.fecha_ingreso);
+  const periodAllowed = isPeriodAllowed(period, selectedAthlete?.fecha_ingreso);
+
   // Upsert the report container, return report_id
   const ensureReport = async () => {
+    if (!periodAllowed) {
+      throw new Error(`El período no puede ser anterior al ingreso del atleta (${fmtPeriodLong(selectedAthlete?.fecha_ingreso)}).`);
+    }
     const { data, error } = await supabase
       .from('reports')
       .upsert({ athlete_id: athleteId, coach_id: user.coach_id, period },
@@ -257,9 +266,14 @@ export default function NuevoReporte() {
             </select>
           </Field>
           <Field label="Periodo (mes)">
-            <input type="month" value={period.slice(0,7)}
+            <input type="month" value={period.slice(0,7)} min={minPeriod ?? undefined}
                    onChange={e => setPer(`${e.target.value}-01`)}
                    className="w-full hairline px-3 py-2 text-[13px] bg-[var(--paper)] outline-none" />
+            {!periodAllowed && athleteId && (
+              <p className="text-[11px] mt-1" style={{ color: 'var(--bad)' }}>
+                Anterior al ingreso del atleta ({fmtPeriodLong(selectedAthlete?.fecha_ingreso)}).
+              </p>
+            )}
           </Field>
         </div>
 
@@ -300,7 +314,7 @@ export default function NuevoReporte() {
             <div>
               <p className="eyebrow !text-[10px] mb-3 text-[var(--ink-mute)]">Táctica</p>
               <div className="space-y-3">
-                {TACTICS.map(t => <ScoreRow key={t.key} label={t.label} value={tactics[t.key]} onChange={v => setTac(p => ({ ...p, [t.key]: v }))} values={[-2,-1,0,1,2]} />)}
+                {TACTICS.map(t => <ScoreRow key={t.key} label={t.label} desc={t.desc} value={tactics[t.key]} onChange={v => setTac(p => ({ ...p, [t.key]: v }))} values={[-2,-1,0,1,2]} />)}
               </div>
               <textarea value={tacNota} onChange={e => setTacN(e.target.value)} rows={3}
                         placeholder="Notas tácticas…"
@@ -327,7 +341,11 @@ export default function NuevoReporte() {
               </div>
             </div>
             <div>
-              <p className="eyebrow !text-[10px] mb-3 text-[var(--ink-mute)]">FMS simplificado (Pass / Fail)</p>
+              <p className="eyebrow !text-[10px] mb-1 text-[var(--ink-mute)]">FMS simplificado (Pass / Fail)</p>
+              <p className="text-[11px] mb-3" style={{ color: 'var(--ink-mute)', lineHeight: 1.5 }}>
+                Marca <b>Pass</b> (✓) si el atleta completa el patrón de movimiento sin compensaciones, restricciones ni dolor.
+                Si hay cualquiera de las tres, es <b>Fail</b> (sin marcar).
+              </p>
               <div className="grid grid-cols-3 gap-3">
                 {FMS_FIELDS.map(f => (
                   <label key={f.key} className="flex items-center gap-2 cursor-pointer text-[13px]">
@@ -399,12 +417,15 @@ function ScaleLegend({ type }) {
   );
 }
 
-function ScoreRow({ label, value, onChange, values = [-2,-1,0,1,2] }) {
+function ScoreRow({ label, desc, value, onChange, values = [-2,-1,0,1,2] }) {
   const labels = values.includes(0) ? ONCOURT_LABELS : CHAR_LABELS;
   const fmt = (n) => n > 0 ? `+${n}` : `${n}`;
   return (
     <div className="flex items-center gap-4">
-      <span className="text-[13px] w-44 shrink-0">{label}</span>
+      <span className="text-[13px] w-44 shrink-0" title={desc} style={desc ? { cursor: 'help' } : undefined}>
+        {label}
+        {desc && <span className="block text-[10px] leading-tight" style={{ color: 'var(--ink-mute)' }}>{desc}</span>}
+      </span>
       <div className="flex gap-1">
         {values.map(n => (
           <button key={n} type="button" onClick={() => onChange(n)}

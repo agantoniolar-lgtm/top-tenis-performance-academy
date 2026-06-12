@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
-import { calcCat, calcEdad } from '../../../lib/athletics.js';
+import { calcCat, calcEdad, fmtPeriodLong } from '../../../lib/athletics.js';
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -57,7 +57,7 @@ export default function AtletaInicio() {
 
   const [athlete,     setAthlete]     = useState(null);
   const [recruitment, setRecruitment] = useState(null);
-  const [hasPTF] = useState(false); // TODO: conectar cuando PTF guarde en Supabase
+  const [hasPTF,      setHasPTF]      = useState(false);
   // Athlete Voice: null = no report yet, false = pending, true = done
   const [avStatus,    setAvStatus]    = useState(null);
   const [avPeriod,    setAvPeriod]    = useState(null);
@@ -68,33 +68,37 @@ export default function AtletaInicio() {
     let cancelled = false;
 
     async function load() {
-      const d = new Date();
-      const period = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
-
-      const [athRes, recRes, reportRes] = await Promise.all([
+      const [athRes, recRes, reportRes, ptfRes] = await Promise.all([
         supabase.from('athletes')
           .select('id, nombre, apellido, fecha_nacimiento, mano_dominante, tipo_reves, altura_cm, peso_kg, escuela, grado_escolar, coaches(nombre, apellido)')
           .eq('user_id', user.id).single(),
         supabase.from('athlete_recruitment_profile')
           .select('*').eq('athlete_id', user.athlete_id).maybeSingle(),
+        // B9: el reporte disponible es el más reciente del coach, no el del mes en curso
         supabase.from('reports')
-          .select('id, report_athlete_voice(completed_at)')
+          .select('id, period, report_athlete_voice(completed_at)')
           .eq('athlete_id', user.athlete_id)
-          .eq('period', period)
+          .order('period', { ascending: false })
+          .limit(1)
           .maybeSingle(),
+        // B8: detectar si ya existe al menos un PTF
+        supabase.from('post_tournament_forms')
+          .select('id', { count: 'exact', head: true })
+          .eq('athlete_id', user.athlete_id),
       ]);
 
       if (!cancelled) {
         setAthlete(athRes.data);
         setRecruitment(recRes.data);
-        setAvPeriod(period);
+        setHasPTF((ptfRes.count ?? 0) > 0);
         if (reportRes.data) {
           const av = Array.isArray(reportRes.data.report_athlete_voice)
             ? reportRes.data.report_athlete_voice[0]
             : reportRes.data.report_athlete_voice;
+          setAvPeriod(reportRes.data.period);
           setAvStatus(av?.completed_at ? true : false);
         } else {
-          setAvStatus(null); // no report exists this period
+          setAvStatus(null); // el coach no ha creado ningún reporte aún
         }
         setLoading(false);
       }
@@ -264,8 +268,8 @@ export default function AtletaInicio() {
                 </div>
                 <p className="text-[12px]" style={{ color: 'var(--ink-mute)', lineHeight: 1.5 }}>
                   {avStatus
-                    ? 'Ya enviaste tu auto-evaluación de este período. Tu coach puede verla.'
-                    : 'Tu coach ya creó tu reporte. Agrega tu perspectiva — cómo te sentiste este período en cancha, físicamente y en carácter.'}
+                    ? `Ya enviaste tu auto-evaluación de ${fmtPeriodLong(avPeriod)}. Tu coach puede verla.`
+                    : `Tu coach ya creó tu reporte de ${fmtPeriodLong(avPeriod)}. Agrega tu perspectiva — cómo te sentiste este período en cancha, físicamente y en carácter.`}
                 </p>
               </div>
               {!avStatus && (

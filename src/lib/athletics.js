@@ -17,6 +17,15 @@ export const TACTIC_LABELS = {
   adaptacion_tactica: 'Adaptación', transferencia_partido: 'Transferencia',
 };
 
+/** Descripción corta de cada dimensión táctica — para tooltips y ayudas inline. */
+export const TACTIC_DESCS = {
+  seleccion_golpe:       'Elegir el golpe correcto según la situación del punto.',
+  manejo_riesgo:         'Balance entre agresividad y margen de error.',
+  puntos_clave:          'Ejecución en momentos decisivos: break points, 30-30, tiebreaks.',
+  adaptacion_tactica:    'Ajustar el plan de juego según el rival y el marcador.',
+  transferencia_partido: 'Aplicar en torneo lo trabajado en entrenamiento.',
+};
+
 /** Escala on-court: -2..+2 */
 export const OC_LABEL = {
   '-2': 'Estancado', '-1': 'Rezagado', '0': 'Por buen camino',
@@ -130,4 +139,78 @@ export function fmtPeriod(p) {
   // new Date('2026-06-01') parses as UTC midnight = May 31 in UTC-6
   const [y, m] = p.split('-').map(Number);
   return new Date(y, m - 1, 1).toLocaleDateString('es-MX', { year: 'numeric', month: 'short' });
+}
+
+/**
+ * Como fmtPeriod pero con el mes completo ("junio de 2026").
+ * @param {string|null} p — YYYY-MM-DD
+ */
+export function fmtPeriodLong(p) {
+  if (!p) return '—';
+  const [y, m] = p.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('es-MX', { year: 'numeric', month: 'long' });
+}
+
+/**
+ * Primer período (YYYY-MM) en el que se puede crear un reporte para un atleta:
+ * el mes de su fecha de ingreso. null si no hay fecha.
+ * @param {string|null} fechaIngreso — YYYY-MM-DD
+ * @returns {string|null} — YYYY-MM
+ */
+export function minPeriodFor(fechaIngreso) {
+  if (!fechaIngreso) return null;
+  return fechaIngreso.slice(0, 7);
+}
+
+/**
+ * ¿Se permite un período de reporte para un atleta con esa fecha de ingreso?
+ * Compara solo año-mes; sin fecha de ingreso, todo período es válido.
+ * @param {string|null} period — YYYY-MM-DD (o YYYY-MM)
+ * @param {string|null} fechaIngreso — YYYY-MM-DD
+ */
+export function isPeriodAllowed(period, fechaIngreso) {
+  if (!period) return false;
+  if (!fechaIngreso) return true;
+  return period.slice(0, 7) >= fechaIngreso.slice(0, 7);
+}
+
+// ─── Funciones de series y torneos ───────────────────────────────────────────
+
+/**
+ * Normaliza una serie numérica a la escala 1..5 según su propio min/max,
+ * para graficarla en sparklines cuyo dominio es 1..5 (ej. UTR).
+ * Si todos los valores son iguales devuelve 3 para cada uno. Conserva nulls.
+ * @param {(number|null)[]} values
+ * @returns {(number|null)[]}
+ */
+export function normalizeSeries(values) {
+  const nums = (values ?? []).filter(v => v != null && typeof v === 'number');
+  if (nums.length === 0) return (values ?? []).map(() => null);
+  const min = Math.min(...nums), max = Math.max(...nums);
+  return values.map(v => {
+    if (v == null || typeof v !== 'number') return null;
+    if (max === min) return 3;
+    return 1 + ((v - min) / (max - min)) * 4;
+  });
+}
+
+/**
+ * Record W/L **por partido** a partir de participaciones en torneos.
+ * En eliminación directa: si ganó el último partido, ganó todos los que jugó;
+ * si lo perdió, ganó todos menos el último.
+ * - Cuenta solo filas con resultado capturado (victoria !== null).
+ * - Sin partidos_jugados (filas viejas), asume 1 partido (el registrado).
+ * - `total` = número de torneos con resultado, para el subtítulo "x torneos".
+ * @param {{victoria: boolean|null, partidos_jugados?: number|null}[]|null} rows
+ * @returns {{w: number, l: number, total: number}}
+ */
+export function winLossRecord(rows) {
+  const played = (rows ?? []).filter(r => r && r.victoria != null);
+  let w = 0, l = 0;
+  for (const r of played) {
+    const n = r.partidos_jugados != null && r.partidos_jugados >= 1 ? r.partidos_jugados : 1;
+    if (r.victoria === true) { w += n; }
+    else { w += n - 1; l += 1; }
+  }
+  return { w, l, total: played.length };
 }

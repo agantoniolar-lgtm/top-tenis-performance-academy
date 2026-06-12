@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
-import { calcCat } from '../../../lib/athletics.js';
+import { calcCat, fmtPeriod } from '../../../lib/athletics.js';
 
 export default function Alumnos() {
   const { user }           = useAuth();
@@ -85,9 +85,7 @@ export default function Alumnos() {
                     {a.mano_dominante ?? '—'}
                   </td>
                   <td className="px-4 py-4 hidden lg:table-cell font-mono text-[11px] text-[var(--ink-mute)]">
-                    {a.fecha_ingreso
-                      ? new Date(a.fecha_ingreso).toLocaleDateString('es-MX', { year: 'numeric', month: 'short' })
-                      : '—'}
+                    {fmtPeriod(a.fecha_ingreso)}
                   </td>
                   <td className="px-5 py-4 text-right">
                     <div className="font-num font-black text-[22px] tnum leading-none">

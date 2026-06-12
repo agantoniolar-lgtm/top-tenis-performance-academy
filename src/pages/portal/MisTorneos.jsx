@@ -111,9 +111,13 @@ export default function MisTorneos() {
                       </td>
                       <td className="px-5 py-4">
                         {ptfCompletado ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded bg-green-100 text-green-700">
-                            <CheckCircle className="w-3 h-3" /> Completado
-                          </span>
+                          <Link
+                            to={`/portal/post-torneo/${t.id}`}
+                            title="Editar resultado y PTF"
+                            className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded bg-green-100 text-green-700 hover:bg-green-200 transition-colors"
+                          >
+                            <CheckCircle className="w-3 h-3" /> Completado · Editar
+                          </Link>
                         ) : (
                           <Link
                             to={`/portal/post-torneo/${t.id}`}
@@ -157,9 +161,12 @@ export default function MisTorneos() {
                       </span>
                     )}
                     {ptfCompletado ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded bg-green-100 text-green-700">
-                        <CheckCircle className="w-3 h-3" /> PTF Completado
-                      </span>
+                      <Link
+                        to={`/portal/post-torneo/${t.id}`}
+                        className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded bg-green-100 text-green-700 hover:bg-green-200 transition-colors"
+                      >
+                        <CheckCircle className="w-3 h-3" /> PTF Completado · Editar
+                      </Link>
                     ) : (
                       <Link
                         to={`/portal/post-torneo/${t.id}`}

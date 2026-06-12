@@ -181,3 +181,107 @@ describe('fmtPeriod', () => {
     expect(result.toLowerCase()).toMatch(/ene/);
   });
 });
+
+// ─── fmtPeriodLong ───────────────────────────────────────────────────────────
+
+import { fmtPeriodLong, minPeriodFor, isPeriodAllowed, normalizeSeries, winLossRecord } from './athletics.js';
+
+describe('fmtPeriodLong', () => {
+  it('devuelve — para null', () => {
+    expect(fmtPeriodLong(null)).toBe('—');
+  });
+  it('muestra el mes completo sin offset UTC', () => {
+    const result = fmtPeriodLong('2026-06-01');
+    expect(result.toLowerCase()).toContain('junio');
+    expect(result).toContain('2026');
+  });
+});
+
+// ─── minPeriodFor ────────────────────────────────────────────────────────────
+
+describe('minPeriodFor', () => {
+  it('devuelve YYYY-MM del mes de ingreso', () => {
+    expect(minPeriodFor('2026-04-20')).toBe('2026-04');
+  });
+  it('devuelve null si no hay fecha', () => {
+    expect(minPeriodFor(null)).toBeNull();
+    expect(minPeriodFor(undefined)).toBeNull();
+  });
+});
+
+// ─── isPeriodAllowed ─────────────────────────────────────────────────────────
+
+describe('isPeriodAllowed', () => {
+  it('permite el mismo mes del ingreso (registro el 20-abr → reporte de abril ok)', () => {
+    expect(isPeriodAllowed('2026-04-01', '2026-04-20')).toBe(true);
+  });
+  it('permite meses posteriores', () => {
+    expect(isPeriodAllowed('2026-06-01', '2026-04-20')).toBe(true);
+  });
+  it('bloquea meses anteriores al ingreso', () => {
+    expect(isPeriodAllowed('2026-03-01', '2026-04-20')).toBe(false);
+  });
+  it('sin fecha de ingreso, todo período es válido', () => {
+    expect(isPeriodAllowed('2026-01-01', null)).toBe(true);
+  });
+  it('devuelve false si no hay período', () => {
+    expect(isPeriodAllowed(null, '2026-04-20')).toBe(false);
+    expect(isPeriodAllowed('', '2026-04-20')).toBe(false);
+  });
+});
+
+// ─── normalizeSeries ─────────────────────────────────────────────────────────
+
+describe('normalizeSeries', () => {
+  it('mapea min→1 y max→5', () => {
+    expect(normalizeSeries([8, 10])).toEqual([1, 5]);
+  });
+  it('interpola valores intermedios', () => {
+    expect(normalizeSeries([8, 9, 10])).toEqual([1, 3, 5]);
+  });
+  it('conserva nulls', () => {
+    expect(normalizeSeries([8, null, 10])).toEqual([1, null, 5]);
+  });
+  it('serie constante devuelve 3', () => {
+    expect(normalizeSeries([9.2, 9.2])).toEqual([3, 3]);
+  });
+  it('serie vacía o solo nulls devuelve nulls', () => {
+    expect(normalizeSeries([])).toEqual([]);
+    expect(normalizeSeries([null, null])).toEqual([null, null]);
+  });
+});
+
+// ─── winLossRecord ───────────────────────────────────────────────────────────
+
+describe('winLossRecord', () => {
+  it('campeón: gana todos los partidos que jugó', () => {
+    expect(winLossRecord([{ victoria: true, partidos_jugados: 5 }]))
+      .toEqual({ w: 5, l: 0, total: 1 });
+  });
+  it('eliminado: gana todos menos el último', () => {
+    expect(winLossRecord([{ victoria: false, partidos_jugados: 4 }]))
+      .toEqual({ w: 3, l: 1, total: 1 });
+  });
+  it('suma varios torneos y total cuenta torneos, no partidos', () => {
+    expect(winLossRecord([
+      { victoria: true,  partidos_jugados: 3 },
+      { victoria: false, partidos_jugados: 2 },
+    ])).toEqual({ w: 4, l: 1, total: 2 });
+  });
+  it('fila sin partidos_jugados asume 1 partido', () => {
+    expect(winLossRecord([{ victoria: true }, { victoria: false }]))
+      .toEqual({ w: 1, l: 1, total: 2 });
+  });
+  it('eliminado en su único partido: 0-1', () => {
+    expect(winLossRecord([{ victoria: false, partidos_jugados: 1 }]))
+      .toEqual({ w: 0, l: 1, total: 1 });
+  });
+  it('ignora filas sin resultado', () => {
+    expect(winLossRecord([{ victoria: true, partidos_jugados: 2 }, { victoria: null, partidos_jugados: 3 }]))
+      .toEqual({ w: 2, l: 0, total: 1 });
+  });
+  it('devuelve ceros con null o lista vacía', () => {
+    expect(winLossRecord(null)).toEqual({ w: 0, l: 0, total: 0 });
+    expect(winLossRecord([])).toEqual({ w: 0, l: 0, total: 0 });
+  });
+});

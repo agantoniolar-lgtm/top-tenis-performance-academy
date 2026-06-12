@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
-import { avg, ocTo5, score5Color, fmtPeriod, SCORE5_LABEL,
+import { avg, ocTo5, score5Color, fmtPeriod, normalizeSeries, SCORE5_LABEL,
          STROKE_KEYS, TACTIC_KEYS } from '../../../lib/athletics.js';
 
 // ─── Mini sparkline ───────────────────────────────────────────────────────────
@@ -91,8 +91,8 @@ export default function AtletaRendimiento() {
 
   if (loading) return <Shell><p style={{ color: 'var(--ink-mute)', fontSize: 13 }}>Cargando…</p></Shell>;
 
-  // Series más antiguas → más recientes para sparklines
-  const chrono = [...reports].reverse();
+  // Series más antiguas → más recientes para sparklines — últimos 5 períodos
+  const chrono = [...reports].reverse().slice(-5);
   const tecSeries  = chrono.map(r => { const a = avg(ocMap[r.id], STROKE_KEYS); return a != null ? ocTo5(a) : null; });
   const tacSeries  = chrono.map(r => { const a = avg(ocMap[r.id], TACTIC_KEYS); return a != null ? ocTo5(a) : null; });
   // Character is -2/+2 like on-court — convert to 1-5 via ocTo5 for consistent display
@@ -151,8 +151,11 @@ export default function AtletaRendimiento() {
               </div>
               {utrSeries.filter(v => v != null).length >= 2 && (
                 <div className="hairline mt-0.5 px-4 py-3" style={{ background: 'var(--paper)' }}>
-                  <p className="eyebrow !text-[9px] mb-2" style={{ color: 'var(--ink-mute)' }}>UTR · últimos {reports.length} períodos</p>
-                  <Sparkline values={utrSeries.map(v => v ? (v - 1) / 2 * 4 + 1 : null)} w={200} h={44} />
+                  <p className="eyebrow !text-[9px] mb-2" style={{ color: 'var(--ink-mute)' }}>
+                    UTR · últimos {chrono.length} períodos ({Math.min(...utrSeries.filter(v => v != null)).toFixed(1)} – {Math.max(...utrSeries.filter(v => v != null)).toFixed(1)})
+                  </p>
+                  {/* normalizeSeries escala el UTR a su propio rango para que la línea quede dentro del gráfico */}
+                  <Sparkline values={normalizeSeries(utrSeries)} w={200} h={44} />
                 </div>
               )}
             </section>

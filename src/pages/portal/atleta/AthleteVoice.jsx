@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
+import { TACTIC_DESCS } from '../../../lib/athletics.js';
 
 // ─── Field definitions ────────────────────────────────────────────────────────
 
@@ -19,7 +20,7 @@ const TAC = [
   { key: 'puntos_clave',          label: 'Puntos clave' },
   { key: 'adaptacion_tactica',    label: 'Adaptación táctica' },
   { key: 'transferencia_partido', label: 'Transferencia al partido' },
-];
+].map(t => ({ ...t, desc: TACTIC_DESCS[t.key] }));
 const PHYS = [
   { key: 'velocidad',           label: 'Velocidad' },
   { key: 'resistencia',         label: 'Resistencia' },
@@ -58,12 +59,14 @@ export default function AthleteVoice() {
   const navigate   = useNavigate();
   const [params]   = useSearchParams();
 
-  const [period] = useState(() => {
+  const [period, setPeriod] = useState(() => {
     const p = params.get('period');
     if (p) return p;
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
   });
+  // B9: períodos con reporte del coach y estado del athlete voice de cada uno
+  const [available, setAvail] = useState([]);
 
   const [tab,      setTab]    = useState('oncourt');
   const [reportId, setRid]    = useState(null);
@@ -80,9 +83,34 @@ export default function AthleteVoice() {
   const [char_,     setChar]  = useState(defScores(CHAR, 0));
   const [reflexion, setRef]   = useState('');
 
+  // ── B9: lista de períodos con reporte del coach ───────────────────────────
+  useEffect(() => {
+    if (!user?.athlete_id) return;
+    supabase
+      .from('reports')
+      .select('period, report_athlete_voice(completed_at)')
+      .eq('athlete_id', user.athlete_id)
+      .order('period', { ascending: false })
+      .then(({ data }) => {
+        const list = (data ?? []).map(r => {
+          const av = Array.isArray(r.report_athlete_voice) ? r.report_athlete_voice[0] : r.report_athlete_voice;
+          return { period: r.period, done: !!av?.completed_at };
+        });
+        setAvail(list);
+        // Sin ?period en la URL, abrir el período más reciente con reporte
+        if (!params.get('period') && list.length > 0) setPeriod(list[0].period);
+      });
+  }, [user?.athlete_id, params]);
+
   // ── Load report + pre-fill if already submitted ───────────────────────────
   useEffect(() => {
     if (!user?.athlete_id) return;
+    // Reset al cambiar de período
+    setLoad(true); setNone(false); setErr(null); setRid(null); setDone(false);
+    setTech(defScores(TECH, 0)); setTac(defScores(TAC, 0));
+    setPhys(defScores(PHYS, 0)); setChar(defScores(CHAR, 0)); setRef('');
+    setSaved({ oncourt: false, physical: false, character: false });
+    setTab('oncourt');
     supabase
       .from('reports')
       .select(`
@@ -178,6 +206,12 @@ export default function AthleteVoice() {
         <p className="text-[13px] mb-6" style={{ color: 'var(--ink-mute)', lineHeight: 1.6 }}>
           Tu coach aún no ha creado un reporte para este período. Cuando lo haga, podrás agregar tu perspectiva aquí.
         </p>
+        {available.length > 0 && (
+          <div className="mb-6">
+            <p className="eyebrow !text-[10px] mb-2" style={{ color: 'var(--ink-mute)' }}>Períodos disponibles</p>
+            <PeriodPicker available={available} period={period} onSelect={setPeriod} />
+          </div>
+        )}
         <button onClick={() => navigate('/portal/inicio')}
                 className="text-[11px] font-semibold uppercase tracking-wide hairline px-4 py-2 hover:bg-[var(--cream)] transition">
           ← Volver
@@ -222,6 +256,11 @@ export default function AthleteVoice() {
           <p className="text-[12px] mt-1" style={{ color: 'var(--ink-mute)' }}>
             ¿Cómo te sentiste este período? Evalúa tu propio juego — tu coach verá esto junto con su evaluación.
           </p>
+          {available.length > 1 && (
+            <div className="mt-3">
+              <PeriodPicker available={available} period={period} onSelect={setPeriod} />
+            </div>
+          )}
         </div>
 
         {/* Tabs */}
@@ -269,7 +308,7 @@ export default function AthleteVoice() {
               <p className="eyebrow !text-[10px] mb-3" style={{ color: 'var(--ink-mute)' }}>Táctica</p>
               <div className="space-y-3">
                 {TAC.map(f => (
-                  <ScoreRow key={f.key} label={f.label} value={tac[f.key]}
+                  <ScoreRow key={f.key} label={f.label} desc={f.desc} value={tac[f.key]}
                             onChange={v => setTac(p => ({ ...p, [f.key]: v }))}
                             values={[-2, -1, 0, 1, 2]} />
                 ))}
@@ -348,6 +387,26 @@ export default function AthleteVoice() {
 
 // ─── Shared sub-components ────────────────────────────────────────────────────
 
+/** Chips de períodos con reporte del coach: punto verde = athlete voice enviado. */
+function PeriodPicker({ available, period, onSelect }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {available.map(({ period: p, done }) => (
+        <button key={p} type="button" onClick={() => onSelect(p)}
+                className="px-3 py-1.5 text-[11px] font-semibold hairline transition flex items-center gap-1.5"
+                style={p === period
+                  ? { background: 'var(--accent)', color: 'white' }
+                  : { background: 'var(--paper)', color: 'var(--ink-soft)' }}>
+          {labelPeriod(p)}
+          <span className="inline-block w-1.5 h-1.5 rounded-full"
+                title={done ? 'Athlete Voice enviado' : 'Pendiente'}
+                style={{ background: done ? 'var(--good)' : (p === period ? 'rgba(255,255,255,.5)' : 'var(--bad)') }} />
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // All sections use -2/+2 scale
 const ONCOURT_LABELS = { '-2': 'Estancado', '-1': 'Rezagado', '0': 'Por buen camino', '1': 'Adelantado', '2': 'Superado' };
 
@@ -370,12 +429,15 @@ function ScaleLegend() {
   );
 }
 
-function ScoreRow({ label, value, onChange, values }) {
+function ScoreRow({ label, desc, value, onChange, values }) {
   const labels = ONCOURT_LABELS;
   const fmt = n => n > 0 ? `+${n}` : `${n}`;
   return (
     <div className="flex items-center gap-4">
-      <span className="text-[13px] w-44 shrink-0">{label}</span>
+      <span className="text-[13px] w-44 shrink-0" title={desc} style={desc ? { cursor: 'help' } : undefined}>
+        {label}
+        {desc && <span className="block text-[10px] leading-tight" style={{ color: 'var(--ink-mute)' }}>{desc}</span>}
+      </span>
       <div className="flex gap-1">
         {values.map(n => (
           <button key={n} type="button" onClick={() => onChange(n)}

@@ -14,5 +14,5 @@ export const RONDAS_TORNEO = [
   'Cuartos de final',
   'Semifinal',
   'Final',
-  'Campeón',
 ];
+// Nota: 'Campeón' se eliminó — es redundante con ronda 'Final' + victoria del último partido.

@@ -2,20 +2,20 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import {
-  calcCat, calcEdad, avg, ocTo5, score5Color, fmtPeriod,
+  calcCat, calcEdad, avg, ocTo5, score5Color, fmtPeriod, winLossRecord,
   STROKE_KEYS, TACTIC_KEYS, SCORE5_LABEL,
 } from '../../lib/athletics.js';
 
 // ─── Sparkline ────────────────────────────────────────────────────────────────
 
-function Sparkline({ values = [], w = 100, h = 40 }) {
+function Sparkline({ values = [], w = 100, h = 40, showValues = false }) {
   const valid = values.map((v, i) => ({ v, i })).filter(p => p.v != null);
   if (valid.length < 2) return (
     <div style={{ width: w, height: h }} className="flex items-center justify-center">
       <span style={{ color: 'var(--ink-mute)', fontSize: 9 }}>sin historial</span>
     </div>
   );
-  const P = 4;
+  const P = showValues ? 11 : 4;
   const n = values.length;
   const xf = i => P + (i / (n - 1)) * (w - P * 2);
   const yf = v => h - P - ((v - 1) / 4) * (h - P * 2);
@@ -26,6 +26,12 @@ function Sparkline({ values = [], w = 100, h = 40 }) {
       <path d={d} stroke={col} strokeWidth="2" fill="none" opacity="0.7" />
       {valid.map(p => (
         <circle key={p.i} cx={xf(p.i)} cy={yf(p.v)} r="2.5" fill={score5Color(Math.round(p.v))} />
+      ))}
+      {showValues && valid.map(p => (
+        <text key={`t${p.i}`} x={xf(p.i)} y={yf(p.v) - 5} textAnchor="middle"
+              style={{ fontSize: 8, fontWeight: 700, fill: 'var(--ink-soft)' }}>
+          {Number.isInteger(p.v) ? p.v : p.v.toFixed(1)}
+        </text>
       ))}
     </svg>
   );
@@ -97,6 +103,51 @@ function StatCard({ label, value, sub, source, pending }) {
   );
 }
 
+/**
+ * Barra de percepción: punto del coach y punto del atleta sobre la misma escala.
+ * Internamente usa 1–5 (ocTo5), pero se muestra con los labels cualitativos
+ * de la rúbrica (Estancado … Superado) — lo que importa es ver el gap, p. ej.
+ * el atleta se siente "Rezagado" y el coach lo ve "Por buen camino".
+ * Si coach y atleta coinciden, se muestra un solo círculo verde.
+ */
+function PerceptionBar({ coach, atleta }) {
+  const pos = v => `${((v - 1) / 4) * 100}%`;
+  const aligned = coach != null && atleta != null && coach === atleta;
+  return (
+    <div>
+      <div className="relative h-6">
+        <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-[3px]" style={{ background: 'var(--line)' }} />
+        {[1, 2, 3, 4, 5].map(t => (
+          <span key={t} className="absolute top-1/2 -translate-y-1/2 w-[1px] h-2"
+                style={{ left: pos(t), background: 'var(--line-strong)' }} />
+        ))}
+        {aligned ? (
+          <span className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full"
+                title={`Coach y atleta alineados: ${SCORE5_LABEL[coach]}`}
+                style={{ left: pos(coach), background: 'var(--good)', border: '2px solid var(--paper)' }} />
+        ) : (
+          <>
+            {coach != null && (
+              <span className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full"
+                    title={`Coach: ${SCORE5_LABEL[coach]}`}
+                    style={{ left: pos(coach), background: 'var(--green-deep)', border: '2px solid var(--paper)' }} />
+            )}
+            {atleta != null && (
+              <span className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full"
+                    title={`Atleta: ${SCORE5_LABEL[atleta]}`}
+                    style={{ left: pos(atleta), background: 'var(--accent)', border: '2px solid var(--paper)' }} />
+            )}
+          </>
+        )}
+      </div>
+      <div className="flex justify-between text-[9px] font-mono uppercase tracking-wide" style={{ color: 'var(--ink-mute)' }}>
+        <span>{SCORE5_LABEL[1]}</span>
+        <span>{SCORE5_LABEL[5]}</span>
+      </div>
+    </div>
+  );
+}
+
 function RecruitRow({ label, value }) {
   return (
     <div>
@@ -118,6 +169,8 @@ export default function TalentCard() {
   const [reports, setRep]   = useState([]);
   const [ocMap,   setOcMap] = useState({});
   const [chMap,   setChMap] = useState({});
+  const [avMap,   setAvMap] = useState({});
+  const [record,  setRecord] = useState({ w: 0, l: 0, total: 0 });
   const [loading, setLoad]  = useState(true);
   const [error,   setErr]   = useState(null);
 
@@ -140,28 +193,36 @@ export default function TalentCard() {
         study_area:    recProfile.study_area,
       } : null;
 
-      const { data: reps, error: e2 } = await supabase
-        .from('reports').select('id, period')
-        .eq('athlete_id', id).order('period', { ascending: false }).limit(6);
+      const [{ data: reps, error: e2 }, { data: tourns }] = await Promise.all([
+        supabase.from('reports').select('id, period')
+          .eq('athlete_id', id).order('period', { ascending: false }).limit(5),
+        supabase.from('athlete_tournaments').select('victoria, partidos_jugados').eq('athlete_id', id),
+      ]);
       if (e2) { setErr(e2.message); setLoad(false); return; }
 
       const ids = (reps ?? []).map(r => r.id);
-      let oc = {}, ch = {};
+      let oc = {}, ch = {}, av = {};
 
       if (ids.length > 0) {
-        const [ocRes, chRes] = await Promise.all([
+        const [ocRes, chRes, avRes] = await Promise.all([
           supabase.from('report_on_court')
             .select('report_id, utr, serve, forehand, backhand, volea, devolucion, footwork, seleccion_golpe, manejo_riesgo, puntos_clave, adaptacion_tactica, transferencia_partido, tecnica_nota, tactica_nota')
             .in('report_id', ids),
           supabase.from('report_character')
             .select('report_id, etica_trabajo, coachabilidad, liderazgo_nota')
             .in('report_id', ids),
+          supabase.from('report_athlete_voice')
+            .select('report_id, completed_at, serve, forehand, backhand, volea, devolucion, footwork, seleccion_golpe, manejo_riesgo, puntos_clave, adaptacion_tactica, transferencia_partido, etica_trabajo, coachabilidad')
+            .in('report_id', ids),
         ]);
         const toMap = rows => Object.fromEntries((rows ?? []).map(r => [r.report_id, r]));
-        oc = toMap(ocRes.data); ch = toMap(chRes.data);
+        oc = toMap(ocRes.data); ch = toMap(chRes.data); av = toMap(avRes.data);
       }
 
-      if (!cancelled) { setAth(ath); setRep(reps ?? []); setOcMap(oc); setChMap(ch); setLoad(false); }
+      if (!cancelled) {
+        setAth(ath); setRep(reps ?? []); setOcMap(oc); setChMap(ch); setAvMap(av);
+        setRecord(winLossRecord(tourns)); setLoad(false);
+      }
     }
     load().catch(e => { if (!cancelled) { setErr(e.message); setLoad(false); } });
     return () => { cancelled = true; };
@@ -197,6 +258,20 @@ export default function TalentCard() {
   const currentUTR = lastOC?.utr ?? athlete.utr_actual;
   const prevUTR    = reports[1] ? ocMap[reports[1].id]?.utr : null;
   const deltaUTR   = currentUTR && prevUTR ? Number(currentUTR) - Number(prevUTR) : null;
+
+  // B5: Percepción coach vs. atleta — comparar reportes de periodo, no PTFs.
+  // Usa el reporte más reciente que tenga athlete voice completado.
+  const percRep = reports.find(r => avMap[r.id]?.completed_at && ocMap[r.id]);
+  const percOC  = percRep ? ocMap[percRep.id] : null;
+  const percCh  = percRep ? chMap[percRep.id] : null;
+  const percAV  = percRep ? avMap[percRep.id] : null;
+  const percRows = percRep ? [
+    { label: 'Técnica', coach: ocTo5(avg(percOC, STROKE_KEYS)), atleta: ocTo5(avg(percAV, STROKE_KEYS)) },
+    { label: 'Táctica', coach: ocTo5(avg(percOC, TACTIC_KEYS)), atleta: ocTo5(avg(percAV, TACTIC_KEYS)) },
+    { label: 'Carácter',
+      coach:  ocTo5(avg(percCh, ['etica_trabajo', 'coachabilidad'])),
+      atleta: ocTo5(avg(percAV, ['etica_trabajo', 'coachabilidad'])) },
+  ].filter(r => r.coach != null || r.atleta != null) : [];
 
   const overallNow  = overallSeries[overallSeries.length - 1];
   const overallPrev = overallSeries[overallSeries.length - 2] ?? null;
@@ -252,9 +327,7 @@ export default function TalentCard() {
                   {athlete.fecha_ingreso && (
                     <><span>·</span>
                     <span>Academia desde{' '}
-                      <b style={{ color: 'rgba(255,255,255,0.8)' }}>
-                        {new Date(athlete.fecha_ingreso).toLocaleDateString('es-MX', { year: 'numeric', month: 'short' })}
-                      </b>
+                      <b style={{ color: 'rgba(255,255,255,0.8)' }}>{fmtPeriod(athlete.fecha_ingreso)}</b>
                     </span></>
                   )}
                 </div>
@@ -269,7 +342,9 @@ export default function TalentCard() {
                   accent
                 />
                 <HeaderMetric label="AMTP" value="—" sub="pendiente API" />
-                <HeaderMetric label="W / L" value="— / —" sub="pendiente datos" />
+                <HeaderMetric label="W / L"
+                  value={record.total > 0 ? `${record.w} / ${record.l}` : '— / —'}
+                  sub={record.total > 0 ? `${record.total} torneo${record.total !== 1 ? 's' : ''} con resultado` : 'sin resultados aún'} />
               </div>
             </div>
           </div>
@@ -312,7 +387,10 @@ export default function TalentCard() {
               source="NuevoReporte"
             />
             <StatCard label="AMTP" value="—" sub="pendiente de conexión API" source="amtp.mx" pending />
-            <StatCard label="W / L" value="— / —" sub="pendiente datos de torneo" source="PTF / torneos" pending />
+            <StatCard label="W / L"
+              value={record.total > 0 ? `${record.w} / ${record.l}` : '— / —'}
+              sub={record.total > 0 ? `partidos · ${record.total} torneo${record.total !== 1 ? 's' : ''} con resultado` : 'sin resultados de torneo aún'}
+              source="PTF / torneos" pending={record.total === 0} />
             <StatCard label="Períodos" value={String(reports.length)} sub="con reporte del coach" source="reportes" />
           </div>
           <p className="text-[11px] mt-3" style={{ color: 'var(--ink-mute)' }}>
@@ -360,7 +438,7 @@ export default function TalentCard() {
                   </p>
                 </div>
 
-                <Sparkline values={overallSeries} w={140} h={50} />
+                <Sparkline values={overallSeries} w={140} h={50} showValues />
 
                 <p className="text-[11px] leading-relaxed ml-auto" style={{ color: 'var(--ink-mute)', maxWidth: 200 }}>
                   Promedio de Técnica, Táctica y Carácter en los últimos {reports.length} período{reports.length !== 1 ? 's' : ''}.
@@ -405,14 +483,57 @@ export default function TalentCard() {
         </Section>
 
         {/* ── 04 · Coach vs. Atleta ───────────────────────────────────────── */}
-        <Section eyebrow="04 · Percepción: Coach vs. Atleta" tag="Para el recruiter">
-          <div className="hairline p-8 text-center" style={{ background: 'var(--cream)' }}>
-            <p className="font-display font-bold text-[16px] mb-2">En construcción</p>
-            <p className="text-[12px]" style={{ color: 'var(--ink-mute)', maxWidth: 440, margin: '0 auto', lineHeight: 1.6 }}>
-              Cuando el atleta complete sus PTFs y se conecte a la base de datos, esta sección mostrará
-              el gap entre la evaluación del coach y la autopercepción del atleta en Técnica, Mental y Físico.
-            </p>
-          </div>
+        <Section
+          eyebrow="04 · Percepción: Coach vs. Atleta"
+          tag="Para el recruiter"
+          sub={percRep ? `Reporte de ${fmtPeriod(percRep.period)} · evaluación del coach vs. Athlete Voice` : undefined}
+        >
+          {percRows.length > 0 ? (
+            <div className="space-y-4">
+              {percRows.map(r => {
+                const gap = r.coach != null && r.atleta != null ? r.atleta - r.coach : null;
+                return (
+                  <div key={r.label} className="grid grid-cols-12 items-center gap-3">
+                    <div className="col-span-3">
+                      <p className="eyebrow !text-[10px]" style={{ color: 'var(--ink-mute)' }}>{r.label}</p>
+                      <p className="text-[10px] leading-tight mt-0.5" style={{ color: 'var(--ink-soft)' }}>
+                        Coach: <b>{SCORE5_LABEL[r.coach] ?? '—'}</b><br />
+                        Atleta: <b>{SCORE5_LABEL[r.atleta] ?? '—'}</b>
+                      </p>
+                    </div>
+                    <div className="col-span-7">
+                      <PerceptionBar coach={r.coach} atleta={r.atleta} />
+                    </div>
+                    <p className="col-span-2 text-right text-[11px] font-mono font-bold"
+                       style={{ color: gap == null ? 'var(--ink-mute)' : gap > 0 ? 'var(--accent)' : 'var(--bad)' }}>
+                      {gap == null || gap === 0 ? '' : gap > 0 ? `+${gap} atleta` : `${gap} atleta`}
+                    </p>
+                  </div>
+                );
+              })}
+              <div className="flex gap-5 pt-2 text-[10px]" style={{ color: 'var(--ink-mute)' }}>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: 'var(--green-deep)' }} /> Coach
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: 'var(--accent)' }} /> Atleta
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: 'var(--good)' }} /> Alineados
+                </span>
+                <span className="ml-auto">Rúbrica del reporte: {SCORE5_LABEL[1]} → {SCORE5_LABEL[5]}</span>
+              </div>
+            </div>
+          ) : (
+            <div className="hairline p-8 text-center" style={{ background: 'var(--cream)' }}>
+              <p className="font-display font-bold text-[16px] mb-2">Sin Athlete Voice aún</p>
+              <p className="text-[12px]" style={{ color: 'var(--ink-mute)', maxWidth: 440, margin: '0 auto', lineHeight: 1.6 }}>
+                Cuando el atleta complete su Athlete Voice de un período con reporte del coach,
+                esta sección mostrará el gap entre la evaluación del coach y su autopercepción
+                en Técnica, Táctica y Carácter.
+              </p>
+            </div>
+          )}
         </Section>
 
         {/* ── 05 · Especialistas ─────────────────────────────────────────── */}

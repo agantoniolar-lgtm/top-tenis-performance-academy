@@ -185,13 +185,18 @@ export default function PostTorneo() {
   const [resultadoPartido, setResultadoPartido] = useState('');
   const [victoriaPartido, setVictoriaPartido] = useState('');
   const [modalidad, setModalidad] = useState('Individual');
+  const [partidosJugados, setPartidosJugados] = useState('');
+  // Si ya existe un PTF para este torneo, se actualiza en vez de duplicar
+  const [existingPtfId, setExistingPtfId] = useState(null);
+
+  const linkedToTournament = athleteTournamentId && athleteTournamentId !== 'new';
 
   // Pre-cargar datos desde athlete_tournaments si hay ID en URL
   useEffect(() => {
-    if (!athleteTournamentId || athleteTournamentId === 'new') return;
+    if (!linkedToTournament) return;
     supabase
       .from('athlete_tournaments')
-      .select('ronda, resultado, victoria, modalidad, tournaments (nombre, fecha)')
+      .select('ronda, resultado, victoria, modalidad, partidos_jugados, tournaments (nombre, fecha)')
       .eq('id', athleteTournamentId)
       .single()
       .then(({ data }) => {
@@ -201,8 +206,9 @@ export default function PostTorneo() {
         if (data?.resultado) setResultadoPartido(data.resultado);
         if (data?.victoria !== null && data?.victoria !== undefined) setVictoriaPartido(String(data.victoria));
         if (data?.modalidad) setModalidad(data.modalidad);
+        if (data?.partidos_jugados) setPartidosJugados(String(data.partidos_jugados));
       });
-  }, [athleteTournamentId]);
+  }, [athleteTournamentId, linkedToTournament]);
 
   // Placeholders elegidos al azar una vez por sesión
   const [ph] = useState(() => Object.fromEntries(Object.entries(PH).map(([k, v]) => [k, pick(v)])));
@@ -240,17 +246,63 @@ export default function PostTorneo() {
   const [proximoTorneo, setProximoTorneo] = useState('');
   const [satisfaccion, setSatisfaccion] = useState(5);
 
+  // Pre-llenar el PTF completo si ya existe, para que editar no borre lo capturado
+  useEffect(() => {
+    if (!linkedToTournament) return;
+    supabase
+      .from('post_tournament_forms')
+      .select('*')
+      .eq('athlete_tournament_id', athleteTournamentId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data) return;
+        setExistingPtfId(data.id);
+        if (data.match_date) setMatchDate(data.match_date);
+        setDerecha(data.tecnica_derecha ?? 0);
+        setReves(data.tecnica_reves ?? 0);
+        setServicio(data.tecnica_servicio ?? 0);
+        setVolea(data.tecnica_volea ?? 0);
+        setComentarioTecnica(data.tecnica_comentario ?? '');
+        setMejoraTecnica(data.tecnica_mejora ?? '');
+        setComentarioPlan(data.tactica_comentario_plan ?? '');
+        setTacticaFunciono(data.tactica_funciono ?? '');
+        setTacticaCambiar(data.tactica_cambiar ?? '');
+        setPresion(data.mental_presion ?? 0);
+        setConcentracion(data.mental_concentracion ?? '');
+        setConfianza(data.mental_confianza ?? 0);
+        setReaccionError(data.mental_reaccion_error ?? '');
+        setNivelFisico(data.fisico_nivel ?? 0);
+        setDolor(data.fisico_dolor === true ? 'Sí' : data.fisico_dolor === false ? 'No' : '');
+        setDolorZonas(data.fisico_dolor_zonas ?? []);
+        setNutricion(data.fisico_nutricion ?? '');
+        setHiceBien(data.reflexion_hice_bien ?? '');
+        setMejorar(data.reflexion_mejorar ?? '');
+        setAprendizaje(data.reflexion_aprendizaje ?? '');
+        setProximoTorneo(data.reflexion_proximo_torneo ?? '');
+        if (data.reflexion_satisfaccion != null) setSatisfaccion(data.reflexion_satisfaccion);
+      });
+  }, [athleteTournamentId, linkedToTournament]);
+
   const toggle = (key) => setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!matchDate) { setSaveError('Indica la fecha del partido.'); return; }
+    // B11: si el PTF está ligado a un torneo, el resultado es obligatorio
+    if (linkedToTournament) {
+      if (!rondaAlcanzada)  { setSaveError('Indica la ronda alcanzada.'); return; }
+      if (victoriaPartido !== 'true' && victoriaPartido !== 'false') { setSaveError('Indica si ganaste el último partido.'); return; }
+      if (!resultadoPartido) { setSaveError('Indica el resultado del último partido.'); return; }
+      if (!partidosJugados || Number(partidosJugados) < 1) { setSaveError('Indica cuántos partidos jugaste en el torneo.'); return; }
+    }
     setSaving(true);
     setSaveError('');
 
-    const { error } = await supabase.from('post_tournament_forms').insert({
+    const ptfPayload = {
       athlete_id:            user?.athlete_id,
-      athlete_tournament_id: (athleteTournamentId && athleteTournamentId !== 'new') ? athleteTournamentId : null,
+      athlete_tournament_id: linkedToTournament ? athleteTournamentId : null,
       match_date:            matchDate,
       tournament_name:       tournamentName || null,
       // A – Técnica
@@ -280,22 +332,34 @@ export default function PostTorneo() {
       reflexion_aprendizaje:    aprendizaje   || null,
       reflexion_proximo_torneo: proximoTorneo || null,
       reflexion_satisfaccion:   satisfaccion,
-    });
+    };
+
+    // Reenviar actualiza el PTF existente en vez de duplicarlo
+    const { error } = existingPtfId
+      ? await supabase.from('post_tournament_forms')
+          .update({ ...ptfPayload, updated_at: new Date().toISOString() }).eq('id', existingPtfId)
+      : await supabase.from('post_tournament_forms').insert(ptfPayload);
 
     if (error) { setSaving(false); setSaveError(error.message); return; }
 
     // Actualizar athlete_tournament con el resultado del partido
-    if (athleteTournamentId && athleteTournamentId !== 'new') {
-      await supabase
+    if (linkedToTournament) {
+      const { error: updError } = await supabase
         .from('athlete_tournaments')
         .update({
           ronda: rondaAlcanzada || null,
           resultado: resultadoPartido || null,
           victoria: victoriaPartido === 'true' ? true : victoriaPartido === 'false' ? false : null,
           modalidad: modalidad || null,
+          partidos_jugados: partidosJugados ? Number(partidosJugados) : null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', athleteTournamentId);
+      if (updError) {
+        setSaving(false);
+        setSaveError(`Tu reflexión se guardó, pero el resultado del torneo no: ${updError.message}`);
+        return;
+      }
     }
 
     setSaving(false);
@@ -355,10 +419,11 @@ export default function PostTorneo() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className={labelClass}>Ronda alcanzada</label>
+              <label className={labelClass}>Ronda alcanzada{linkedToTournament && ' *'}</label>
               <select
                 value={rondaAlcanzada}
                 onChange={(e) => setRondaAlcanzada(e.target.value)}
+                required={linkedToTournament}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A2A]/40 focus:border-[#1B3A2A]"
               >
                 <option value="">Seleccionar...</option>
@@ -366,14 +431,32 @@ export default function PostTorneo() {
               </select>
             </div>
             <div>
-              <label className={labelClass}>Resultado último partido</label>
+              <label className={labelClass}>Resultado último partido{linkedToTournament && ' *'}</label>
               <input
                 type="text"
                 value={resultadoPartido}
                 onChange={(e) => setResultadoPartido(e.target.value)}
                 placeholder="6-4 3-6 6-3"
+                required={linkedToTournament}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A2A]/40 focus:border-[#1B3A2A]"
               />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass}>¿Cuántos partidos jugaste en el torneo?{linkedToTournament && ' *'}</label>
+              <input
+                type="number"
+                min="1"
+                max="15"
+                value={partidosJugados}
+                onChange={(e) => setPartidosJugados(e.target.value)}
+                placeholder="ej. 4 (incluye qualy)"
+                required={linkedToTournament}
+                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A2A]/40 focus:border-[#1B3A2A]"
+              />
+              <p className="text-[11px] text-gray-400 mt-1">Incluye rondas de qualy. Con esto calculamos tu récord de partidos ganados/perdidos.</p>
             </div>
           </div>
 

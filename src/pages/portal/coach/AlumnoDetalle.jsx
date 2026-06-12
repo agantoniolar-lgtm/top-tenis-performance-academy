@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
 import {
-  calcCat, avg, ocAvgLabel, fmtSign,
+  calcCat, avg, ocAvgLabel, fmtSign, fmtPeriod, fmtPeriodLong, winLossRecord,
   STROKE_KEYS as OC_STROKE_KEYS,
   TACTIC_KEYS as OC_TACTIC_KEYS,
   STROKE_LABELS,
+  TACTIC_LABELS,
+  TACTIC_DESCS,
   OC_LABEL,
 } from '../../../lib/athletics.js';
 
@@ -27,6 +29,7 @@ export default function AlumnoDetalle() {
   const [phMap,   setPhMap] = useState({});
   const [chMap,   setChMap] = useState({});
   const [avMap,   setAvMap] = useState({});
+  const [record,  setRec]   = useState({ w: 0, l: 0, total: 0 });
   const [loading, setLoad]  = useState(true);
   const [error,   setErr]   = useState(null);
 
@@ -42,11 +45,14 @@ export default function AlumnoDetalle() {
         .eq('id', id).single();
       if (e1) { setErr(e1.message); setLoad(false); return; }
 
-      // 2. Reports (last 6)
-      const { data: reps, error: e2 } = await supabase
-        .from('reports').select('id, period, created_at')
-        .eq('athlete_id', id).order('period', { ascending: false }).limit(6);
+      // 2. Reports (last 6) + record de torneos
+      const [{ data: reps, error: e2 }, { data: tourns }] = await Promise.all([
+        supabase.from('reports').select('id, period, created_at')
+          .eq('athlete_id', id).order('period', { ascending: false }).limit(6),
+        supabase.from('athlete_tournaments').select('victoria, partidos_jugados').eq('athlete_id', id),
+      ]);
       if (e2) { setErr(e2.message); setLoad(false); return; }
+      if (!cancelled) setRec(winLossRecord(tourns));
 
       const repIds = (reps ?? []).map(r => r.id);
 
@@ -94,6 +100,12 @@ export default function AlumnoDetalle() {
   const lastOC   = lastRep ? ocMap[lastRep.id] : null;
   const prevOC   = prevRep ? ocMap[prevRep.id] : null;
   const lastCh   = lastRep ? chMap[lastRep.id] : null;
+  const prevCh   = prevRep ? chMap[prevRep.id] : null;
+
+  const deltaEtica = lastCh?.etica_trabajo != null && prevCh?.etica_trabajo != null
+    ? lastCh.etica_trabajo - prevCh.etica_trabajo : null;
+  const deltaCoach = lastCh?.coachabilidad != null && prevCh?.coachabilidad != null
+    ? lastCh.coachabilidad - prevCh.coachabilidad : null;
 
   const currentAvg  = avg(lastOC, OC_ALL_KEYS);
   const prevAvg     = avg(prevOC, OC_ALL_KEYS);
@@ -132,7 +144,7 @@ export default function AlumnoDetalle() {
               {athlete.fecha_ingreso && <>
                 <span style={{ color: 'var(--ink-mute)' }}>·</span>
                 <span>Ingreso <b style={{ color: 'var(--ink)' }}>
-                  {new Date(athlete.fecha_ingreso).toLocaleDateString('es-MX', { year:'numeric', month:'short' })}
+                  {fmtPeriod(athlete.fecha_ingreso)}
                 </b></span>
               </>}
             </div>
@@ -166,57 +178,52 @@ export default function AlumnoDetalle() {
       </div>
 
       {/* Headline metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-px hairline bg-[var(--line)] mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-px hairline bg-[var(--line)] mb-6">
         <MetricCard label="UTR"            value={currentUTR ? Number(currentUTR).toFixed(1) : '—'} delta={deltaUTR} deltaLabel="vs mes ant." />
+        <MetricCard label="W / L"          value={record.total > 0 ? `${record.w}–${record.l}` : '—'}
+                    sub={record.total > 0 ? `${record.total} torneo${record.total !== 1 ? 's' : ''} con resultado` : 'sin torneos con resultado'} />
         <MetricCard label="On-court"       value={ocLabel ?? '—'} delta={deltaAvg} deltaLabel="vs mes ant." textValue />
-        <MetricCard label="Ética trabajo"  value={OC_LABEL[String(lastCh?.etica_trabajo)] ?? '—'} textValue />
-        <MetricCard label="Coachabilidad"  value={OC_LABEL[String(lastCh?.coachabilidad)] ?? '—'} textValue />
+        <MetricCard label="Ética trabajo"  value={OC_LABEL[String(lastCh?.etica_trabajo)] ?? '—'} delta={deltaEtica} deltaLabel="vs mes ant." textValue />
+        <MetricCard label="Coachabilidad"  value={OC_LABEL[String(lastCh?.coachabilidad)] ?? '—'} delta={deltaCoach} deltaLabel="vs mes ant." textValue />
       </div>
 
       {/* Strokes del último reporte */}
       {lastOC && lastOC.completed_at && (
         <div className="hairline bg-[var(--paper)] mb-6">
-          <div className="px-5 py-4 hairline-b flex items-center justify-between">
-            <div>
-              <p className="eyebrow !text-[10px] mb-0.5" style={{ color: 'var(--ink-mute)' }}>Técnica · último reporte</p>
-              <p className="font-display font-bold text-[16px]">
-                {lastRep?.period ? new Date(lastRep.period).toLocaleDateString('es-MX', { year:'numeric', month:'long' }) : '—'}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="eyebrow !text-[9px]" style={{ color: 'var(--ink-mute)' }}>Táctica</p>
-              <p className="font-display font-bold text-[16px] leading-tight">
-                {ocAvgLabel(avg(lastOC, OC_TACTIC_KEYS)) ?? '—'}
-              </p>
-            </div>
+          <div className="px-5 py-4 hairline-b">
+            <p className="eyebrow !text-[10px] mb-0.5" style={{ color: 'var(--ink-mute)' }}>Técnica · último reporte</p>
+            <p className="font-display font-bold text-[16px]">
+              {lastRep?.period ? fmtPeriodLong(lastRep.period) : '—'}
+            </p>
           </div>
-          <div className="grid grid-cols-3 md:grid-cols-5 gap-px" style={{ background: 'var(--line)' }}>
-            {OC_STROKE_KEYS.map(key => {
-              const curr  = lastOC?.[key];
-              const prev  = prevOC?.[key];
-              const delta = curr != null && prev != null ? curr - prev : null;
-              return (
-                <div key={key} className="bg-[var(--paper)] px-4 py-4 text-center">
-                  <p className="eyebrow !text-[9px] mb-2" style={{ color: 'var(--ink-mute)' }}>{STROKE_LABELS[key]}</p>
-                  <p className="font-num font-black text-[28px] tnum leading-none" style={{ color: scoreColor(curr) }}>
-                    {curr != null ? fmtSign(curr) : '—'}
-                  </p>
-                  <p className="text-[9px] mt-1 font-medium leading-tight" style={{ color: scoreColor(curr) }}>
-                    {OC_LABEL[String(curr)] ?? ''}
-                  </p>
-                  {delta != null && (
-                    <p className="text-[10px] font-mono mt-1 font-bold"
-                       style={{ color: delta > 0 ? 'var(--good)' : delta < 0 ? 'var(--bad)' : 'var(--ink-mute)' }}>
-                      {delta > 0 ? `+${delta.toFixed(1)}` : delta.toFixed(1)}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-px" style={{ background: 'var(--line)' }}>
+            {OC_STROKE_KEYS.map(key => (
+              <DimCell key={key} label={STROKE_LABELS[key]}
+                       curr={lastOC?.[key]} prev={prevOC?.[key]} />
+            ))}
           </div>
           {lastOC.tecnica_nota && (
             <div className="px-5 py-3 hairline-t text-[12px]" style={{ color: 'var(--ink-soft)', background: 'var(--cream)' }}>
               {lastOC.tecnica_nota}
+            </div>
+          )}
+
+          {/* Táctica — sub-dimensiones propias */}
+          <div className="px-5 py-4 hairline-t hairline-b flex items-center justify-between">
+            <p className="eyebrow !text-[10px]" style={{ color: 'var(--ink-mute)' }}>Táctica · último reporte</p>
+            <p className="font-display font-bold text-[14px]">
+              {ocAvgLabel(avg(lastOC, OC_TACTIC_KEYS)) ?? '—'}
+            </p>
+          </div>
+          <div className="grid grid-cols-3 md:grid-cols-5 gap-px" style={{ background: 'var(--line)' }}>
+            {OC_TACTIC_KEYS.map(key => (
+              <DimCell key={key} label={TACTIC_LABELS[key]} desc={TACTIC_DESCS[key]}
+                       curr={lastOC?.[key]} prev={prevOC?.[key]} />
+            ))}
+          </div>
+          {lastOC.tactica_nota && (
+            <div className="px-5 py-3 hairline-t text-[12px]" style={{ color: 'var(--ink-soft)', background: 'var(--cream)' }}>
+              {lastOC.tactica_nota}
             </div>
           )}
         </div>
@@ -255,7 +262,7 @@ export default function AlumnoDetalle() {
                   return (
                     <tr key={r.id} className="hairline-t hover:bg-[var(--cream)] transition">
                       <td className="px-5 py-3 font-display font-bold">
-                        {new Date(r.period).toLocaleDateString('es-MX', { year:'numeric', month:'long' })}
+                        {fmtPeriodLong(r.period)}
                       </td>
                       <td className="px-4 py-3">
                         <StatusDot done={!!oc?.completed_at} label={oc ? ocAvgLabel(avg(oc, OC_ALL_KEYS)) : null} />
@@ -278,7 +285,7 @@ export default function AlumnoDetalle() {
   );
 }
 
-function MetricCard({ label, value, delta, deltaLabel, textValue = false }) {
+function MetricCard({ label, value, delta, deltaLabel, sub, textValue = false }) {
   return (
     <div className="bg-[var(--paper)] px-5 py-4">
       <p className="eyebrow !text-[9px] mb-2" style={{ color: 'var(--ink-mute)' }}>{label}</p>
@@ -291,6 +298,35 @@ function MetricCard({ label, value, delta, deltaLabel, textValue = false }) {
            style={{ color: delta > 0 ? 'var(--good)' : delta < 0 ? 'var(--bad)' : 'var(--ink-mute)' }}>
           {delta > 0 ? '+' : ''}{delta.toFixed(2)} {deltaLabel}
         </p>
+      )}
+      {delta == null && sub && (
+        <p className="text-[10px] mt-1.5" style={{ color: 'var(--ink-mute)' }}>{sub}</p>
+      )}
+    </div>
+  );
+}
+
+function DimCell({ label, desc, curr, prev }) {
+  const delta = curr != null && prev != null ? curr - prev : null;
+  return (
+    <div className="bg-[var(--paper)] px-4 py-4 text-center" title={desc}>
+      <p className="eyebrow !text-[9px] mb-2" style={{ color: 'var(--ink-mute)', cursor: desc ? 'help' : 'default' }}>
+        {label}
+      </p>
+      <p className="font-num font-black text-[28px] tnum leading-none" style={{ color: scoreColor(curr) }}>
+        {curr != null ? fmtSign(curr) : '—'}
+      </p>
+      <p className="text-[9px] mt-1 font-medium leading-tight" style={{ color: scoreColor(curr) }}>
+        {OC_LABEL[String(curr)] ?? ''}
+      </p>
+      {delta != null && (
+        <p className="text-[10px] font-mono mt-1 font-bold"
+           style={{ color: delta > 0 ? 'var(--good)' : delta < 0 ? 'var(--bad)' : 'var(--ink-mute)' }}>
+          {delta > 0 ? `+${delta.toFixed(1)}` : delta.toFixed(1)}
+        </p>
+      )}
+      {desc && (
+        <p className="text-[9px] mt-1.5 leading-tight" style={{ color: 'var(--ink-mute)' }}>{desc}</p>
       )}
     </div>
   );
