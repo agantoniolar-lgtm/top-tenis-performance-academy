@@ -268,7 +268,7 @@ export default function AlumnoDetalle() {
                         <StatusDot done={!!oc?.completed_at} label={oc ? ocAvgLabel(avg(oc, OC_ALL_KEYS)) : null} />
                       </td>
                       <td className="px-4 py-3"><StatusDot done={!!ph?.completed_at} /></td>
-                      <td className="px-4 py-3"><StatusDot done={!!ch?.completed_at} /></td>
+                      <td className="px-4 py-3"><StatusDot done={!!ch?.completed_at} label={ch ? ocAvgLabel(avg(ch, ['etica_trabajo', 'coachabilidad'])) : null} /></td>
                       <td className="px-4 py-3"><StatusDot done={!!av?.completed_at} /></td>
                       <td className="px-5 py-3 text-right font-num font-black text-[16px] tnum">
                         {oc?.utr ? Number(oc.utr).toFixed(1) : '—'}

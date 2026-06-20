@@ -213,7 +213,7 @@ export default function PostTorneo() {
   // Placeholders elegidos al azar una vez por sesión
   const [ph] = useState(() => Object.fromEntries(Object.entries(PH).map(([k, v]) => [k, pick(v)])));
 
-  // A - Técnica
+  // A - Golpes bajo presión
   const [derecha, setDerecha] = useState(0);
   const [reves, setReves] = useState(0);
   const [servicio, setServicio] = useState(0);
@@ -500,8 +500,8 @@ export default function PostTorneo() {
           </div>
         </div>
 
-        {/* A — Técnica */}
-        <Section title="Técnica" letter="A" expanded={expanded.A} onToggle={() => toggle('A')}>
+        {/* A — Golpes bajo presión */}
+        <Section title="Golpes bajo presión" letter="A" expanded={expanded.A} onToggle={() => toggle('A')}>
           <div>
             <label className={labelClass}>Derecha</label>
             <ScaleButtons value={derecha} onChange={setDerecha} labels={TECNICA_LABELS} />
