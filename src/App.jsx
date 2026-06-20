@@ -35,6 +35,7 @@ const MisTorneos          = lazy(() => import('./pages/portal/MisTorneos'));
 const NuevoTorneo         = lazy(() => import('./pages/portal/NuevoTorneo'));
 const PostTorneo          = lazy(() => import('./pages/portal/PostTorneo'));
 const Signup             = lazy(() => import('./pages/public/Signup'));
+const CoachSignup        = lazy(() => import('./pages/public/CoachSignup'));
 const RegistroPendiente  = lazy(() => import('./pages/public/RegistroPendiente'));
 
 function Loading() {
@@ -64,6 +65,7 @@ export default function App() {
 
             <Route path="/login"               element={<Login />} />
             <Route path="/registro"            element={<Signup />} />
+            <Route path="/registro-coach"      element={<CoachSignup />} />
             <Route path="/registro-pendiente"  element={<RegistroPendiente />} />
 
             {/* Portal — protegido */}

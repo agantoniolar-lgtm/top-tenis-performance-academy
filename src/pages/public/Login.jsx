@@ -97,12 +97,20 @@ export default function Login() {
             </button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-gray-500">
-            ¿Eres atleta nuevo?{' '}
-            <Link to="/registro" className="text-[#8B4513] font-medium hover:underline">
-              Crea tu cuenta
-            </Link>
-          </p>
+          <div className="mt-6 flex flex-col gap-2 text-center text-sm text-gray-500">
+            <p>
+              ¿Eres atleta nuevo?{' '}
+              <Link to="/registro" className="text-[#8B4513] font-medium hover:underline">
+                Crea tu cuenta
+              </Link>
+            </p>
+            <p>
+              ¿Eres coach?{' '}
+              <Link to="/registro-coach" className="text-[#8B4513] font-medium hover:underline">
+                Acceso de coaches
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
     </div>
