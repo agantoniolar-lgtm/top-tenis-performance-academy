@@ -140,7 +140,7 @@ export default function AtletaRendimiento() {
             {/* Rankings */}
             <section>
               <p className="eyebrow !text-[11px] mb-3">Rankings</p>
-              <div className="grid grid-cols-3 gap-px hairline" style={{ background: 'var(--line)' }}>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-px hairline" style={{ background: 'var(--line)' }}>
                 <StatTile
                   label="UTR"
                   value={currentUTR ? Number(currentUTR).toFixed(1) : '—'}

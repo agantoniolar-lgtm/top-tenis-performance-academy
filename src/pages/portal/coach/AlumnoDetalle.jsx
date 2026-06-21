@@ -196,7 +196,7 @@ export default function AlumnoDetalle() {
               {lastRep?.period ? fmtPeriodLong(lastRep.period) : '—'}
             </p>
           </div>
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-px" style={{ background: 'var(--line)' }}>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-px" style={{ background: 'var(--line)' }}>
             {OC_STROKE_KEYS.map(key => (
               <DimCell key={key} label={STROKE_LABELS[key]}
                        curr={lastOC?.[key]} prev={prevOC?.[key]} />
@@ -215,7 +215,7 @@ export default function AlumnoDetalle() {
               {ocAvgLabel(avg(lastOC, OC_TACTIC_KEYS)) ?? '—'}
             </p>
           </div>
-          <div className="grid grid-cols-3 md:grid-cols-5 gap-px" style={{ background: 'var(--line)' }}>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-px" style={{ background: 'var(--line)' }}>
             {OC_TACTIC_KEYS.map(key => (
               <DimCell key={key} label={TACTIC_LABELS[key]} desc={TACTIC_DESCS[key]}
                        curr={lastOC?.[key]} prev={prevOC?.[key]} />

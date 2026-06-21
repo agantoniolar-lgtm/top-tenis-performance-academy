@@ -394,7 +394,7 @@ export default function PostTorneo() {
         <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Partido</p>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>Fecha *</label>
               <input
@@ -417,7 +417,7 @@ export default function PostTorneo() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>Ronda alcanzada{linkedToTournament && ' *'}</label>
               <select
@@ -443,24 +443,22 @@ export default function PostTorneo() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={labelClass}>¿Cuántos partidos jugaste en el torneo?{linkedToTournament && ' *'}</label>
-              <input
-                type="number"
-                min="1"
-                max="15"
-                value={partidosJugados}
-                onChange={(e) => setPartidosJugados(e.target.value)}
-                placeholder="ej. 4 (incluye qualy)"
-                required={linkedToTournament}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A2A]/40 focus:border-[#1B3A2A]"
-              />
-              <p className="text-[11px] text-gray-400 mt-1">Incluye rondas de qualy. Con esto calculamos tu récord de partidos ganados/perdidos.</p>
-            </div>
+          <div>
+            <label className={labelClass}>¿Cuántos partidos jugaste en el torneo?{linkedToTournament && ' *'}</label>
+            <input
+              type="number"
+              min="1"
+              max="15"
+              value={partidosJugados}
+              onChange={(e) => setPartidosJugados(e.target.value)}
+              placeholder="ej. 4 (incluye qualy)"
+              required={linkedToTournament}
+              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A2A]/40 focus:border-[#1B3A2A]"
+            />
+            <p className="text-[11px] text-gray-400 mt-1">Incluye rondas de qualy. Con esto calculamos tu récord de partidos ganados/perdidos.</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div>
               <label className={labelClass}>¿Ganaste el último partido?</label>
               <div className="flex gap-4 mt-1">
