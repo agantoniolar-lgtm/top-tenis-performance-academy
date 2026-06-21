@@ -196,7 +196,14 @@ export default function AlumnoDetalle() {
               {lastRep?.period ? fmtPeriodLong(lastRep.period) : '—'}
             </p>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-px" style={{ background: 'var(--line)' }}>
+          {/* Mobile: lista de filas — Desktop: grid */}
+          <div className="md:hidden">
+            {OC_STROKE_KEYS.map(key => (
+              <ScoreRow key={key} label={STROKE_LABELS[key]}
+                        curr={lastOC?.[key]} prev={prevOC?.[key]} />
+            ))}
+          </div>
+          <div className="hidden md:grid md:grid-cols-6 gap-px" style={{ background: 'var(--line)' }}>
             {OC_STROKE_KEYS.map(key => (
               <DimCell key={key} label={STROKE_LABELS[key]}
                        curr={lastOC?.[key]} prev={prevOC?.[key]} />
@@ -215,7 +222,13 @@ export default function AlumnoDetalle() {
               {ocAvgLabel(avg(lastOC, OC_TACTIC_KEYS)) ?? '—'}
             </p>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-px" style={{ background: 'var(--line)' }}>
+          <div className="md:hidden">
+            {OC_TACTIC_KEYS.map(key => (
+              <ScoreRow key={key} label={TACTIC_LABELS[key]} desc={TACTIC_DESCS[key]}
+                        curr={lastOC?.[key]} prev={prevOC?.[key]} />
+            ))}
+          </div>
+          <div className="hidden md:grid md:grid-cols-5 gap-px" style={{ background: 'var(--line)' }}>
             {OC_TACTIC_KEYS.map(key => (
               <DimCell key={key} label={TACTIC_LABELS[key]} desc={TACTIC_DESCS[key]}
                        curr={lastOC?.[key]} prev={prevOC?.[key]} />
@@ -302,6 +315,29 @@ function MetricCard({ label, value, delta, deltaLabel, sub, textValue = false, w
       {delta == null && sub && (
         <p className="text-[10px] mt-1.5" style={{ color: 'var(--ink-mute)' }}>{sub}</p>
       )}
+    </div>
+  );
+}
+
+function ScoreRow({ label, desc, curr, prev }) {
+  const delta = curr != null && prev != null ? curr - prev : null;
+  return (
+    <div className="flex items-center justify-between px-5 py-3 bg-[var(--paper)] hairline-b" title={desc}>
+      <span className="text-[13px] font-medium" style={{ color: 'var(--ink-soft)' }}>{label}</span>
+      <div className="flex items-center gap-3">
+        <span className="font-num font-black text-[22px] tnum leading-none" style={{ color: scoreColor(curr) }}>
+          {curr != null ? fmtSign(curr) : '—'}
+        </span>
+        <span className="text-[11px] font-medium w-20 text-right" style={{ color: scoreColor(curr) }}>
+          {OC_LABEL[String(curr)] ?? ''}
+        </span>
+        {delta != null && (
+          <span className="text-[11px] font-mono w-10 text-right font-bold"
+                style={{ color: delta > 0 ? 'var(--good)' : delta < 0 ? 'var(--bad)' : 'var(--ink-mute)' }}>
+            {delta > 0 ? `+${delta.toFixed(1)}` : delta.toFixed(1)}
+          </span>
+        )}
+      </div>
     </div>
   );
 }

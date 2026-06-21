@@ -39,7 +39,7 @@ function Shell() {
 
         <Topbar crumbs={crumbs} />
 
-        <div className="flex flex-1 min-w-0">
+        <div className="flex flex-1 min-w-0 overflow-x-hidden">
           <Outlet />
         </div>
       </main>
