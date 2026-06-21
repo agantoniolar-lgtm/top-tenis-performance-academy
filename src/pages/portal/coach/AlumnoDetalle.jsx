@@ -184,7 +184,7 @@ export default function AlumnoDetalle() {
                     sub={record.total > 0 ? `${record.total} torneo${record.total !== 1 ? 's' : ''} con resultado` : 'sin torneos con resultado'} />
         <MetricCard label="On-court"       value={ocLabel ?? '—'} delta={deltaAvg} deltaLabel="vs mes ant." textValue />
         <MetricCard label="Ética trabajo"  value={OC_LABEL[String(lastCh?.etica_trabajo)] ?? '—'} delta={deltaEtica} deltaLabel="vs mes ant." textValue />
-        <MetricCard label="Coachabilidad"  value={OC_LABEL[String(lastCh?.coachabilidad)] ?? '—'} delta={deltaCoach} deltaLabel="vs mes ant." textValue />
+        <MetricCard label="Coachabilidad"  value={OC_LABEL[String(lastCh?.coachabilidad)] ?? '—'} delta={deltaCoach} deltaLabel="vs mes ant." textValue wide />
       </div>
 
       {/* Strokes del último reporte */}
@@ -285,9 +285,9 @@ export default function AlumnoDetalle() {
   );
 }
 
-function MetricCard({ label, value, delta, deltaLabel, sub, textValue = false }) {
+function MetricCard({ label, value, delta, deltaLabel, sub, textValue = false, wide = false }) {
   return (
-    <div className="bg-[var(--paper)] px-5 py-4">
+    <div className={`bg-[var(--paper)] px-5 py-4${wide ? ' col-span-2 md:col-span-1' : ''}`}>
       <p className="eyebrow !text-[9px] mb-2" style={{ color: 'var(--ink-mute)' }}>{label}</p>
       {textValue
         ? <p className="font-display font-bold text-[18px] leading-tight">{value}</p>

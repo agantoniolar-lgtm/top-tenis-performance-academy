@@ -1,6 +1,9 @@
 @import "tailwindcss";
 /* Google Fonts moved to index.html <link> tags to avoid PostCSS @import order issue */
 
+/* Prevent horizontal page overflow — tables use overflow-x-auto within their own containers */
+html, body { overflow-x: hidden; }
+
 @theme {
   --font-display: 'Playfair Display', serif;
   --font-sans: 'Inter', sans-serif;
