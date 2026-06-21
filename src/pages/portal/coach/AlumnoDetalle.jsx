@@ -119,7 +119,7 @@ export default function AlumnoDetalle() {
   return (
     <Shell>
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div className="flex items-start gap-5">
           <div className="w-[72px] h-[88px] court-bg shrink-0" />
           <div>
@@ -162,7 +162,7 @@ export default function AlumnoDetalle() {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={() => navigate(`/portal/alumnos/${id}/talent-card`)}
             className="px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.08em] hairline hover:bg-[var(--cream)] transition">
@@ -233,7 +233,7 @@ export default function AlumnoDetalle() {
       <div>
         <h2 className="font-display font-bold text-[18px] mb-3">Historial de reportes</h2>
         {reports.length === 0 ? (
-          <div className="hairline bg-[var(--paper)] p-8 text-center">
+          <div className="hairline bg-[var(--paper)] p-4 md:p-8 text-center">
             <p className="text-[var(--ink-mute)] text-[13px]">Sin reportes aún.</p>
             <button onClick={() => navigate('/portal/reportes/nuevo', { state: { athleteId: id } })}
                     className="mt-3 text-[12px] font-mono uppercase hover:underline" style={{ color: 'var(--accent)' }}>
@@ -241,8 +241,8 @@ export default function AlumnoDetalle() {
             </button>
           </div>
         ) : (
-          <div className="hairline bg-[var(--paper)]">
-            <table className="w-full text-[12px]">
+          <div className="hairline bg-[var(--paper)] overflow-x-auto">
+            <table className="w-full text-[12px] min-w-[480px]">
               <thead className="eyebrow text-[10px]" style={{ background: 'var(--cream)', color: 'var(--ink-mute)' }}>
                 <tr>
                   <th className="text-left px-5 py-3">Periodo</th>
@@ -343,5 +343,5 @@ function StatusDot({ done, label }) {
 }
 
 function Shell({ children }) {
-  return <div className="flex-1 p-8 portal-layout">{children}</div>;
+  return <div className="flex-1 p-4 md:p-8 portal-layout">{children}</div>;
 }

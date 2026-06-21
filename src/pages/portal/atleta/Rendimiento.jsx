@@ -128,7 +128,7 @@ export default function AtletaRendimiento() {
         </div>
 
         {reports.length === 0 ? (
-          <div className="hairline p-8 text-center" style={{ background: 'var(--paper)' }}>
+          <div className="hairline p-4 md:p-8 text-center" style={{ background: 'var(--paper)' }}>
             <p className="font-display font-bold text-[16px] mb-2">Sin reportes aún</p>
             <p className="text-[12px]" style={{ color: 'var(--ink-mute)' }}>
               Cuando tu coach complete tu primer reporte trimestral, aparecerá aquí tu historial de desarrollo.
@@ -163,7 +163,7 @@ export default function AtletaRendimiento() {
             {/* Evaluación del coach */}
             <section>
               <p className="eyebrow !text-[11px] mb-3">Evaluación del coach · {fmtPeriod(lastRep?.period)}</p>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
 
                 {/* Técnica */}
                 <div className="hairline p-4" style={{ background: 'var(--paper)' }}>
@@ -234,8 +234,8 @@ export default function AtletaRendimiento() {
             {reports.length > 1 && (
               <section>
                 <p className="eyebrow !text-[11px] mb-3">Historial de períodos</p>
-                <div className="hairline" style={{ background: 'var(--paper)' }}>
-                  <table className="w-full text-[11px]">
+                <div className="hairline overflow-x-auto" style={{ background: 'var(--paper)' }}>
+                  <table className="w-full text-[11px] min-w-[360px]">
                     <thead style={{ background: 'var(--cream)' }}>
                       <tr>
                         <th className="text-left px-4 py-2 eyebrow !text-[9px]" style={{ color: 'var(--ink-mute)' }}>Período</th>
@@ -281,5 +281,5 @@ export default function AtletaRendimiento() {
 }
 
 function Shell({ children }) {
-  return <div className="flex-1 p-8 portal-layout">{children}</div>;
+  return <div className="flex-1 p-4 md:p-8 portal-layout">{children}</div>;
 }

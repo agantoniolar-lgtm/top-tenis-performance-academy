@@ -201,7 +201,7 @@ export default function AtletaInicio() {
             </div>
           </div>
 
-          <div className="p-5 grid grid-cols-2 gap-6">
+          <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-6">
             {/* Perfil físico */}
             <div className="space-y-3">
               <p className="eyebrow !text-[10px]" style={{ color: 'var(--accent)' }}>Perfil físico</p>
@@ -290,5 +290,5 @@ export default function AtletaInicio() {
 }
 
 function Shell({ children }) {
-  return <div className="flex-1 p-8 portal-layout">{children}</div>;
+  return <div className="flex-1 p-4 md:p-8 portal-layout">{children}</div>;
 }

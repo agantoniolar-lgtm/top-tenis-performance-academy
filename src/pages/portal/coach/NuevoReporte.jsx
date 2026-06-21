@@ -257,7 +257,7 @@ export default function NuevoReporte() {
         <h1 className="font-display font-extrabold text-[28px] leading-none mb-1">Nuevo reporte</h1>
 
         {/* Atleta + Periodo */}
-        <div className="grid grid-cols-2 gap-4 mb-6 mt-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 mt-4">
           <Field label="Atleta" required>
             <select value={athleteId} onChange={e => setAtId(e.target.value)} required
                     className="w-full hairline px-3 py-2 text-[13px] bg-[var(--paper)] outline-none">
@@ -329,7 +329,7 @@ export default function NuevoReporte() {
           <div className="space-y-6">
             <div>
               <p className="eyebrow !text-[10px] mb-3 text-[var(--ink-mute)]">Tests de rendimiento</p>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {PHYSICAL_NUM.map(f => (
                   <Field key={f.key} label={f.label}>
                     <input type="number" step="0.01" value={phys[f.key]}
@@ -346,7 +346,7 @@ export default function NuevoReporte() {
                 Marca <b>Pass</b> (✓) si el atleta completa el patrón de movimiento sin compensaciones, restricciones ni dolor.
                 Si hay cualquiera de las tres, es <b>Fail</b> (sin marcar).
               </p>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {FMS_FIELDS.map(f => (
                   <label key={f.key} className="flex items-center gap-2 cursor-pointer text-[13px]">
                     <input type="checkbox" checked={fms[f.key]}
@@ -421,21 +421,23 @@ function ScoreRow({ label, desc, value, onChange, values = [-2,-1,0,1,2] }) {
   const labels = values.includes(0) ? ONCOURT_LABELS : CHAR_LABELS;
   const fmt = (n) => n > 0 ? `+${n}` : `${n}`;
   return (
-    <div className="flex items-center gap-4">
-      <span className="text-[13px] w-44 shrink-0" title={desc} style={desc ? { cursor: 'help' } : undefined}>
+    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
+      <span className="text-[13px] sm:w-44 sm:shrink-0" title={desc} style={desc ? { cursor: 'help' } : undefined}>
         {label}
         {desc && <span className="block text-[10px] leading-tight" style={{ color: 'var(--ink-mute)' }}>{desc}</span>}
       </span>
-      <div className="flex gap-1">
-        {values.map(n => (
-          <button key={n} type="button" onClick={() => onChange(n)}
-                  className="w-8 h-8 text-[12px] font-bold transition"
-                  style={value === n ? { background: 'var(--accent)', color: 'white' } : { background: 'var(--cream)', color: 'var(--ink-mute)' }}>
-            {fmt(n)}
-          </button>
-        ))}
+      <div className="flex items-center gap-1">
+        <div className="flex gap-1">
+          {values.map(n => (
+            <button key={n} type="button" onClick={() => onChange(n)}
+                    className="w-8 h-8 text-[12px] font-bold transition"
+                    style={value === n ? { background: 'var(--accent)', color: 'white' } : { background: 'var(--cream)', color: 'var(--ink-mute)' }}>
+              {fmt(n)}
+            </button>
+          ))}
+        </div>
+        <span className="text-[11px] text-[var(--ink-mute)] ml-2 truncate">{labels[String(value)]}</span>
       </div>
-      <span className="text-[11px] text-[var(--ink-mute)] w-28 truncate">{labels[String(value)]}</span>
     </div>
   );
 }
@@ -462,5 +464,5 @@ function Field({ label, children, required }) {
 }
 
 function Shell({ children }) {
-  return <div className="flex-1 p-8 portal-layout">{children}</div>;
+  return <div className="flex-1 p-4 md:p-8 portal-layout">{children}</div>;
 }

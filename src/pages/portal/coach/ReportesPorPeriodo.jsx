@@ -188,9 +188,9 @@ export default function ReportesPorPeriodo() {
   const avPendientes = rows.filter(r => r.report && !r.report.report_athlete_voice?.[0]?.completed_at).length;
 
   return (
-    <div className="flex-1 p-8 portal-layout">
+    <div className="flex-1 p-4 md:p-8 portal-layout">
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div>
           <h1 className="font-display font-extrabold text-[28px] leading-none">Seguimiento</h1>
           <p className="text-[12px] font-mono text-[var(--ink-mute)] mt-1">
@@ -229,8 +229,8 @@ export default function ReportesPorPeriodo() {
       )}
 
       {!loading && !error && rows.length > 0 && (
-        <div className="hairline bg-[var(--paper)]">
-          <table className="w-full text-[13px]">
+        <div className="hairline bg-[var(--paper)] overflow-x-auto">
+          <table className="w-full text-[13px] min-w-[540px]">
             <thead
               className="eyebrow text-[10px]"
               style={{ background: 'var(--cream)', color: 'var(--ink-mute)' }}

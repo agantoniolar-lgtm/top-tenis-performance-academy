@@ -228,8 +228,8 @@ export default function TalentCard() {
     return () => { cancelled = true; };
   }, [id]);
 
-  if (loading) return <div className="flex-1 p-8"><p style={{ color: 'var(--ink-mute)', fontSize: 13 }}>Cargando…</p></div>;
-  if (error)   return <div className="flex-1 p-8"><p style={{ color: 'var(--bad)', fontSize: 13 }}>Error: {error}</p></div>;
+  if (loading) return <div className="flex-1 p-4 md:p-8"><p style={{ color: 'var(--ink-mute)', fontSize: 13 }}>Cargando…</p></div>;
+  if (error)   return <div className="flex-1 p-4 md:p-8"><p style={{ color: 'var(--bad)', fontSize: 13 }}>Error: {error}</p></div>;
   if (!athlete) return null;
 
   // Series oldest → newest
