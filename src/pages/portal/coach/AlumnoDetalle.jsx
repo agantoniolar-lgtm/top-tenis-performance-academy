@@ -379,5 +379,5 @@ function StatusDot({ done, label }) {
 }
 
 function Shell({ children }) {
-  return <div className="flex-1 p-4 md:p-8 portal-layout">{children}</div>;
+  return <div className="flex-1 min-w-0 p-4 md:p-8 portal-layout">{children}</div>;
 }

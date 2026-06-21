@@ -188,7 +188,7 @@ export default function ReportesPorPeriodo() {
   const avPendientes = rows.filter(r => r.report && !r.report.report_athlete_voice?.[0]?.completed_at).length;
 
   return (
-    <div className="flex-1 p-4 md:p-8 portal-layout">
+    <div className="flex-1 min-w-0 p-4 md:p-8 portal-layout">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div>
