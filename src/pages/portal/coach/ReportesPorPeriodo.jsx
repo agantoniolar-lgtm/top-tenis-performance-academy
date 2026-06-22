@@ -235,8 +235,12 @@ export default function ReportesPorPeriodo() {
 
   const sinReporteNames  = rows.filter(r => !r.report)
     .map(r => `${r.athlete.nombre} ${r.athlete.apellido}`);
-  const avPendientesNames = rows.filter(r => r.report && !r.report.report_athlete_voice?.[0]?.completed_at)
-    .map(r => `${r.athlete.nombre} ${r.athlete.apellido}`);
+  const avPendientesNames = rows.filter(r => {
+    if (!r.report) return false;
+    const av = r.report.report_athlete_voice;
+    const avData = Array.isArray(av) ? av[0] : (av ?? null);
+    return !avData?.completed_at;
+  }).map(r => `${r.athlete.nombre} ${r.athlete.apellido}`);
   const avPendientesCount = avPendientesNames.length;
 
   return (
