@@ -6,34 +6,58 @@ import { calcCat, calcEdad, fmtPeriodLong } from '../../../lib/athletics.js';
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function OnboardingCard({ number, title, description, done, cta, onClick }) {
+function OnboardingCard({ number, title, subtitle, context, done, locked, cta, onClick }) {
   return (
-    <div className="hairline" style={{ background: 'var(--paper)' }}>
+    <div className="hairline transition-opacity"
+         style={{ background: 'var(--paper)', opacity: locked ? 0.6 : 1 }}>
       <div style={{ height: 3, background: done ? 'var(--good)' : 'var(--line)' }} />
       <div className="p-5">
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <span className="w-7 h-7 flex items-center justify-center text-[11px] font-bold"
-                  style={{ background: done ? 'rgba(22,163,74,.1)' : 'var(--cream)', color: done ? 'var(--good)' : 'var(--ink-mute)' }}>
-              {done ? '✓' : number}
+        <div className="flex items-start gap-4">
+          {/* Big number — Big Shoulders Display */}
+          <div className="shrink-0 pt-0.5">
+            <span className="font-num font-bold text-[40px] leading-none"
+                  style={{ color: done ? 'var(--good)' : 'var(--line-strong)' }}>
+              {`0${number}`}
             </span>
-            <p className="font-display font-bold text-[15px]">{title}</p>
           </div>
-          <span className={`text-[10px] font-mono px-2 py-0.5 uppercase tracking-wide ${done ? 'text-[var(--good)]' : 'text-[var(--bad)]'}`}
-                style={{ background: done ? 'rgba(22,163,74,.1)' : 'rgba(220,38,38,.08)' }}>
-            {done ? 'Completo' : 'Pendiente'}
-          </span>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-3 mb-1">
+              <p className="font-display font-bold text-[15px]">{title}</p>
+              <span className="text-[10px] font-mono px-2 py-0.5 uppercase tracking-wide shrink-0"
+                    style={{
+                      background: done ? 'rgba(22,163,74,.1)' : 'rgba(220,38,38,.08)',
+                      color: done ? 'var(--good)' : 'var(--bad)',
+                    }}>
+                {done ? 'Completo' : 'Pendiente'}
+              </span>
+            </div>
+
+            {/* Field list */}
+            <p className="text-[11px] font-mono mb-3" style={{ color: 'var(--ink-mute)' }}>
+              {subtitle}
+            </p>
+
+            {/* Value context */}
+            <p className="text-[12px] mb-4 pl-3"
+               style={{ color: 'var(--ink-soft)', borderLeft: '2px solid var(--line-strong)', lineHeight: 1.55 }}>
+              {context}
+            </p>
+
+            {!done && (
+              <button
+                onClick={locked ? undefined : onClick}
+                disabled={locked}
+                className={`px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-white transition ${
+                  locked ? 'opacity-40 cursor-not-allowed' : 'hover:opacity-90'
+                }`}
+                style={{ background: 'var(--accent)' }}
+              >
+                {cta}
+              </button>
+            )}
+          </div>
         </div>
-        <p className="text-[12px] mb-4" style={{ color: 'var(--ink-mute)', lineHeight: 1.5 }}>
-          {description}
-        </p>
-        {!done && (
-          <button onClick={onClick}
-                  className="px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-white hover:opacity-90 transition"
-                  style={{ background: 'var(--accent)' }}>
-            {cta}
-          </button>
-        )}
       </div>
     </div>
   );
@@ -125,19 +149,22 @@ export default function AtletaInicio() {
     const completedCount = [profileComplete, recruitmentComplete].filter(Boolean).length;
     return (
       <Shell>
-        <div className="mb-8">
-          <p className="eyebrow !text-[10px] mb-1" style={{ color: 'var(--ink-mute)' }}>Bienvenido</p>
-          <h1 className="font-display font-extrabold text-[32px] leading-none">
-            {athlete?.nombre} {athlete?.apellido}
+        {/* Header con proposición de valor */}
+        <div className="mb-8 max-w-xl">
+          <h1 className="font-display font-extrabold text-[32px] leading-none mb-3">
+            Hola, {athlete?.nombre}.
           </h1>
-          <div className="flex items-center gap-3 mt-3">
-            <div className="h-1.5 rounded-full overflow-hidden flex-1 max-w-[180px]"
+          <p className="text-[14px] mb-4" style={{ color: 'var(--ink-soft)', lineHeight: 1.65 }}>
+            Antes de que tu coach pueda darte seguimiento personalizado y construir tu expediente universitario, necesitamos un poco de información tuya.
+          </p>
+          <div className="flex items-center gap-3">
+            <div className="h-1.5 overflow-hidden flex-1 max-w-[180px]"
                  style={{ background: 'var(--line)' }}>
               <div className="h-full transition-all"
                    style={{ width: `${(completedCount / 2) * 100}%`, background: 'var(--accent)' }} />
             </div>
-            <p className="text-[12px]" style={{ color: 'var(--ink-mute)' }}>
-              {completedCount} de 2 secciones completadas
+            <p className="text-[12px] font-mono" style={{ color: 'var(--ink-mute)' }}>
+              {completedCount} de 2 pasos completados
             </p>
           </div>
         </div>
@@ -145,21 +172,29 @@ export default function AtletaInicio() {
         <div className="space-y-4 max-w-xl">
           <OnboardingCard
             number="1"
-            title="Completa tu perfil"
-            description="Agrega tu información física y académica. Tu coach la usa para tomar mejores decisiones de entrenamiento."
+            title="Perfil del jugador"
+            subtitle="Altura · Peso · Escuela · Tipo de revés"
+            context="Tu coach necesita estos datos para llevar tu seguimiento físico y comparar tu evolución período a período."
             done={profileComplete}
-            cta="Completar perfil →"
+            locked={false}
+            cta="Completar →"
             onClick={() => navigate('/portal/mi-perfil')}
           />
           <OnboardingCard
             number="2"
-            title="Perfil de reclutamiento"
-            description="¿Qué división buscas? ¿En qué área quieres estudiar? Esta información solo la ves tú y los recruiters."
+            title="Reclutamiento universitario"
+            subtitle="División · GPA · Año de graduación · Área de estudio"
+            context="Construye tu expediente para universidades en EE.UU. Si buscas una beca NCAA, NAIA o D3, tu coach necesita estos datos para ayudarte."
             done={recruitmentComplete}
-            cta="Llenar perfil de reclutamiento →"
+            locked={!profileComplete}
+            cta="Completar →"
             onClick={() => navigate('/portal/mi-reclutamiento')}
           />
         </div>
+
+        <p className="text-[11px] mt-6 max-w-xl" style={{ color: 'var(--ink-mute)', lineHeight: 1.6 }}>
+          Puedes editar esta información en cualquier momento desde tu perfil. Ambas secciones son necesarias para acceder a tu dashboard de rendimiento.
+        </p>
       </Shell>
     );
   }
