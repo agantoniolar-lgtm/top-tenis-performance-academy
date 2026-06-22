@@ -113,11 +113,56 @@ function AthleteVoiceCell({ completedAt, noReport }) {
   return (
     <span
       className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.06em] px-2 py-0.5"
-      style={{ background: '#fff3cd', color: '#a07000', borderRadius: 4 }}
+      style={{ background: '#FFFBEB', border: '1px solid #FDE68A', color: 'var(--warn)', borderRadius: 4 }}
     >
       <Icon name="flag" size={11} stroke={2} />
       Pendiente
     </span>
+  );
+}
+
+// ─── pending strip ────────────────────────────────────────────────────────────
+
+function PendingStrip({ sinReporte, avPendientes, period }) {
+  if (!sinReporte.length && !avPendientes.length) return null;
+  return (
+    <div className="mb-5" style={{ background: '#FFF8F4', borderLeft: '3px solid var(--accent)', padding: '14px 18px' }}>
+      <p className="eyebrow !text-[10px] mb-3" style={{ color: 'var(--accent)' }}>
+        Acciones pendientes · {labelPeriod(period)}
+      </p>
+      <div className="flex flex-wrap gap-6">
+        {sinReporte.length > 0 && (
+          <div>
+            <p className="text-[11px] font-semibold mb-1.5" style={{ color: 'var(--ink-soft)' }}>
+              Sin reporte este mes
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {sinReporte.map(name => (
+                <span key={name} className="text-[11px] font-medium px-2 py-0.5"
+                      style={{ background: 'rgba(139,69,19,0.08)', color: 'var(--accent)' }}>
+                  {name}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        {avPendientes.length > 0 && (
+          <div>
+            <p className="text-[11px] font-semibold mb-1.5" style={{ color: 'var(--ink-soft)' }}>
+              Athlete Voice pendiente
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {avPendientes.map(name => (
+                <span key={name} className="text-[11px] font-medium px-2 py-0.5"
+                      style={{ background: '#FFFBEB', border: '1px solid #FDE68A', color: 'var(--warn)' }}>
+                  {name}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -128,7 +173,8 @@ export default function ReportesPorPeriodo() {
   const navigate    = useNavigate();
 
   const today = new Date();
-  const [period, setPeriod] = useState(firstOfMonth(today.getFullYear(), today.getMonth() + 1));
+  const currentPeriod = firstOfMonth(today.getFullYear(), today.getMonth() + 1);
+  const [period, setPeriod] = useState(currentPeriod);
   const [rows,   setRows]   = useState([]);   // { athlete, report | null }
   const [loading, setLoad]  = useState(true);
   const [error,   setErr]   = useState(null);
@@ -183,9 +229,15 @@ export default function ReportesPorPeriodo() {
   }, [user?.coach_id, period]);
 
   // ── derived stats ────────────────────────────────────────────────────────────
-  const total     = rows.length;
+  const total      = rows.length;
   const conReporte = rows.filter(r => r.report).length;
-  const avPendientes = rows.filter(r => r.report && !r.report.report_athlete_voice?.[0]?.completed_at).length;
+  const isCurrentPeriod = period === currentPeriod;
+
+  const sinReporteNames  = rows.filter(r => !r.report)
+    .map(r => `${r.athlete.nombre} ${r.athlete.apellido}`);
+  const avPendientesNames = rows.filter(r => r.report && !r.report.report_athlete_voice?.[0]?.completed_at)
+    .map(r => `${r.athlete.nombre} ${r.athlete.apellido}`);
+  const avPendientesCount = avPendientesNames.length;
 
   return (
     <div className="flex-1 min-w-0 p-4 md:p-8 portal-layout">
@@ -194,7 +246,7 @@ export default function ReportesPorPeriodo() {
         <div>
           <h1 className="font-display font-extrabold text-[28px] leading-none">Seguimiento</h1>
           <p className="text-[12px] font-mono text-[var(--ink-mute)] mt-1">
-            {total} atletas · {conReporte} con reporte · {avPendientes} Athlete Voice pendiente
+            {total} atletas · {conReporte} con reporte · {sinReporteNames.length} sin reporte · {avPendientesCount} Athlete Voice pendiente
           </p>
         </div>
 
@@ -203,17 +255,27 @@ export default function ReportesPorPeriodo() {
           <button
             onClick={() => setPeriod(prevPeriod(period))}
             className="w-8 h-8 flex items-center justify-center transition hover:opacity-70"
-            style={{ border: '1px solid var(--stroke)', borderRadius: 6, color: 'var(--ink-soft)' }}
+            style={{ border: '1px solid var(--line-strong)', borderRadius: 6, color: 'var(--ink-soft)' }}
           >
             <Icon name="chevRight" size={14} style={{ transform: 'rotate(180deg)' }} />
           </button>
-          <span className="font-display font-bold text-[14px] capitalize min-w-[140px] text-center">
-            {labelPeriod(period)}
-          </span>
+          <div className="flex items-center gap-2 min-w-[160px] justify-center">
+            <span className="font-display font-bold text-[14px] capitalize"
+                  style={{ color: isCurrentPeriod ? 'var(--ink)' : 'var(--ink-mute)' }}>
+              {labelPeriod(period)}
+            </span>
+            {isCurrentPeriod && (
+              <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 uppercase tracking-wide"
+                    style={{ background: '#DCFCE7', color: 'var(--good)' }}>
+                ACTUAL
+              </span>
+            )}
+          </div>
           <button
-            onClick={() => setPeriod(nextPeriod(period))}
-            className="w-8 h-8 flex items-center justify-center transition hover:opacity-70"
-            style={{ border: '1px solid var(--stroke)', borderRadius: 6, color: 'var(--ink-soft)' }}
+            onClick={() => !isCurrentPeriod && setPeriod(nextPeriod(period))}
+            disabled={isCurrentPeriod}
+            className={`w-8 h-8 flex items-center justify-center transition ${isCurrentPeriod ? 'opacity-25 cursor-not-allowed' : 'hover:opacity-70'}`}
+            style={{ border: '1px solid var(--line-strong)', borderRadius: 6, color: 'var(--ink-soft)' }}
           >
             <Icon name="chevRight" size={14} />
           </button>
@@ -226,6 +288,14 @@ export default function ReportesPorPeriodo() {
 
       {!loading && !error && rows.length === 0 && (
         <p className="text-[var(--ink-mute)] text-sm">Sin atletas registrados.</p>
+      )}
+
+      {!loading && !error && rows.length > 0 && (
+        <PendingStrip
+          sinReporte={sinReporteNames}
+          avPendientes={avPendientesNames}
+          period={period}
+        />
       )}
 
       {!loading && !error && rows.length > 0 && (
@@ -258,6 +328,7 @@ export default function ReportesPorPeriodo() {
                   <tr
                     key={a.id}
                     className="hairline-t hover:bg-[var(--cream)] transition cursor-pointer"
+                    style={{ borderLeft: noReport ? '3px solid var(--accent)' : '3px solid transparent' }}
                     onClick={() => navigate(`/portal/alumnos/${a.id}`)}
                   >
                     {/* Athlete */}
@@ -296,10 +367,10 @@ export default function ReportesPorPeriodo() {
                               state: { athleteId: a.id, period },
                             })
                           }
-                          className="text-[11px] font-semibold uppercase tracking-[0.08em] px-3 py-1.5 transition hover:opacity-80"
+                          className="text-[11px] font-semibold uppercase tracking-[0.08em] px-3 py-1.5 transition hover:opacity-80 whitespace-nowrap"
                           style={{ background: 'var(--accent)', color: '#fff', borderRadius: 4 }}
                         >
-                          + Nuevo
+                          + Crear reporte
                         </button>
                       ) : (
                         <button
