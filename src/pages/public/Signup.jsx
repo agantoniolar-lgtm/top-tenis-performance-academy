@@ -81,21 +81,27 @@ export default function Signup() {
       await refreshUser();
       navigate('/portal/inicio');
     } catch (err) {
+      // Si auth se creó pero el perfil falló, hacer logout para no quedar en estado roto
+      await supabase.auth.signOut().catch(() => {});
       setError(err.message || 'Error al crear la cuenta.');
     } finally {
       setSaving(false);
     }
   };
 
+  const inputCls = 'w-full border border-[#E0DED8] rounded-[2px] px-4 py-2.5 text-sm bg-[#FAFAF7] focus:outline-none focus:ring-1 focus:ring-[#8B4513]/30 focus:border-[#8B4513]';
+  const labelCls = 'block text-sm font-medium text-[#4A4842] mb-1';
+
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen" style={{ fontFamily: "'Manrope', sans-serif" }}>
       {/* Left */}
-      <div className="hidden lg:flex lg:w-1/2 bg-[#1B3A2A] flex-col items-center justify-center text-white p-12">
+      <div className="hidden lg:flex lg:w-1/2 bg-[#0E2419] flex-col items-center justify-center text-white p-12">
         <CircleDot className="w-32 h-32 mb-8 text-[#8B4513] opacity-80" strokeWidth={1.5} />
-        <h1 className="text-4xl font-bold text-center leading-tight">
+        <h1 className="text-4xl font-bold text-center leading-tight"
+            style={{ fontFamily: "'Bricolage Grotesque', sans-serif", letterSpacing: '-0.02em' }}>
           Top Tenis<br />Performance Academy
         </h1>
-        <p className="mt-4 text-white/60 text-center text-lg max-w-sm">
+        <p className="mt-4 text-white/60 text-center text-base max-w-sm">
           Crea tu cuenta y empieza a construir tu expediente.
         </p>
       </div>
@@ -104,15 +110,18 @@ export default function Signup() {
       <div className="w-full lg:w-1/2 flex flex-col items-center justify-center bg-white p-8">
         <div className="w-full max-w-md">
           <div className="flex items-center justify-between mb-1">
-            <h2 className="text-2xl font-bold text-[#1B3A2A]">Crear cuenta</h2>
-            <span className="text-sm text-gray-400">Paso {step} de 2</span>
+            <h2 className="text-2xl font-bold text-[#14110D]"
+                style={{ fontFamily: "'Bricolage Grotesque', sans-serif", letterSpacing: '-0.02em' }}>
+              Crear cuenta
+            </h2>
+            <span className="text-sm text-[#8A8780] font-mono">Paso {step} de 2</span>
           </div>
-          <p className="text-gray-500 mb-6">
-            {step === 1 ? 'Tus datos personales.' : 'Tu email y contraseña para entrar al portal.'}
+          <p className="text-[#8A8780] mb-6 text-sm">
+            {step === 1 ? 'Datos del jugador · Email y contraseña en el paso 2.' : 'Tu email y contraseña para entrar al portal.'}
           </p>
 
           {error && (
-            <div className="flex items-center gap-2 bg-red-50 text-red-700 border border-red-200 rounded-lg px-4 py-3 mb-4 text-sm">
+            <div className="flex items-center gap-2 bg-red-50 text-red-700 border border-red-200 rounded-[2px] px-4 py-3 mb-4 text-sm">
               <AlertCircle className="w-4 h-4 shrink-0" />
               {error}
             </div>
@@ -123,29 +132,26 @@ export default function Signup() {
             <form onSubmit={handleStep1} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+                  <label className={labelCls}>Nombre *</label>
                   <input value={nombre} onChange={e => setNombre(e.target.value)} required
-                         placeholder="Daniela"
-                         className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#1B3A2A]/40 focus:border-[#1B3A2A] text-sm" />
+                         placeholder="Daniela" className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Apellido *</label>
+                  <label className={labelCls}>Apellido *</label>
                   <input value={apellido} onChange={e => setApellido(e.target.value)} required
-                         placeholder="López"
-                         className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#1B3A2A]/40 focus:border-[#1B3A2A] text-sm" />
+                         placeholder="López" className={inputCls} />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de nacimiento *</label>
-                <input type="date" value={fechaNac} onChange={e => setFechaNac(e.target.value)} required
-                       className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#1B3A2A]/40 focus:border-[#1B3A2A] text-sm" />
+                <label className={labelCls}>Fecha de nacimiento *</label>
+                <input type="date" value={fechaNac} onChange={e => setFechaNac(e.target.value)}
+                       required className={inputCls} />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Mano dominante</label>
-                <select value={mano} onChange={e => setMano(e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#1B3A2A]/40 focus:border-[#1B3A2A] text-sm">
+                <label className={labelCls}>Mano dominante</label>
+                <select value={mano} onChange={e => setMano(e.target.value)} className={inputCls}>
                   <option value="">— seleccionar —</option>
                   <option value="diestro">Diestro</option>
                   <option value="zurdo">Zurdo</option>
@@ -153,19 +159,27 @@ export default function Signup() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tu coach *</label>
-                <select value={coachId} onChange={e => setCoachId(e.target.value)} required
-                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#1B3A2A]/40 focus:border-[#1B3A2A] text-sm">
-                  <option value="">— seleccionar —</option>
+                <label className={labelCls}>Tu coach en Top Tenis *</label>
+                <select value={coachId} onChange={e => setCoachId(e.target.value)}
+                        required className={inputCls}>
+                  <option value="">— Selecciona tu coach —</option>
                   {coaches.map(c => (
                     <option key={c.id} value={c.id}>{c.nombre} {c.apellido}</option>
                   ))}
                 </select>
+                <p className="mt-1.5 text-[11px] text-[#8A8780]">
+                  Selecciona el coach que te asignó la academia. Si no sabes quién es, escríbenos a{' '}
+                  <a href="mailto:contacto@toptenispa.mx" className="hover:underline" style={{ color: 'var(--accent)' }}>
+                    contacto@toptenispa.mx
+                  </a>{' '}
+                  antes de continuar.
+                </p>
               </div>
 
               <button type="submit"
-                      className="w-full bg-[#1B3A2A] hover:bg-[#2D5A3D] text-white font-semibold py-2.5 rounded-lg transition-colors">
-                Siguiente →
+                      className="w-full disabled:opacity-60 text-white font-semibold py-2.5 rounded-[2px] transition-opacity hover:opacity-90 uppercase tracking-[0.08em] text-sm"
+                      style={{ background: 'var(--accent)' }}>
+                Continuar al paso 2 →
               </button>
             </form>
           )}
@@ -174,41 +188,39 @@ export default function Signup() {
           {step === 2 && (
             <form onSubmit={handleSignup} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                <label className={labelCls}>Email *</label>
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
-                       placeholder="daniela@ejemplo.com"
-                       className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#1B3A2A]/40 focus:border-[#1B3A2A] text-sm" />
+                       placeholder="daniela@ejemplo.com" className={inputCls} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña *</label>
+                <label className={labelCls}>Contraseña *</label>
                 <input type="password" value={password} onChange={e => setPass(e.target.value)} required
-                       placeholder="Mínimo 8 caracteres"
-                       className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#1B3A2A]/40 focus:border-[#1B3A2A] text-sm" />
+                       placeholder="Mínimo 8 caracteres" className={inputCls} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar contraseña *</label>
+                <label className={labelCls}>Confirmar contraseña *</label>
                 <input type="password" value={passConf} onChange={e => setPassConf(e.target.value)} required
-                       placeholder="Repite tu contraseña"
-                       className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#1B3A2A]/40 focus:border-[#1B3A2A] text-sm" />
+                       placeholder="Repite tu contraseña" className={inputCls} />
               </div>
 
               <div className="flex gap-3">
                 <button type="button" onClick={() => { setStep(1); setError(''); }}
-                        className="flex-1 border border-gray-300 text-gray-700 font-semibold py-2.5 rounded-lg hover:bg-gray-50 transition-colors text-sm">
+                        className="flex-1 border border-[#E0DED8] text-[#4A4842] font-semibold py-2.5 rounded-[2px] hover:bg-[#FAFAF7] transition-colors text-sm">
                   ← Volver
                 </button>
                 <button type="submit" disabled={saving}
-                        className="flex-1 bg-[#1B3A2A] hover:bg-[#2D5A3D] disabled:opacity-60 text-white font-semibold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm">
+                        className="flex-1 disabled:opacity-60 text-white font-semibold py-2.5 rounded-[2px] transition-opacity hover:opacity-90 flex items-center justify-center gap-2 uppercase tracking-[0.08em] text-sm"
+                        style={{ background: 'var(--accent)' }}>
                   <UserPlus className="w-4 h-4" />
-                  {saving ? 'Creando cuenta…' : 'Crear cuenta'}
+                  {saving ? 'Creando…' : 'Crear cuenta'}
                 </button>
               </div>
             </form>
           )}
 
-          <p className="mt-6 text-center text-sm text-gray-500">
+          <p className="mt-6 text-center text-sm text-[#8A8780]">
             ¿Ya tienes cuenta?{' '}
-            <Link to="/login" className="text-[#8B4513] font-medium hover:underline">
+            <Link to="/login" className="font-semibold hover:underline" style={{ color: 'var(--accent)' }}>
               Inicia sesión
             </Link>
           </p>

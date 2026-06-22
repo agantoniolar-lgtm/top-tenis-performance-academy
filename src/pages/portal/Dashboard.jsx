@@ -8,8 +8,9 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!user) return;
-    // Coaches → alumnos, todos los demás (atletas o incompletos) → inicio atleta
-    navigate(user.rol === 'Coach' ? '/portal/alumnos' : '/portal/inicio', { replace: true });
+    if (user.rol === 'Coach')        navigate('/portal/alumnos', { replace: true });
+    else if (user.rol === 'Atleta') navigate('/portal/inicio',  { replace: true });
+    else                            navigate('/login',           { replace: true }); // sin perfil → de vuelta al login
   }, [user, navigate]);
 
   return null;

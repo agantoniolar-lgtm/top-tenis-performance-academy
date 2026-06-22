@@ -79,18 +79,19 @@ export default function CoachSignup() {
   };
 
   const inputClass =
-    'w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A2A]/40 focus:border-[#1B3A2A]';
-  const labelClass = 'block text-sm font-medium text-gray-700 mb-1';
+    'w-full border border-[#E0DED8] rounded-[2px] px-4 py-2.5 text-sm bg-[#FAFAF7] focus:outline-none focus:ring-1 focus:ring-[#8B4513]/30 focus:border-[#8B4513]';
+  const labelClass = 'block text-sm font-medium text-[#4A4842] mb-1';
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen" style={{ fontFamily: "'Manrope', sans-serif" }}>
       {/* Left panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-[#1B3A2A] flex-col items-center justify-center text-white p-12">
+      <div className="hidden lg:flex lg:w-1/2 bg-[#0E2419] flex-col items-center justify-center text-white p-12">
         <CircleDot className="w-32 h-32 mb-8 text-[#8B4513] opacity-80" strokeWidth={1.5} />
-        <h1 className="text-4xl font-bold text-center leading-tight">
+        <h1 className="text-4xl font-bold text-center leading-tight"
+            style={{ fontFamily: "'Bricolage Grotesque', sans-serif", letterSpacing: '-0.02em' }}>
           Top Tenis<br />Performance Academy
         </h1>
-        <p className="mt-4 text-white/60 text-center text-lg max-w-sm">
+        <p className="mt-4 text-white/60 text-center text-base max-w-sm">
           Acceso para coaches al portal de seguimiento.
         </p>
       </div>
@@ -98,13 +99,16 @@ export default function CoachSignup() {
       {/* Right panel */}
       <div className="w-full lg:w-1/2 flex flex-col items-center justify-center bg-white p-8">
         <div className="w-full max-w-md">
-          <h2 className="text-2xl font-bold text-[#1B3A2A] mb-1">Crear cuenta de coach</h2>
-          <p className="text-gray-500 mb-6 text-sm">
-            Necesitas un código de invitación para registrarte.
+          <h2 className="text-2xl font-bold text-[#14110D] mb-1"
+              style={{ fontFamily: "'Bricolage Grotesque', sans-serif", letterSpacing: '-0.02em' }}>
+            Registro de coach
+          </h2>
+          <p className="text-[#8A8780] mb-6 text-sm">
+            Necesitas un código de invitación para continuar.
           </p>
 
           {error && (
-            <div className="flex items-center gap-2 bg-red-50 text-red-700 border border-red-200 rounded-lg px-4 py-3 mb-4 text-sm">
+            <div className="flex items-center gap-2 bg-red-50 text-red-700 border border-red-200 rounded-[2px] px-4 py-3 mb-4 text-sm">
               <AlertCircle className="w-4 h-4 shrink-0" />
               {error}
             </div>
@@ -114,57 +118,33 @@ export default function CoachSignup() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelClass}>Nombre *</label>
-                <input
-                  value={nombre}
-                  onChange={e => setNombre(e.target.value)}
-                  placeholder="Carlos"
-                  required
-                  className={inputClass}
-                />
+                <input value={nombre} onChange={e => setNombre(e.target.value)}
+                       placeholder="Carlos" required className={inputClass} />
               </div>
               <div>
                 <label className={labelClass}>Apellido *</label>
-                <input
-                  value={apellido}
-                  onChange={e => setApellido(e.target.value)}
-                  placeholder="Martínez"
-                  required
-                  className={inputClass}
-                />
+                <input value={apellido} onChange={e => setApellido(e.target.value)}
+                       placeholder="Martínez" required className={inputClass} />
               </div>
             </div>
 
             <div>
               <label className={labelClass}>Email *</label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="carlos@toptenispa.mx"
-                required
-                autoComplete="email"
-                className={inputClass}
-              />
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                     placeholder="carlos@toptenispa.mx" required autoComplete="email"
+                     className={inputClass} />
             </div>
 
             <div>
               <label className={labelClass}>Contraseña *</label>
               <div className="relative">
-                <input
-                  type={showPass ? 'text' : 'password'}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="Mínimo 8 caracteres"
-                  required
-                  autoComplete="new-password"
-                  className={inputClass + ' pr-10'}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPass(v => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  tabIndex={-1}
-                >
+                <input type={showPass ? 'text' : 'password'} value={password}
+                       onChange={e => setPassword(e.target.value)}
+                       placeholder="Mínimo 8 caracteres" required autoComplete="new-password"
+                       className={inputClass + ' pr-10'} />
+                <button type="button" onClick={() => setShowPass(v => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8A8780] hover:text-[#4A4842]"
+                        tabIndex={-1}>
                   {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
@@ -172,42 +152,38 @@ export default function CoachSignup() {
 
             <div>
               <label className={labelClass}>Confirmar contraseña *</label>
-              <input
-                type="password"
-                value={passConf}
-                onChange={e => setPassConf(e.target.value)}
-                placeholder="Repite tu contraseña"
-                required
-                autoComplete="new-password"
-                className={inputClass}
-              />
+              <input type="password" value={passConf} onChange={e => setPassConf(e.target.value)}
+                     placeholder="Repite tu contraseña" required autoComplete="new-password"
+                     className={inputClass} />
             </div>
 
             <div>
               <label className={labelClass}>Código de invitación *</label>
-              <input
-                type="password"
-                value={codigo}
-                onChange={e => setCodigo(e.target.value)}
-                placeholder="Código proporcionado por la academia"
-                required
-                className={inputClass}
-              />
+              <input type="password" value={codigo} onChange={e => setCodigo(e.target.value)}
+                     placeholder="Código proporcionado por la academia" required
+                     className={inputClass} />
+              <div className="mt-2 px-3 py-2.5 text-[11px] text-[#4A4842] leading-relaxed"
+                   style={{ background: 'var(--cream)', borderRadius: 2 }}>
+                La administración de Top Tenis te envía este código cuando aprueba tu acceso. Si no lo tienes, escríbenos a{' '}
+                <a href="mailto:contacto@toptenispa.mx" className="hover:underline font-semibold"
+                   style={{ color: 'var(--accent)' }}>
+                  contacto@toptenispa.mx
+                </a>{' '}
+                antes de registrarte.
+              </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={saving}
-              className="w-full bg-[#1B3A2A] hover:bg-[#2D5A3D] disabled:opacity-60 text-white font-semibold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
-            >
+            <button type="submit" disabled={saving}
+                    className="w-full disabled:opacity-60 text-white font-semibold py-2.5 rounded-[2px] transition-opacity hover:opacity-90 flex items-center justify-center gap-2 uppercase tracking-[0.08em] text-sm"
+                    style={{ background: 'var(--accent)' }}>
               <UserPlus className="w-4 h-4" />
               {saving ? 'Creando cuenta…' : 'Crear cuenta'}
             </button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-gray-500">
+          <p className="mt-6 text-center text-sm text-[#8A8780]">
             ¿Ya tienes cuenta?{' '}
-            <Link to="/login" className="text-[#8B4513] font-medium hover:underline">
+            <Link to="/login" className="font-semibold hover:underline" style={{ color: 'var(--accent)' }}>
               Inicia sesión
             </Link>
           </p>

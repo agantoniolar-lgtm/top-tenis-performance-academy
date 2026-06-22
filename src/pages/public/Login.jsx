@@ -32,15 +32,17 @@ export default function Login() {
     }
   };
 
+  const inputCls = 'w-full border border-[#E0DED8] rounded-[2px] px-4 py-2.5 text-sm bg-[#FAFAF7] focus:outline-none focus:ring-1 focus:ring-[#8B4513]/30 focus:border-[#8B4513]';
+
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen" style={{ fontFamily: "'Manrope', sans-serif" }}>
       {/* Left */}
-      <div className="hidden lg:flex lg:w-1/2 bg-[#1B3A2A] flex-col items-center justify-center text-white p-12">
+      <div className="hidden lg:flex lg:w-1/2 bg-[#0E2419] flex-col items-center justify-center text-white p-12">
         <CircleDot className="w-32 h-32 mb-8 text-[#8B4513] opacity-80" strokeWidth={1.5} />
-        <h1 className="text-4xl font-bold text-center leading-tight">
+        <h1 className="text-4xl font-bold text-center leading-tight" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", letterSpacing: '-0.02em' }}>
           Top Tenis<br />Performance Academy
         </h1>
-        <p className="mt-4 text-white/60 text-center text-lg max-w-sm">
+        <p className="mt-4 text-white/60 text-center text-base max-w-sm">
           Portal de seguimiento integral para jugadores, coaches y familias.
         </p>
       </div>
@@ -48,11 +50,14 @@ export default function Login() {
       {/* Right */}
       <div className="w-full lg:w-1/2 flex flex-col items-center justify-center bg-white p-8">
         <div className="w-full max-w-md">
-          <h2 className="text-2xl font-bold text-[#1B3A2A] mb-1">Iniciar sesión</h2>
-          <p className="text-gray-500 mb-6">Ingresa tus credenciales para acceder al portal.</p>
+          <h2 className="text-2xl font-bold text-[#14110D] mb-1"
+              style={{ fontFamily: "'Bricolage Grotesque', sans-serif", letterSpacing: '-0.02em' }}>
+            Iniciar sesión
+          </h2>
+          <p className="text-[#8A8780] mb-6 text-sm">Ingresa tus credenciales para acceder al portal.</p>
 
           {error && (
-            <div className="flex items-center gap-2 bg-red-50 text-red-700 border border-red-200 rounded-lg px-4 py-3 mb-4 text-sm">
+            <div className="flex items-center gap-2 bg-red-50 text-red-700 border border-red-200 rounded-[2px] px-4 py-3 mb-4 text-sm">
               <AlertCircle className="w-4 h-4 shrink-0" />
               {error}
             </div>
@@ -60,7 +65,7 @@ export default function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <label className="block text-sm font-medium text-[#4A4842] mb-1">Email</label>
               <input
                 type="email"
                 name="email"
@@ -68,13 +73,13 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 onInput={(e) => setEmail(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#1B3A2A]/40 focus:border-[#1B3A2A]"
+                className={inputCls}
                 placeholder="tu@email.com"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+              <label className="block text-sm font-medium text-[#4A4842] mb-1">Contraseña</label>
               <input
                 type="password"
                 name="password"
@@ -82,7 +87,7 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onInput={(e) => setPassword(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#1B3A2A]/40 focus:border-[#1B3A2A]"
+                className={inputCls}
                 placeholder="••••••••"
                 required
               />
@@ -90,23 +95,24 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#1B3A2A] hover:bg-[#2D5A3D] disabled:opacity-60 text-white font-semibold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
+              className="w-full disabled:opacity-60 text-white font-semibold py-2.5 rounded-[2px] transition-opacity hover:opacity-90 flex items-center justify-center gap-2 uppercase tracking-[0.08em] text-sm"
+              style={{ background: 'var(--accent)' }}
             >
               <LogIn className="w-4 h-4" />
               {loading ? 'Entrando…' : 'Entrar al portal'}
             </button>
           </form>
 
-          <div className="mt-6 flex flex-col gap-2 text-center text-sm text-gray-500">
+          <div className="mt-6 flex flex-col gap-2 text-center text-sm text-[#8A8780]">
             <p>
               ¿Eres atleta nuevo?{' '}
-              <Link to="/registro" className="text-[#8B4513] font-medium hover:underline">
+              <Link to="/registro" className="font-semibold hover:underline" style={{ color: 'var(--accent)' }}>
                 Crea tu cuenta
               </Link>
             </p>
             <p>
               ¿Eres coach?{' '}
-              <Link to="/registro-coach" className="text-[#8B4513] font-medium hover:underline">
+              <Link to="/registro-coach" className="font-semibold hover:underline" style={{ color: 'var(--accent)' }}>
                 Acceso de coaches
               </Link>
             </p>

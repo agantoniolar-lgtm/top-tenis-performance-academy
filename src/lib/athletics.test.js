@@ -40,8 +40,13 @@ describe('calcEdad', () => {
   const year = new Date().getFullYear();
 
   it('calcula la edad correctamente', () => {
-    expect(calcEdad(`${year - 15}-01-01`)).toBe(15);
-    expect(calcEdad(`${year - 1}-01-01`)).toBe(1);
+    // Usar la fecha de hoy exacta N años atrás para que el cumpleaños
+    // siempre sea "hoy" y la edad sea exactamente N, sin importar cuándo corre el test.
+    const today = new Date();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    expect(calcEdad(`${year - 15}-${mm}-${dd}`)).toBe(15);
+    expect(calcEdad(`${year - 1}-${mm}-${dd}`)).toBe(1);
   });
   it('devuelve null si no hay fecha', () => {
     expect(calcEdad(null)).toBeNull();
