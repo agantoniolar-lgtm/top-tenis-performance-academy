@@ -4,18 +4,19 @@ import ImagePlaceholder from '../../components/shared/ImagePlaceholder';
 import Badge from '../../components/shared/Badge';
 
 const timeline = [
-  'Jug\u00f3 tenis desde los 8 a\u00f1os',
-  'Beca universitaria Division I en USA',
-  'Regresa a M\u00e9xico',
-  'Funda Top Tenis PA',
+  '#1 EdoMex \u00b7 #4 Nacional Mexicano',
+  'Torneos ITF Junior en 7 pa\u00edses',
+  '4 a\u00f1os en Marian University, Indianapolis',
+  'Capit\u00e1n \u00b7 Invicto Crossroads League 2019',
+  'Regres\u00f3 a M\u00e9xico y fund\u00f3 Top Tenis PA',
 ];
 
 const coaches = [
   {
-    nombre: 'Alejandro Tlacaetel',
-    rol: 'Director',
-    credencial: 'Ex-Division I',
-    desc: 'Jugador formado en el tenis universitario de Estados Unidos. Fundador de TTPA con la misi\u00f3n de crear el mejor sistema de desarrollo junior en M\u00e9xico.',
+    nombre: 'Armando Tlacaelel',
+    rol: 'Director General',
+    credencial: 'UTR 12.07 \u00b7 Division I',
+    desc: 'Fundador de TTPA. Lleg\u00f3 al #1 del Estado de M\u00e9xico y al #4 nacional. Cuatro a\u00f1os en Marian University (Indianapolis) como capit\u00e1n del equipo, invicto en la Crossroads League 2019.',
   },
   {
     nombre: 'Marco Reyes',
@@ -50,7 +51,7 @@ export default function Nosotros() {
         </div>
       </section>
 
-      {/* Section 2 — Historia de Alejandro */}
+      {/* Section 2 — Historia de Armando */}
       <section className="bg-white py-20">
         <div className="max-w-6xl mx-auto px-6">
           <div className="grid md:grid-cols-2 gap-12 items-center">
@@ -59,7 +60,7 @@ export default function Nosotros() {
                 La historia
               </p>
               <h2 className="font-['Playfair_Display'] text-3xl font-bold text-[#1A1A1A] mb-8">
-                De jugador universitario a formador de campeones.
+                Lo vivi&oacute;. Ahora lo construye para los siguientes.
               </h2>
 
               {/* Timeline */}
@@ -75,14 +76,17 @@ export default function Nosotros() {
 
               {/* Badges */}
               <div className="flex flex-wrap gap-3">
-                <Badge type="utr">Division I Player</Badge>
-                <Badge type="completed">8 a&ntilde;os como coach</Badge>
-                <Badge type="reviewed">30+ alumnos formados</Badge>
+                <Badge type="utr">UTR 12.07</Badge>
+                <Badge type="utr">#1 EdoMex &middot; #4 Nacional</Badge>
+                <Badge type="completed">Marian University, Indianapolis</Badge>
+                <Badge type="completed">Capit&aacute;n &middot; Invicto 2019</Badge>
+                <Badge type="reviewed">ITF Junior &mdash; 7 pa&iacute;ses</Badge>
+                <Badge type="reviewed">Liga Bayern, Alemania</Badge>
               </div>
             </div>
             <div>
               <ImagePlaceholder
-                description="Alejandro Tlacaetel en cancha"
+                description="Armando Tlacaelel en cancha"
                 aspectRatio="aspect-[3/4]"
               />
             </div>
