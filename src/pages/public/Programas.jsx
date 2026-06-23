@@ -25,29 +25,38 @@ export default function Programas() {
   return (
     <div>
       {/* Hero */}
-      <section className="relative w-full h-[300px] bg-[#1B3A2A] flex items-center justify-center">
-        <div className="absolute inset-0 bg-black/20" />
+      <section className="relative w-full h-[340px] bg-[#1B3A2A] flex items-center justify-center overflow-hidden">
+        <div
+          className="absolute inset-0 opacity-[0.04]"
+          style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M-1 5L5-1M3 9L9 3' stroke='white' stroke-width='0.6'/%3E%3C/svg%3E")` }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#1B3A2A]/60" />
         <div className="relative z-10 text-center px-6">
+          <p className="uppercase text-xs tracking-[3px] text-[#8B4513] mb-4">
+            Top Tenis Performance Academy
+          </p>
           <h1 className="font-['Playfair_Display'] text-4xl md:text-6xl font-bold text-white">
-            Programas
+            El programa
           </h1>
-          <p className="text-gray-300 mt-4 text-lg">Tres programas. Un sistema.</p>
+          <p className="text-gray-300 mt-4 text-base">
+            Alto rendimiento desde el primer d&iacute;a.
+          </p>
         </div>
       </section>
 
-      {/* Program 1 — Alto Rendimiento */}
+      {/* Alto Rendimiento */}
       <section className="bg-white py-20" id="alto-rendimiento">
         <div className="max-w-6xl mx-auto px-6">
           <div className="grid md:grid-cols-2 gap-12 items-start">
             <div>
               <p className="uppercase tracking-wider text-sm text-[#8B4513] font-semibold mb-3">
-                Programa 1
+                Nuestro programa
               </p>
               <h2 className="font-['Playfair_Display'] text-3xl md:text-4xl font-bold text-[#1A1A1A] mb-4">
                 Alto Rendimiento
               </h2>
               <p className="text-gray-600 leading-relaxed mb-6">
-                Para jugadores juniors que quieren competir al m&aacute;s alto nivel en M&eacute;xico. Se requiere ranking AMTP, participaci&oacute;n en torneos UTR o ITF Junior, o el potencial para llegar a ese nivel. Evaluaci&oacute;n previa en cancha obligatoria.
+                Para jugadores juniors que quieren competir al m&aacute;s alto nivel en M&eacute;xico. Se requiere ranking AMTP, participaci&oacute;n en torneos UTR o ITF Junior, o el potencial para llegar a ese nivel. La evaluaci&oacute;n inicial es el primer paso.
               </p>
 
               <h3 className="text-base font-bold text-[#1A1A1A] mb-3">Horarios</h3>
@@ -98,8 +107,8 @@ export default function Programas() {
         </div>
       </section>
 
-      {/* Program 2 — CB Lomas Verdes */}
-      <section className="bg-[#F8F6F2] py-20" id="cb-lomas-verdes">
+      {/* Nuestra sede */}
+      <section className="bg-[#F8F6F2] py-20" id="sede">
         <div className="max-w-6xl mx-auto px-6">
           <div className="grid md:grid-cols-2 gap-12 items-center">
             <div className="order-2 md:order-1">
@@ -107,25 +116,25 @@ export default function Programas() {
             </div>
             <div className="order-1 md:order-2">
               <p className="uppercase tracking-wider text-sm text-[#8B4513] font-semibold mb-3">
-                Programa 2
+                Nuestra sede
               </p>
               <h2 className="font-['Playfair_Display'] text-3xl md:text-4xl font-bold text-[#1A1A1A] mb-4">
                 Casa Blanca Lomas Verdes
               </h2>
               <p className="text-gray-600 leading-relaxed mb-6">
-                Entrenamiento en el Club Casa Blanca, Lomas Verdes, Naucalpan. Canchas de superficie dura profesional, ambiente competitivo y acceso al sistema de seguimiento de la academia.
+                Entrenamos en el Club Casa Blanca, Lomas Verdes, Naucalpan. Canchas de superficie dura profesional, ambiente competitivo y acceso completo al sistema de seguimiento de la academia.
               </p>
-              <div className="space-y-3 mb-8 text-sm text-gray-600">
+              <div className="space-y-3 text-sm text-gray-600">
                 <p>
                   <span className="font-semibold text-[#1A1A1A]">Direcci&oacute;n:</span>{' '}
                   Club Casa Blanca, Lomas Verdes, Naucalpan, Estado de M&eacute;xico
                 </p>
                 <p>
-                  <span className="font-semibold text-[#1A1A1A]">Horario matutino:</span>{' '}
+                  <span className="font-semibold text-[#1A1A1A]">Matutino:</span>{' '}
                   9:00 &ndash; 12:00 (L&ndash;V)
                 </p>
                 <p>
-                  <span className="font-semibold text-[#1A1A1A]">Horario vespertino:</span>{' '}
+                  <span className="font-semibold text-[#1A1A1A]">Vespertino:</span>{' '}
                   16:00 &ndash; 19:00 (L&ndash;J)
                 </p>
                 <p>
@@ -133,22 +142,16 @@ export default function Programas() {
                   Cancha dura profesional
                 </p>
               </div>
-              <Link
-                to="/contacto"
-                className="inline-block rounded-md px-6 py-3 font-semibold transition bg-[#8B4513] text-white hover:bg-[#A0522D]"
-              >
-                Agendar visita
-              </Link>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Program 3 — Evaluacion de nivel */}
+      {/* El primer paso — Evaluación */}
       <section className="bg-white py-20" id="evaluacion">
         <div className="max-w-4xl mx-auto px-6">
           <p className="uppercase tracking-wider text-sm text-[#8B4513] font-semibold mb-3">
-            Programa 3
+            El primer paso
           </p>
           <h2 className="font-['Playfair_Display'] text-3xl md:text-4xl font-bold text-[#1A1A1A] mb-4">
             Evaluaci&oacute;n de nivel

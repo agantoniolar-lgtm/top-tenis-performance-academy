@@ -42,9 +42,16 @@ export default function Nosotros() {
   return (
     <div>
       {/* Section 1 — Hero interior */}
-      <section className="relative w-full h-[400px] bg-[#1B3A2A] flex items-center justify-center">
-        <div className="absolute inset-0 bg-black/20" />
+      <section className="relative w-full h-[400px] bg-[#1B3A2A] flex items-center justify-center overflow-hidden">
+        <div
+          className="absolute inset-0 opacity-[0.04]"
+          style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M-1 5L5-1M3 9L9 3' stroke='white' stroke-width='0.6'/%3E%3C/svg%3E")` }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#1B3A2A]/60" />
         <div className="relative z-10 text-center px-6">
+          <p className="uppercase text-xs tracking-[3px] text-[#8B4513] mb-4">
+            Academia &middot; Naucalpan, M&eacute;xico
+          </p>
           <h1 className="font-['Playfair_Display'] text-4xl md:text-6xl font-bold text-white">
             El equipo detr&aacute;s del camino.
           </h1>
@@ -163,9 +170,7 @@ export default function Nosotros() {
       <section className="bg-white py-16">
         <div className="max-w-4xl mx-auto px-6 text-center">
           <p className="text-sm uppercase tracking-wider text-gray-400 mb-6">Patrocinador oficial</p>
-          <div className="w-40 h-20 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl font-bold text-gray-400 tracking-widest">YONEX</span>
-          </div>
+          <p className="tracking-[0.2em] font-black text-[#1B3A2A] text-3xl mb-4">YONEX</p>
           <p className="text-[#1A1A1A] font-semibold text-lg">
             Orgullosamente patrocinados por Yonex
           </p>

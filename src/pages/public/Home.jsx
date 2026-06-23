@@ -572,9 +572,7 @@ export default function Home() {
                 ))}
               </div>
               <div className="flex items-center gap-3">
-                <div className="w-16 h-8 bg-white border border-gray-200 flex items-center justify-center">
-                  <span className="text-sm font-bold text-gray-400 tracking-widest">YONEX</span>
-                </div>
+                <p className="tracking-[0.2em] font-black text-[#1B3A2A] text-3xl">YONEX</p>
                 <span className="text-xs text-gray-400">Patrocinador oficial</span>
               </div>
             </div>

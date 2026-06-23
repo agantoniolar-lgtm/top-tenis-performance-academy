@@ -39,7 +39,7 @@ const credibilityCards = [
   {
     icon: GraduationCap,
     title: 'Nuestro director vivió el proceso',
-    desc: 'Alejandro pasó por el proceso de reclutamiento universitario, jugó tenis colegial en Estados Unidos y conoce de primera mano cada paso del camino. Esa experiencia es la base de nuestra metodología.',
+    desc: 'Armando pasó por el proceso de reclutamiento universitario, jugó tenis colegial en Estados Unidos y conoce de primera mano cada paso del camino. Esa experiencia es la base de nuestra metodología.',
   },
   {
     icon: Users,
@@ -96,7 +96,7 @@ export default function CaminoUSA() {
       {/* Timeline */}
       <section className="py-20 bg-[#F8F6F2]">
         <div className="max-w-6xl mx-auto px-6">
-          <h2 className="text-3xl font-bold text-[#1B3A2A] text-center mb-16">
+          <h2 className="font-['Playfair_Display'] text-3xl font-bold text-[#1B3A2A] text-center mb-16">
             Tu camino hacia la beca
           </h2>
 
@@ -141,7 +141,7 @@ export default function CaminoUSA() {
       {/* Por qué TTPA */}
       <section className="py-20 bg-white">
         <div className="max-w-6xl mx-auto px-6">
-          <h2 className="text-3xl font-bold text-[#1B3A2A] text-center mb-12">
+          <h2 className="font-['Playfair_Display'] text-3xl font-bold text-[#1B3A2A] text-center mb-12">
             ¿Por qué TTPA?
           </h2>
           <div className="grid md:grid-cols-3 gap-8">
@@ -150,7 +150,7 @@ export default function CaminoUSA() {
               return (
                 <div
                   key={i}
-                  className="bg-[#F8F6F2] rounded-xl p-8 text-center border border-gray-100"
+                  className="bg-[#F8F6F2] rounded-none border border-gray-200 p-8 text-center"
                 >
                   <div className="w-16 h-16 rounded-full bg-[#8B4513]/10 flex items-center justify-center mx-auto mb-6">
                     <Icon size={28} className="text-[#8B4513]" />
@@ -167,14 +167,14 @@ export default function CaminoUSA() {
       {/* FAQ */}
       <section className="py-20 bg-[#F8F6F2]">
         <div className="max-w-3xl mx-auto px-6">
-          <h2 className="text-3xl font-bold text-[#1B3A2A] text-center mb-12">
+          <h2 className="font-['Playfair_Display'] text-3xl font-bold text-[#1B3A2A] text-center mb-12">
             Preguntas frecuentes
           </h2>
           <div className="space-y-3">
             {faqItems.map((item, i) => {
               const isOpen = openFaq === i;
               return (
-                <div key={i} className="bg-white rounded-xl shadow-sm overflow-hidden">
+                <div key={i} className="bg-white rounded-none border border-gray-200 overflow-hidden">
                   <button
                     onClick={() => setOpenFaq(isOpen ? null : i)}
                     className="w-full flex items-center justify-between p-6 text-left hover:bg-gray-50 transition-colors"
