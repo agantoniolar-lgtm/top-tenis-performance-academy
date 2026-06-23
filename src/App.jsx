@@ -36,7 +36,11 @@ const NuevoTorneo         = lazy(() => import('./pages/portal/NuevoTorneo'));
 const PostTorneo          = lazy(() => import('./pages/portal/PostTorneo'));
 const Signup             = lazy(() => import('./pages/public/Signup'));
 const CoachSignup        = lazy(() => import('./pages/public/CoachSignup'));
+const ContentSignup      = lazy(() => import('./pages/public/ContentSignup'));
 const RegistroPendiente  = lazy(() => import('./pages/public/RegistroPendiente'));
+
+// CDS — Content Delivery System
+const PanelContenido = lazy(() => import('./pages/portal/content/PanelContenido'));
 
 function Loading() {
   return (
@@ -66,6 +70,7 @@ export default function App() {
             <Route path="/login"               element={<Login />} />
             <Route path="/registro"            element={<Signup />} />
             <Route path="/registro-coach"      element={<CoachSignup />} />
+            <Route path="/registro-content"    element={<ContentSignup />} />
             <Route path="/registro-pendiente"  element={<RegistroPendiente />} />
 
             {/* Portal — protegido */}
@@ -96,6 +101,11 @@ export default function App() {
                   <Route path="/portal/post-torneo"           element={<PostTorneo />} />
                   <Route path="/portal/post-torneo/:torneoId" element={<PostTorneo />} />
                   <Route path="/portal/athlete-voice"        element={<AthleteVoice />} />
+                </Route>
+
+                {/* Rutas de content manager */}
+                <Route element={<ProtectedRoute allowedRoles={['Content']} />}>
+                  <Route path="/portal/contenido" element={<PanelContenido />} />
                 </Route>
               </Route>
             </Route>

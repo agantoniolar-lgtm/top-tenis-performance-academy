@@ -14,12 +14,22 @@ const ATLETA_NAV = [
   { id: 'torneos',     label: 'Mis torneos',     icon: 'trophy', path: '/portal/mis-torneos' },
 ];
 
+const CONTENT_NAV = [
+  { id: 'contenido', label: 'Contenido', icon: 'edit', path: '/portal/contenido' },
+];
+
+function getNav(rol) {
+  if (rol === 'Atleta')  return ATLETA_NAV;
+  if (rol === 'Content') return CONTENT_NAV;
+  return COACH_NAV;
+}
+
 export default function Sidebar({ open, onClose }) {
   const navigate         = useNavigate();
   const location         = useLocation();
   const { user, logout } = useAuth();
 
-  const NAV = user?.rol === 'Atleta' ? ATLETA_NAV : COACH_NAV;
+  const NAV = getNav(user?.rol);
 
   const isActive = (path) => {
     if (path === '/portal/alumnos')   return location.pathname.startsWith('/portal/alumnos');

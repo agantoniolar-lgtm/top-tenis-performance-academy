@@ -4,13 +4,13 @@ import { supabase } from '../lib/supabase';
 
 const AuthContext = createContext(null);
 
-// user shape: { id (auth uid), email, nombre, rol, coach_id | athlete_id }
+// user shape: { id (auth uid), email, nombre, rol, coach_id | athlete_id | content_manager_id }
 
 export function AuthProvider({ children }) {
   const [user,    setUser]    = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Enriquece el auth user con datos del perfil (coaches / athletes)
+  // Enriquece el auth user con datos del perfil (coaches / athletes / content_managers)
   async function enrichUser(authUser) {
     if (!authUser) { setUser(null); return; }
 
@@ -46,6 +46,24 @@ export function AuthProvider({ children }) {
         nombre:     `${athlete.nombre} ${athlete.apellido}`,
         rol:        'Atleta',
         athlete_id: athlete.id,
+      });
+      return;
+    }
+
+    // Intentar como content manager
+    const { data: cm } = await supabase
+      .from('content_managers')
+      .select('id, nombre, apellido')
+      .eq('user_id', authUser.id)
+      .maybeSingle();
+
+    if (cm) {
+      setUser({
+        id:                 authUser.id,
+        email:              authUser.email,
+        nombre:             `${cm.nombre} ${cm.apellido}`,
+        rol:                'Content',
+        content_manager_id: cm.id,
       });
       return;
     }
