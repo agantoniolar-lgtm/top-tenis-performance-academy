@@ -19,6 +19,7 @@ const Login     = lazy(() => import('./pages/public/Login'));
 // Portal — solo lo conectado a Supabase
 const Dashboard     = lazy(() => import('./pages/portal/Dashboard'));        // redirect → /portal/alumnos
 const Alumnos       = lazy(() => import('./pages/portal/coach/Alumnos'));
+const Equipo        = lazy(() => import('./pages/portal/coach/Equipo'));
 const AlumnoDetalle = lazy(() => import('./pages/portal/coach/AlumnoDetalle'));
 const NuevoReporte       = lazy(() => import('./pages/portal/coach/NuevoReporte'));
 const ReportesPorPeriodo = lazy(() => import('./pages/portal/coach/ReportesPorPeriodo'));
@@ -81,6 +82,7 @@ export default function App() {
                 {/* Rutas de coach */}
                 <Route element={<ProtectedRoute allowedRoles={['Coach']} />}>
                   <Route path="/portal/alumnos"                    element={<Alumnos />} />
+                  <Route path="/portal/equipo"                     element={<Equipo />} />
                   <Route path="/portal/alumnos/nuevo"              element={<NuevoAtleta />} />
                   <Route path="/portal/alumnos/:id"                element={<AlumnoDetalle />} />
                   <Route path="/portal/alumnos/:id/talent-card"    element={<TalentCard />} />

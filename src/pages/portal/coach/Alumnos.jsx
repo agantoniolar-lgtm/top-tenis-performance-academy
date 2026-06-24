@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
 import { calcCat, fmtPeriod } from '../../../lib/athletics.js';
+import { TabBar } from './Equipo';
 
 export default function Alumnos() {
   const { user }           = useAuth();
@@ -31,6 +32,7 @@ export default function Alumnos() {
 
   return (
     <Shell>
+      <TabBar active="mis" />
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="font-display font-extrabold text-[28px] leading-none">Atletas</h1>

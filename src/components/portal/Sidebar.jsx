@@ -32,7 +32,7 @@ export default function Sidebar({ open, onClose }) {
   const NAV = getNav(user?.rol);
 
   const isActive = (path) => {
-    if (path === '/portal/alumnos')   return location.pathname.startsWith('/portal/alumnos');
+    if (path === '/portal/alumnos')   return location.pathname.startsWith('/portal/alumnos') || location.pathname === '/portal/equipo';
     if (path === '/portal/reportes')  return location.pathname === '/portal/reportes';
     return location.pathname.startsWith(path);
   };

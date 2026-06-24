@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../../hooks/useAuth';
 import { supabase } from '../../../lib/supabase';
 import {
   calcCat, avg, ocAvgLabel, fmtSign, fmtPeriod, fmtPeriodLong, winLossRecord,
@@ -23,6 +24,7 @@ function scoreColor(v) {
 export default function AlumnoDetalle() {
   const { id }    = useParams();
   const navigate  = useNavigate();
+  const { user }  = useAuth();
   const [athlete, setAth]   = useState(null);
   const [reports, setRep]   = useState([]);   // raw reports
   const [ocMap,   setOcMap] = useState({});   // report_id → on_court row
@@ -41,7 +43,7 @@ export default function AlumnoDetalle() {
       // 1. Athlete
       const { data: ath, error: e1 } = await supabase
         .from('athletes')
-        .select('id, nombre, apellido, fecha_nacimiento, mano_dominante, tipo_reves, altura_cm, peso_kg, email, telefono, nombre_padre, telefono_padre, escuela, grado_escolar, fecha_ingreso, utr_actual, activo')
+        .select('id, nombre, apellido, fecha_nacimiento, mano_dominante, tipo_reves, altura_cm, peso_kg, email, telefono, nombre_padre, telefono_padre, escuela, grado_escolar, fecha_ingreso, utr_actual, activo, coach_id')
         .eq('id', id).single();
       if (e1) { setErr(e1.message); setLoad(false); return; }
 
@@ -94,6 +96,8 @@ export default function AlumnoDetalle() {
   if (loading) return <Shell><p className="text-[var(--ink-mute)] text-sm">Cargando…</p></Shell>;
   if (error)   return <Shell><p className="text-red-500 text-sm">Error: {error}</p></Shell>;
   if (!athlete) return <Shell><p className="text-[var(--ink-mute)] text-sm">Atleta no encontrado.</p></Shell>;
+
+  const isOwn    = athlete.coach_id === user?.coach_id;
 
   const lastRep  = reports[0];
   const prevRep  = reports[1];
@@ -163,17 +167,24 @@ export default function AlumnoDetalle() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {!isOwn && (
+            <span className="px-3 py-1.5 text-[11px] font-mono hairline" style={{ color: 'var(--ink-mute)' }}>
+              Solo lectura
+            </span>
+          )}
           <button
             onClick={() => navigate(`/portal/alumnos/${id}/talent-card`)}
             className="px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.08em] hairline hover:bg-[var(--cream)] transition">
             Talent Card
           </button>
-          <button
-            onClick={() => navigate('/portal/reportes/nuevo', { state: { athleteId: id } })}
-            className="px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-white hover:opacity-90 transition"
-            style={{ background: 'var(--accent)' }}>
-            + Nuevo reporte
-          </button>
+          {isOwn && (
+            <button
+              onClick={() => navigate('/portal/reportes/nuevo', { state: { athleteId: id } })}
+              className="px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-white hover:opacity-90 transition"
+              style={{ background: 'var(--accent)' }}>
+              + Nuevo reporte
+            </button>
+          )}
         </div>
       </div>
 
