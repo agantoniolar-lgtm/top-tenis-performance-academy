@@ -44,7 +44,7 @@ export default function AlumnoDetalle() {
       // 1. Athlete
       const { data: ath, error: e1 } = await supabase
         .from('athletes')
-        .select('id, nombre, apellido, fecha_nacimiento, mano_dominante, tipo_reves, altura_cm, peso_kg, email, telefono, nombre_padre, telefono_padre, escuela, grado_escolar, fecha_ingreso, utr_actual, activo, coach_id')
+        .select('id, nombre, apellido, segundo_apellido, fecha_nacimiento, mano_dominante, tipo_reves, altura_cm, peso_kg, email, telefono, nombre_padre, telefono_padre, escuela, grado_escolar, fecha_ingreso, utr_actual, activo, coach_id')
         .eq('id', id).single();
       if (e1) { setErr(e1.message); setLoad(false); return; }
 
@@ -137,7 +137,7 @@ export default function AlumnoDetalle() {
           <div>
             <p className="eyebrow !text-[10px] mb-1" style={{ color: 'var(--ink-mute)' }}>Expediente</p>
             <h1 className="font-display font-extrabold text-[32px] leading-[0.95]">
-              {athlete.nombre} {athlete.apellido}
+              {athlete.nombre} {athlete.apellido}{athlete.segundo_apellido ? ` ${athlete.segundo_apellido}` : ''}
             </h1>
             <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[12px]" style={{ color: 'var(--ink-soft)' }}>
               <span><b style={{ color: 'var(--ink)' }}>{calcCat(athlete.fecha_nacimiento)}</b></span>

@@ -334,7 +334,7 @@ export default function TalentCard() {
                 </p>
                 <h1 className="font-display font-extrabold leading-[0.9] tracking-[-0.025em]"
                     style={{ fontSize: 'clamp(36px, 6vw, 64px)' }}>
-                  {athlete.nombre} {athlete.apellido}
+                  {athlete.nombre} {athlete.apellido}{athlete.segundo_apellido ? ` ${athlete.segundo_apellido}` : ''}
                 </h1>
                 <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[12px]"
                      style={{ color: 'rgba(255,255,255,0.55)' }}>

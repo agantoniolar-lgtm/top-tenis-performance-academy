@@ -293,29 +293,25 @@ def scrape_amtp_rankings() -> dict:
     return {**rankings, "source": "dom", "total": total}
 
 
-def lookup_player(rankings: dict, nombre: str) -> Optional[dict]:
+def lookup_player(rankings: dict, nombre: str, apellido: str = "") -> Optional[dict]:
     """
-    Busca un jugador por nombre (búsqueda flexible, sin acentos, case-insensitive).
-    Útil para mostrar el ranking de un atleta específico en su perfil.
+    Busca un jugador por nombre+apellido en el ranking scrapeado.
+    Si se pasa apellido, usa el matching preciso (primer nombre + primer apellido).
+    Si solo se pasa nombre completo como string único, hace búsqueda flexible.
 
     Retorna: {"posicion": int, "puntos": float, "genero": str} o None si no aparece.
     """
-    import unicodedata
-
-    def normalize(s: str) -> str:
-        s = s.lower().strip()
-        return "".join(
-            c for c in unicodedata.normalize("NFD", s)
-            if unicodedata.category(c) != "Mn"
-        )
-
-    needle = normalize(nombre)
-
     for genero, lista in [("varonil", rankings["varonil"]), ("femenil", rankings["femenil"])]:
         for entry in lista:
-            if needle in normalize(entry["nombre"]) or normalize(entry["nombre"]) in needle:
-                return {**entry, "genero": genero}
-
+            if apellido:
+                if _nombres_match(nombre, apellido, entry["nombre"]):
+                    return {**entry, "genero": genero}
+            else:
+                # Fallback: búsqueda flexible por string completo (solo para uso manual)
+                n1 = _norm(nombre)
+                n2 = _norm(entry["nombre"])
+                if n1 in n2 or n2 in n1:
+                    return {**entry, "genero": genero}
     return None
 
 
@@ -323,8 +319,8 @@ def lookup_player(rankings: dict, nombre: str) -> Optional[dict]:
 
 def fetch_platform_athletes(supabase_url: str, service_key: str) -> list[dict]:
     """
-    Devuelve lista de dicts {id, nombre_completo} de atletas activos en la plataforma.
-    Solo estos se guardan en el ranking.
+    Devuelve lista de dicts {id, nombre, apellido} de atletas activos en la plataforma.
+    Se mantienen separados para el matching preciso: ambos deben aparecer en el nombre AMTP.
     """
     headers = {
         "apikey": service_key,
@@ -334,36 +330,50 @@ def fetch_platform_athletes(supabase_url: str, service_key: str) -> list[dict]:
     resp = requests.get(
         f"{supabase_url}/rest/v1/athletes",
         headers=headers,
-        params={"select": "id,nombre,apellido", "activo": "eq.true"},
+        params={"select": "id,nombre,apellido,segundo_apellido", "activo": "eq.true"},
         timeout=10,
     )
     resp.raise_for_status()
     athletes = resp.json()
-    result = [
-        {"id": a["id"], "nombre_completo": f"{a['nombre']} {a['apellido']}".strip()}
-        for a in athletes
-    ]
-    log.info(f"Atletas en plataforma: {len(result)} → {[a['nombre_completo'] for a in result]}")
-    return result
+    log.info(f"Atletas en plataforma: {len(athletes)} → {[f\"{a['nombre']} {a['apellido']}\" for a in athletes]}")
+    return athletes  # lista de {id, nombre, apellido, segundo_apellido}
 
 
-def _nombres_match(plataforma: str, ranking: str) -> bool:
-    """
-    Comparación flexible entre nombre de plataforma y nombre en ranking AMTP.
-    Sin acentos, case-insensitive, permite coincidencia parcial (apellido + nombre).
-    """
+def _norm(s: str) -> str:
+    """Normaliza string: minúsculas, sin acentos, sin espacios extras."""
     import unicodedata
+    s = " ".join(s.lower().split())  # colapsa espacios extras
+    return "".join(
+        c for c in unicodedata.normalize("NFD", s)
+        if unicodedata.category(c) != "Mn"
+    )
 
-    def norm(s: str) -> str:
-        s = s.lower().strip()
-        return "".join(
-            c for c in unicodedata.normalize("NFD", s)
-            if unicodedata.category(c) != "Mn"
-        )
 
-    n1 = norm(plataforma)
-    n2 = norm(ranking)
-    return n1 in n2 or n2 in n1 or set(n1.split()) & set(n2.split()) >= {n1.split()[0]}
+def _nombres_match(nombre: str, apellido: str, ranking_name: str, segundo_apellido: str = "") -> bool:
+    """
+    Coincidencia precisa: el primer token del nombre Y el primer token del apellido
+    deben aparecer como palabras completas en el nombre del ranking AMTP.
+
+    Si se conoce el segundo apellido, también se requiere que su primer token aparezca
+    en el ranking — esto reduce colisiones cuando hay dos atletas con nombre+apellido parecido.
+
+    Ejemplos que pasan:
+      nombre="Emiliano"  apellido="Flores"  seg="Rivera"  → "Emiliano Flores Rivera" ✓
+      nombre="Ian"       apellido="Kleiman" seg="Plaza"   → "Ian Kleiman Plaza" ✓
+    Ejemplos que fallan (correcto):
+      nombre="Carlos"    apellido="Sánchez" seg=""        → "Carlos Zerega López" ✗
+      nombre="Emiliano"  apellido="Flores"  seg="Rivera"  → "Emiliano Flores Martínez" ✗ (seg no coincide)
+    """
+    ranking_words = set(_norm(ranking_name).split())
+    first_nombre   = _norm(nombre).split()[0]
+    first_apellido = _norm(apellido).split()[0]
+    if not (first_nombre in ranking_words and first_apellido in ranking_words):
+        return False
+    # Si tenemos segundo apellido, exigirlo también
+    if segundo_apellido and segundo_apellido.strip():
+        first_segundo = _norm(segundo_apellido).split()[0]
+        return first_segundo in ranking_words
+    return True
 
 
 # ── 7. Upsert a Supabase ─────────────────────────────────────────────────────
@@ -410,8 +420,11 @@ def upsert_to_supabase(rankings: dict, periodo: Optional[str] = None) -> None:
         for entry in rankings.get(genero, []):
             nombre_ranking = entry["nombre"]
             # Buscar coincidencia con atleta de la plataforma
+            # Exige que primer nombre Y primer apellido aparezcan en el nombre del ranking
             matched = next(
-                (a for a in atletas_plataforma if _nombres_match(a["nombre_completo"], nombre_ranking)),
+                (a for a in atletas_plataforma
+                 if _nombres_match(a["nombre"], a["apellido"], nombre_ranking,
+                                   a.get("segundo_apellido") or "")),
                 None,
             )
             if not matched:

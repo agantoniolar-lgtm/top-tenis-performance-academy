@@ -20,7 +20,7 @@ export default function Alumnos() {
     async function load() {
       const { data: aths, error: e } = await supabase
         .from('athletes')
-        .select('id, nombre, apellido, fecha_nacimiento, mano_dominante, fecha_ingreso, utr_actual')
+        .select('id, nombre, apellido, segundo_apellido, fecha_nacimiento, mano_dominante, fecha_ingreso, utr_actual')
         .eq('coach_id', user.coach_id)
         .eq('activo', true)
         .order('utr_actual', { ascending: false });
@@ -98,7 +98,7 @@ export default function Alumnos() {
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 court-bg shrink-0" />
                       <div>
-                        <div className="font-display font-bold text-[14px]">{a.nombre} {a.apellido}</div>
+                        <div className="font-display font-bold text-[14px]">{a.nombre} {a.apellido}{a.segundo_apellido ? ` ${a.segundo_apellido}` : ''}</div>
                         <div className="text-[10px] font-mono text-[var(--ink-mute)] mt-0.5">{calcCat(a.fecha_nacimiento)}</div>
                       </div>
                     </div>

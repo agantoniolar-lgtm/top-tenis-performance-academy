@@ -19,6 +19,7 @@ export default function NuevoAtleta() {
   // Identity
   const [nombre,         setNombre]    = useState('');
   const [apellido,       setApellido]  = useState('');
+  const [segundoApellido, setSegApell] = useState('');
   const [fechaNac,       setFechaNac]  = useState('');
   const [mano,           setMano]      = useState('');
   const [tipoReves,      setReves]     = useState('');
@@ -57,8 +58,9 @@ export default function NuevoAtleta() {
       .from('athletes')
       .insert({
         coach_id:       user.coach_id,
-        nombre:         nombre.trim(),
-        apellido:       apellido.trim(),
+        nombre:          nombre.trim(),
+        apellido:        apellido.trim(),
+        segundo_apellido: segundoApellido.trim() || null,
         fecha_nacimiento: fechaNac,
         mano_dominante: mano || null,
         tipo_reves:     tipoReves || null,
@@ -105,9 +107,13 @@ export default function NuevoAtleta() {
             <input value={nombre} onChange={e => setNombre(e.target.value)} required
                    placeholder="Daniela" className={input} />
           </Field>
-          <Field label="Apellido *">
+          <Field label="Primer apellido *">
             <input value={apellido} onChange={e => setApellido(e.target.value)} required
                    placeholder="López" className={input} />
+          </Field>
+          <Field label="Segundo apellido">
+            <input value={segundoApellido} onChange={e => setSegApell(e.target.value)}
+                   placeholder="García" className={input} />
           </Field>
           <Field label="Fecha de nacimiento *">
             <input type="date" value={fechaNac} onChange={e => setFechaNac(e.target.value)} required
