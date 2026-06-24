@@ -14,11 +14,12 @@ export default function Signup() {
   const [error,    setError]    = useState('');
 
   // Paso 1
-  const [nombre,     setNombre]   = useState('');
-  const [apellido,   setApellido] = useState('');
-  const [fechaNac,   setFechaNac] = useState('');
-  const [mano,       setMano]     = useState('');
-  const [coachId,    setCoachId]  = useState('');
+  const [nombre,          setNombre]   = useState('');
+  const [apellido,        setApellido] = useState('');
+  const [segundoApellido, setSegApell] = useState('');
+  const [fechaNac,        setFechaNac] = useState('');
+  const [mano,            setMano]     = useState('');
+  const [coachId,         setCoachId]  = useState('');
 
   // Paso 2
   const [email,      setEmail]    = useState('');
@@ -69,6 +70,7 @@ export default function Signup() {
         coach_id:         coachId,
         nombre:           nombre.trim(),
         apellido:         apellido.trim(),
+        segundo_apellido: segundoApellido.trim() || null,
         fecha_nacimiento: fechaNac,
         mano_dominante:   mano || null,
         fecha_ingreso:    new Date().toISOString().slice(0, 10),
@@ -137,9 +139,14 @@ export default function Signup() {
                          placeholder="Daniela" className={inputCls} />
                 </div>
                 <div>
-                  <label className={labelCls}>Apellido *</label>
+                  <label className={labelCls}>Primer apellido *</label>
                   <input value={apellido} onChange={e => setApellido(e.target.value)} required
                          placeholder="López" className={inputCls} />
+                </div>
+                <div className="col-span-2">
+                  <label className={labelCls}>Segundo apellido</label>
+                  <input value={segundoApellido} onChange={e => setSegApell(e.target.value)}
+                         placeholder="García" className={inputCls} />
                 </div>
               </div>
 
