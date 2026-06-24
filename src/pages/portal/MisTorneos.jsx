@@ -85,6 +85,22 @@ export default function MisTorneos() {
                           {[t.tournaments?.tipo, t.tournaments?.categoria, t.tournaments?.sede].filter(Boolean).join(' · ')}
                         </div>
                       )}
+                      {/* Info extra solo en mobile */}
+                      <div className="sm:hidden text-[10px] font-mono mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                        {t.tournaments?.fecha && (
+                          <span style={{ color: 'var(--ink-mute)' }}>
+                            {new Date(t.tournaments.fecha + 'T12:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </span>
+                        )}
+                        {t.ronda && (
+                          <span style={{ color: 'var(--ink-mute)' }}>{t.ronda}</span>
+                        )}
+                        {t.victoria !== null && (
+                          <span style={{ color: t.victoria ? 'var(--good)' : 'var(--bad)' }}>
+                            {t.victoria ? 'Victoria' : 'Derrota'}{t.resultado ? ` ${t.resultado}` : ''}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-4 hidden sm:table-cell font-mono text-[11px] text-[var(--ink-mute)]">
                       {t.tournaments?.fecha
