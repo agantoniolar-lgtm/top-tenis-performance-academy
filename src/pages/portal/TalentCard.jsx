@@ -165,22 +165,28 @@ export default function TalentCard() {
   const { id }    = useParams();
   const navigate  = useNavigate();
 
-  const [athlete, setAth]   = useState(null);
-  const [reports, setRep]   = useState([]);
-  const [ocMap,   setOcMap] = useState({});
-  const [chMap,   setChMap] = useState({});
-  const [avMap,   setAvMap] = useState({});
-  const [record,  setRecord] = useState({ w: 0, l: 0, total: 0 });
-  const [loading, setLoad]  = useState(true);
-  const [error,   setErr]   = useState(null);
+  const [athlete, setAth]     = useState(null);
+  const [reports, setRep]     = useState([]);
+  const [ocMap,   setOcMap]   = useState({});
+  const [chMap,   setChMap]   = useState({});
+  const [avMap,   setAvMap]   = useState({});
+  const [record,  setRecord]  = useState({ w: 0, l: 0, total: 0 });
+  const [amtp,    setAmtp]    = useState([]);   // últimos 2 períodos AMTP, desc
+  const [loading, setLoad]    = useState(true);
+  const [error,   setErr]     = useState(null);
 
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
     async function load() {
-      const [{ data: ath, error: e1 }, { data: recProfile }] = await Promise.all([
+      const [{ data: ath, error: e1 }, { data: recProfile }, { data: amtpRows }] = await Promise.all([
         supabase.from('athletes').select('*').eq('id', id).single(),
         supabase.from('athlete_recruitment_profile').select('*').eq('athlete_id', id).maybeSingle(),
+        supabase.from('amtp_rankings')
+          .select('posicion, puntos, periodo')
+          .eq('athlete_id', id)
+          .order('periodo', { ascending: false })
+          .limit(2),
       ]);
       if (e1 || !ath) { setErr(e1?.message ?? 'Atleta no encontrado'); setLoad(false); return; }
 
@@ -221,7 +227,7 @@ export default function TalentCard() {
 
       if (!cancelled) {
         setAth(ath); setRep(reps ?? []); setOcMap(oc); setChMap(ch); setAvMap(av);
-        setRecord(winLossRecord(tourns)); setLoad(false);
+        setRecord(winLossRecord(tourns)); setAmtp(amtpRows ?? []); setLoad(false);
       }
     }
     load().catch(e => { if (!cancelled) { setErr(e.message); setLoad(false); } });
@@ -258,6 +264,16 @@ export default function TalentCard() {
   const currentUTR = lastOC?.utr ?? athlete.utr_actual;
   const prevUTR    = reports[1] ? ocMap[reports[1].id]?.utr : null;
   const deltaUTR   = currentUTR && prevUTR ? Number(currentUTR) - Number(prevUTR) : null;
+
+  // AMTP ranking — últimos 2 períodos
+  const amtpCur   = amtp[0] ?? null;
+  const amtpPrev  = amtp[1] ?? null;
+  const amtpDeltaPts = amtpCur && amtpPrev
+    ? Number(amtpCur.puntos) - Number(amtpPrev.puntos)
+    : null;
+  const amtpDeltaPos = amtpCur && amtpPrev
+    ? amtpPrev.posicion - amtpCur.posicion  // positivo = subió posiciones
+    : null;
 
   // B5: Percepción coach vs. atleta — comparar reportes de periodo, no PTFs.
   // Usa el reporte más reciente que tenga athlete voice completado.
@@ -311,8 +327,8 @@ export default function TalentCard() {
               TTPA · {(athlete.id ?? '').slice(0, 8).toUpperCase()} · v{new Date().getFullYear()}.{String(new Date().getMonth() + 1).padStart(2, '0')}
             </p>
 
-            <div className="mt-7 grid grid-cols-12 gap-6 items-end">
-              <div className="col-span-12 md:col-span-7">
+            <div className="mt-7 grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
+              <div className="col-span-1 md:col-span-7">
                 <p className="eyebrow !text-[10px] mb-1.5" style={{ color: 'var(--accent)' }}>
                   Atleta · {calcCat(athlete.fecha_nacimiento)} · México
                 </p>
@@ -333,7 +349,7 @@ export default function TalentCard() {
                 </div>
               </div>
 
-              <div className="col-span-12 md:col-span-5 grid grid-cols-3 gap-px"
+              <div className="col-span-1 md:col-span-5 grid grid-cols-3 gap-px"
                    style={{ background: 'rgba(255,255,255,0.1)' }}>
                 <HeaderMetric
                   label="UTR"
@@ -341,7 +357,15 @@ export default function TalentCard() {
                   sub={deltaUTR != null ? `${deltaUTR > 0 ? '+' : ''}${deltaUTR.toFixed(2)} vs anterior` : 'sin comparación'}
                   accent
                 />
-                <HeaderMetric label="AMTP" value="—" sub="pendiente API" />
+                <HeaderMetric
+                  label="AMTP"
+                  value={amtpCur ? `#${amtpCur.posicion}` : '—'}
+                  sub={
+                    amtpDeltaPos != null
+                      ? `${amtpDeltaPos > 0 ? '+' : ''}${amtpDeltaPos} pos vs anterior`
+                      : amtpCur ? `${Number(amtpCur.puntos).toFixed(1)} pts` : 'sin ranking aún'
+                  }
+                />
                 <HeaderMetric label="W / L"
                   value={record.total > 0 ? `${record.w} / ${record.l}` : '— / —'}
                   sub={record.total > 0 ? `${record.total} torneo${record.total !== 1 ? 's' : ''} con resultado` : 'sin resultados aún'} />
@@ -357,7 +381,7 @@ export default function TalentCard() {
           note="Completado por el atleta"
         >
           {athlete.recruitment_profile ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-5">
               <RecruitRow label="División objetivo"        value={athlete.recruitment_profile?.division} />
               <RecruitRow label="Graduación esperada"      value={athlete.recruitment_profile?.grad_year} />
               <RecruitRow label="GPA (promedio académico)" value={athlete.recruitment_profile?.gpa} />
@@ -379,14 +403,26 @@ export default function TalentCard() {
 
         {/* ── 02 · Rankings & Resultados ──────────────────────────────────── */}
         <Section eyebrow="02 · Rankings & Resultados">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-px hairline" style={{ background: 'var(--line)' }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-px hairline" style={{ background: 'var(--line)' }}>
             <StatCard
               label="UTR"
               value={currentUTR ? Number(currentUTR).toFixed(1) : '—'}
               sub={deltaUTR != null ? `${deltaUTR > 0 ? '+' : ''}${deltaUTR.toFixed(2)} vs período anterior` : '—'}
               source="NuevoReporte"
             />
-            <StatCard label="AMTP" value="—" sub="pendiente de conexión API" source="amtp.mx" pending />
+            <StatCard
+              label="AMTP"
+              value={amtpCur ? `#${amtpCur.posicion}` : '—'}
+              sub={
+                amtpDeltaPts != null
+                  ? `${amtpDeltaPts > 0 ? '+' : ''}${amtpDeltaPts.toFixed(1)} pts vs ${amtpPrev.periodo}`
+                  : amtpCur
+                    ? `${Number(amtpCur.puntos).toFixed(1)} pts · ${amtpCur.periodo}`
+                    : 'sin ranking registrado'
+              }
+              source="amtp.mx"
+              pending={!amtpCur}
+            />
             <StatCard label="W / L"
               value={record.total > 0 ? `${record.w} / ${record.l}` : '— / —'}
               sub={record.total > 0 ? `partidos · ${record.total} torneo${record.total !== 1 ? 's' : ''} con resultado` : 'sin resultados de torneo aún'}
@@ -417,43 +453,43 @@ export default function TalentCard() {
             <div className="space-y-5">
 
               {/* Trayectoria global */}
-              <div className="hairline p-5 flex items-center gap-6" style={{ background: 'var(--paper)' }}>
-                <div>
-                  <p className="eyebrow !text-[9px] mb-1" style={{ color: 'var(--ink-mute)' }}>Trayectoria global</p>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="font-num font-black text-[48px] leading-none tnum"
-                          style={{ color: score5Color(overallRnd) }}>
-                      {overallNow != null ? overallNow.toFixed(1) : '—'}
-                    </span>
-                    <span style={{ color: 'var(--ink-mute)', fontSize: 12 }}>/5</span>
-                    {overallDelta != null && (
-                      <span className="text-[16px] font-bold ml-1"
-                            style={{ color: overallDelta > 0.2 ? 'var(--good)' : overallDelta < -0.2 ? 'var(--bad)' : 'var(--ink-mute)' }}>
-                        {overallDelta > 0.2 ? '↑' : overallDelta < -0.2 ? '↓' : '→'}
+              <div className="hairline p-5" style={{ background: 'var(--paper)' }}>
+                <div className="flex flex-wrap items-center gap-5">
+                  <div className="shrink-0">
+                    <p className="eyebrow !text-[9px] mb-1" style={{ color: 'var(--ink-mute)' }}>Trayectoria global</p>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="font-num font-black text-[48px] leading-none tnum"
+                            style={{ color: score5Color(overallRnd) }}>
+                        {overallNow != null ? overallNow.toFixed(1) : '—'}
                       </span>
-                    )}
+                      <span style={{ color: 'var(--ink-mute)', fontSize: 12 }}>/5</span>
+                      {overallDelta != null && (
+                        <span className="text-[16px] font-bold ml-1"
+                              style={{ color: overallDelta > 0.2 ? 'var(--good)' : overallDelta < -0.2 ? 'var(--bad)' : 'var(--ink-mute)' }}>
+                          {overallDelta > 0.2 ? '↑' : overallDelta < -0.2 ? '↓' : '→'}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[12px] font-semibold mt-0.5" style={{ color: score5Color(overallRnd) }}>
+                      {SCORE5_LABEL[overallRnd] ?? '—'}
+                    </p>
                   </div>
-                  <p className="text-[12px] font-semibold mt-0.5" style={{ color: score5Color(overallRnd) }}>
-                    {SCORE5_LABEL[overallRnd] ?? '—'}
+                  <Sparkline values={overallSeries} w={140} h={50} showValues />
+                  <p className="text-[11px] leading-relaxed" style={{ color: 'var(--ink-mute)', maxWidth: 220 }}>
+                    Promedio de Técnica, Táctica y Carácter en los últimos {reports.length} período{reports.length !== 1 ? 's' : ''}.
                   </p>
                 </div>
-
-                <Sparkline values={overallSeries} w={140} h={50} showValues />
-
-                <p className="text-[11px] leading-relaxed ml-auto" style={{ color: 'var(--ink-mute)', maxWidth: 200 }}>
-                  Promedio de Técnica, Táctica y Carácter en los últimos {reports.length} período{reports.length !== 1 ? 's' : ''}.
-                </p>
               </div>
 
               {/* Notas del coach por dimensión */}
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <NoteCard label="Técnica"             note={lastOC?.tecnica_nota} />
                 <NoteCard label="Táctica"             note={lastOC?.tactica_nota} />
                 <NoteCard label="Carácter / Liderazgo" note={lastCh?.liderazgo_nota} />
               </div>
 
               {/* Señal de carácter */}
-              {lastCh && (lastCh.etica_trabajo || lastCh.coachabilidad) && (
+              {lastCh && (lastCh.etica_trabajo != null || lastCh.coachabilidad != null) && (
                 <div className="hairline p-4" style={{ background: 'var(--cream)' }}>
                   <p className="eyebrow !text-[9px] mb-3" style={{ color: 'var(--ink-mute)' }}>
                     Señal de carácter · diferenciador para recruiters
@@ -493,18 +529,28 @@ export default function TalentCard() {
               {percRows.map(r => {
                 const gap = r.coach != null && r.atleta != null ? r.atleta - r.coach : null;
                 return (
-                  <div key={r.label} className="grid grid-cols-12 items-center gap-3">
-                    <div className="col-span-3">
-                      <p className="eyebrow !text-[10px]" style={{ color: 'var(--ink-mute)' }}>{r.label}</p>
-                      <p className="text-[10px] leading-tight mt-0.5" style={{ color: 'var(--ink-soft)' }}>
-                        Coach: <b>{SCORE5_LABEL[r.coach] ?? '—'}</b><br />
-                        Atleta: <b>{SCORE5_LABEL[r.atleta] ?? '—'}</b>
-                      </p>
+                  <div key={r.label} className="space-y-2 sm:space-y-0 sm:grid sm:grid-cols-12 sm:items-center sm:gap-3">
+                    {/* Label + valores — full width en mobile, 3 cols en sm+ */}
+                    <div className="sm:col-span-3 flex sm:block items-center justify-between">
+                      <div>
+                        <p className="eyebrow !text-[10px]" style={{ color: 'var(--ink-mute)' }}>{r.label}</p>
+                        <p className="text-[10px] leading-tight mt-0.5 hidden sm:block" style={{ color: 'var(--ink-soft)' }}>
+                          Coach: <b>{SCORE5_LABEL[r.coach] ?? '—'}</b><br />
+                          Atleta: <b>{SCORE5_LABEL[r.atleta] ?? '—'}</b>
+                        </p>
+                      </div>
+                      {/* Delta visible inline en mobile, oculto en sm (aparece al final) */}
+                      {gap != null && gap !== 0 && (
+                        <p className="sm:hidden text-[11px] font-mono font-bold"
+                           style={{ color: gap > 0 ? 'var(--accent)' : 'var(--bad)' }}>
+                          {gap > 0 ? `+${gap}` : gap} atl.
+                        </p>
+                      )}
                     </div>
-                    <div className="col-span-7">
+                    <div className="sm:col-span-7">
                       <PerceptionBar coach={r.coach} atleta={r.atleta} />
                     </div>
-                    <p className="col-span-2 text-right text-[11px] font-mono font-bold"
+                    <p className="hidden sm:block sm:col-span-2 text-right text-[11px] font-mono font-bold"
                        style={{ color: gap == null ? 'var(--ink-mute)' : gap > 0 ? 'var(--accent)' : 'var(--bad)' }}>
                       {gap == null || gap === 0 ? '' : gap > 0 ? `+${gap} atleta` : `${gap} atleta`}
                     </p>
@@ -538,7 +584,7 @@ export default function TalentCard() {
 
         {/* ── 05 · Especialistas ─────────────────────────────────────────── */}
         <Section eyebrow="05 · Especialistas">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {['Psicólogo', 'Nutriólogo', 'Preparador Físico'].map(sp => (
               <div key={sp} className="hairline p-5 text-center" style={{ background: 'var(--cream)' }}>
                 <p className="eyebrow !text-[10px] mb-1.5" style={{ color: 'var(--ink-mute)' }}>{sp}</p>

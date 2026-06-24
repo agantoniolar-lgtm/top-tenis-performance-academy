@@ -32,6 +32,7 @@ export default function AlumnoDetalle() {
   const [chMap,   setChMap] = useState({});
   const [avMap,   setAvMap] = useState({});
   const [record,  setRec]   = useState({ w: 0, l: 0, total: 0 });
+  const [amtp,    setAmtp]  = useState([]);   // últimos 2 períodos, desc
   const [loading, setLoad]  = useState(true);
   const [error,   setErr]   = useState(null);
 
@@ -47,11 +48,13 @@ export default function AlumnoDetalle() {
         .eq('id', id).single();
       if (e1) { setErr(e1.message); setLoad(false); return; }
 
-      // 2. Reports (last 6) + record de torneos
-      const [{ data: reps, error: e2 }, { data: tourns }] = await Promise.all([
+      // 2. Reports (last 6) + record de torneos + AMTP últimos 2 períodos
+      const [{ data: reps, error: e2 }, { data: tourns }, { data: amtpData }] = await Promise.all([
         supabase.from('reports').select('id, period, created_at')
           .eq('athlete_id', id).order('period', { ascending: false }).limit(6),
         supabase.from('athlete_tournaments').select('victoria, partidos_jugados').eq('athlete_id', id),
+        supabase.from('amtp_rankings').select('posicion, puntos, periodo')
+          .eq('athlete_id', id).order('periodo', { ascending: false }).limit(2),
       ]);
       if (e2) { setErr(e2.message); setLoad(false); return; }
       if (!cancelled) setRec(winLossRecord(tourns));
@@ -85,6 +88,7 @@ export default function AlumnoDetalle() {
         setPhMap(toMap(phRes.data));
         setChMap(toMap(chRes.data));
         setAvMap(toMap(avRes.data));
+        setAmtp(amtpData ?? []);
         setLoad(false);
       }
     }
@@ -119,6 +123,10 @@ export default function AlumnoDetalle() {
   const currentUTR  = lastOC?.utr ?? athlete.utr_actual;
   const prevUTR     = prevOC?.utr;
   const deltaUTR    = currentUTR && prevUTR ? Number(currentUTR) - Number(prevUTR) : null;
+
+  const amtpCur     = amtp[0] ?? null;
+  const amtpPrev    = amtp[1] ?? null;
+  const amtpDeltaPos = amtpCur && amtpPrev ? amtpPrev.posicion - amtpCur.posicion : null;
 
   return (
     <Shell>
@@ -189,13 +197,21 @@ export default function AlumnoDetalle() {
       </div>
 
       {/* Headline metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-px hairline bg-[var(--line)] mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-px hairline bg-[var(--line)] mb-6">
         <MetricCard label="UTR"            value={currentUTR ? Number(currentUTR).toFixed(1) : '—'} delta={deltaUTR} deltaLabel="vs mes ant." />
+        <MetricCard
+          label="AMTP"
+          value={amtpCur ? `#${amtpCur.posicion}` : '—'}
+          delta={amtpDeltaPos}
+          deltaLabel={amtpPrev ? `vs ${amtpPrev.periodo}` : 'vs ant.'}
+          sub={!amtpCur ? 'sin ranking' : undefined}
+          textValue={!amtpCur}
+        />
         <MetricCard label="W / L"          value={record.total > 0 ? `${record.w}–${record.l}` : '—'}
                     sub={record.total > 0 ? `${record.total} torneo${record.total !== 1 ? 's' : ''} con resultado` : 'sin torneos con resultado'} />
         <MetricCard label="On-court"       value={ocLabel ?? '—'} delta={deltaAvg} deltaLabel="vs mes ant." textValue />
         <MetricCard label="Ética trabajo"  value={OC_LABEL[String(lastCh?.etica_trabajo)] ?? '—'} delta={deltaEtica} deltaLabel="vs mes ant." textValue />
-        <MetricCard label="Coachabilidad"  value={OC_LABEL[String(lastCh?.coachabilidad)] ?? '—'} delta={deltaCoach} deltaLabel="vs mes ant." textValue wide />
+        <MetricCard label="Coachabilidad"  value={OC_LABEL[String(lastCh?.coachabilidad)] ?? '—'} delta={deltaCoach} deltaLabel="vs mes ant." textValue />
       </div>
 
       {/* Strokes del último reporte */}

@@ -50,6 +50,7 @@ export default function AtletaRendimiento() {
   const [reports,  setReports]  = useState([]);
   const [ocMap,    setOcMap]    = useState({});
   const [chMap,    setChMap]    = useState({});
+  const [amtpRows, setAmtp]     = useState([]);   // desc, últimos 5 períodos
   const [loading,  setLoading]  = useState(true);
 
   useEffect(() => {
@@ -57,10 +58,15 @@ export default function AtletaRendimiento() {
     let cancelled = false;
 
     async function load() {
-      const { data: reps } = await supabase
-        .from('reports').select('id, period')
-        .eq('athlete_id', user.athlete_id)
-        .order('period', { ascending: false }).limit(8);
+      const [{ data: reps }, { data: amtp }] = await Promise.all([
+        supabase.from('reports').select('id, period')
+          .eq('athlete_id', user.athlete_id)
+          .order('period', { ascending: false }).limit(8),
+        supabase.from('amtp_rankings')
+          .select('posicion, puntos, periodo')
+          .eq('athlete_id', user.athlete_id)
+          .order('periodo', { ascending: false }).limit(5),
+      ]);
 
       const ids = (reps ?? []).map(r => r.id);
       let oc = {}, ch = {};
@@ -81,6 +87,7 @@ export default function AtletaRendimiento() {
       if (!cancelled) {
         setReports(reps ?? []);
         setOcMap(oc); setChMap(ch);
+        setAmtp(amtp ?? []);
         setLoading(false);
       }
     }
@@ -110,6 +117,19 @@ export default function AtletaRendimiento() {
   const currentUTR = lastOC?.utr;
   const prevUTR    = reports[1] ? ocMap[reports[1].id]?.utr : null;
   const deltaUTR   = currentUTR && prevUTR ? (Number(currentUTR) - Number(prevUTR)).toFixed(2) : null;
+
+  // AMTP — desc, convertimos a asc para sparkline
+  const amtpCur   = amtpRows[0] ?? null;
+  const amtpPrev  = amtpRows[1] ?? null;
+  const amtpDeltaPos = amtpCur && amtpPrev ? amtpPrev.posicion - amtpCur.posicion : null;
+  // Sparkline de posición: invertimos (menor posición = mejor) para que la línea suba cuando mejora
+  const amtpChronoPos = [...amtpRows].reverse().map(r => r.posicion);
+  const amtpMin = amtpChronoPos.length ? Math.min(...amtpChronoPos) : null;
+  const amtpMax = amtpChronoPos.length ? Math.max(...amtpChronoPos) : null;
+  // normalizeSeries espera 1-5; para posición invertimos: mejor pos → valor más alto
+  const amtpSeries = amtpMin != null && amtpMax != null && amtpMin !== amtpMax
+    ? amtpChronoPos.map(p => 1 + ((amtpMax - p) / (amtpMax - amtpMin)) * 4)
+    : amtpChronoPos.map(() => 3);
 
   const tecScore  = tecSeries[tecSeries.length - 1];
   const tacScore  = tacSeries[tacSeries.length - 1];
@@ -146,18 +166,38 @@ export default function AtletaRendimiento() {
                   value={currentUTR ? Number(currentUTR).toFixed(1) : '—'}
                   sub={deltaUTR != null ? `${Number(deltaUTR) > 0 ? '+' : ''}${deltaUTR} vs período anterior` : `${reports.length} período${reports.length !== 1 ? 's' : ''} evaluados`}
                 />
-                <StatTile label="AMTP" value="—" sub="pendiente de API" pending />
+                <StatTile
+                  label="AMTP"
+                  value={amtpCur ? `#${amtpCur.posicion}` : '—'}
+                  sub={
+                    amtpDeltaPos != null
+                      ? `${amtpDeltaPos > 0 ? '+' : ''}${amtpDeltaPos} pos vs ${amtpPrev.periodo}`
+                      : amtpCur ? `${Number(amtpCur.puntos).toFixed(1)} pts · ${amtpCur.periodo}` : 'pendiente de scraping'
+                  }
+                  pending={!amtpCur}
+                />
                 <StatTile label="ITF" value="—" sub="pendiente de API" pending />
               </div>
-              {utrSeries.filter(v => v != null).length >= 2 && (
-                <div className="hairline mt-0.5 px-4 py-3" style={{ background: 'var(--paper)' }}>
-                  <p className="eyebrow !text-[9px] mb-2" style={{ color: 'var(--ink-mute)' }}>
-                    UTR · últimos {chrono.length} períodos ({Math.min(...utrSeries.filter(v => v != null)).toFixed(1)} – {Math.max(...utrSeries.filter(v => v != null)).toFixed(1)})
-                  </p>
-                  {/* normalizeSeries escala el UTR a su propio rango para que la línea quede dentro del gráfico */}
-                  <Sparkline values={normalizeSeries(utrSeries)} w={200} h={44} />
-                </div>
-              )}
+
+              {/* Sparklines de UTR y AMTP — dos columnas */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-px mt-0.5 hairline" style={{ background: 'var(--line)' }}>
+                {utrSeries.filter(v => v != null).length >= 2 && (
+                  <div className="px-4 py-3" style={{ background: 'var(--paper)' }}>
+                    <p className="eyebrow !text-[9px] mb-2" style={{ color: 'var(--ink-mute)' }}>
+                      UTR · últimos {chrono.length} períodos ({Math.min(...utrSeries.filter(v => v != null)).toFixed(1)} – {Math.max(...utrSeries.filter(v => v != null)).toFixed(1)})
+                    </p>
+                    <Sparkline values={normalizeSeries(utrSeries)} w={160} h={44} />
+                  </div>
+                )}
+                {amtpRows.length >= 2 && (
+                  <div className="px-4 py-3" style={{ background: 'var(--paper)' }}>
+                    <p className="eyebrow !text-[9px] mb-2" style={{ color: 'var(--ink-mute)' }}>
+                      AMTP · últimos {amtpRows.length} períodos (#{Math.max(...amtpChronoPos)} – #{Math.min(...amtpChronoPos)})
+                    </p>
+                    <Sparkline values={amtpSeries} w={160} h={44} />
+                  </div>
+                )}
+              </div>
             </section>
 
             {/* Evaluación del coach */}

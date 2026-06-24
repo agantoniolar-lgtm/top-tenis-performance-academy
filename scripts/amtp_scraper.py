@@ -319,11 +319,65 @@ def lookup_player(rankings: dict, nombre: str) -> Optional[dict]:
     return None
 
 
-# ── 6. Upsert a Supabase ─────────────────────────────────────────────────────
+# ── 6. Fetch atletas de la plataforma ────────────────────────────────────────
 
-def upsert_to_supabase(rankings: dict) -> None:
+def fetch_platform_athletes(supabase_url: str, service_key: str) -> list[dict]:
     """
-    Borra los rankings anteriores y sube el snapshot nuevo a nuestra tabla amtp_rankings.
+    Devuelve lista de dicts {id, nombre_completo} de atletas activos en la plataforma.
+    Solo estos se guardan en el ranking.
+    """
+    headers = {
+        "apikey": service_key,
+        "Authorization": f"Bearer {service_key}",
+        "Content-Type": "application/json",
+    }
+    resp = requests.get(
+        f"{supabase_url}/rest/v1/athletes",
+        headers=headers,
+        params={"select": "id,nombre,apellido", "activo": "eq.true"},
+        timeout=10,
+    )
+    resp.raise_for_status()
+    athletes = resp.json()
+    result = [
+        {"id": a["id"], "nombre_completo": f"{a['nombre']} {a['apellido']}".strip()}
+        for a in athletes
+    ]
+    log.info(f"Atletas en plataforma: {len(result)} → {[a['nombre_completo'] for a in result]}")
+    return result
+
+
+def _nombres_match(plataforma: str, ranking: str) -> bool:
+    """
+    Comparación flexible entre nombre de plataforma y nombre en ranking AMTP.
+    Sin acentos, case-insensitive, permite coincidencia parcial (apellido + nombre).
+    """
+    import unicodedata
+
+    def norm(s: str) -> str:
+        s = s.lower().strip()
+        return "".join(
+            c for c in unicodedata.normalize("NFD", s)
+            if unicodedata.category(c) != "Mn"
+        )
+
+    n1 = norm(plataforma)
+    n2 = norm(ranking)
+    return n1 in n2 or n2 in n1 or set(n1.split()) & set(n2.split()) >= {n1.split()[0]}
+
+
+# ── 7. Upsert a Supabase ─────────────────────────────────────────────────────
+
+def upsert_to_supabase(rankings: dict, periodo: Optional[str] = None) -> None:
+    """
+    Guarda el snapshot de rankings en Supabase, filtrando solo los atletas
+    registrados en la plataforma. Usa upsert por (nombre, genero, periodo)
+    para mantener historial sin borrar períodos anteriores.
+
+    Args:
+        rankings: resultado de scrape_amtp_rankings()
+        periodo:  string YYYY-MM del mes del ranking (default: mes actual)
+
     Requiere SUPABASE_URL y SUPABASE_SERVICE_KEY en el entorno.
     """
     supabase_url = os.environ.get("SUPABASE_URL")
@@ -334,60 +388,73 @@ def upsert_to_supabase(rankings: dict) -> None:
             "Faltan variables de entorno: SUPABASE_URL y/o SUPABASE_SERVICE_KEY"
         )
 
+    if periodo is None:
+        periodo = datetime.now(timezone.utc).strftime("%Y-%m")
+
     headers = {
         "apikey": service_key,
         "Authorization": f"Bearer {service_key}",
         "Content-Type": "application/json",
-        "Prefer": "return=minimal",
+        "Prefer": "resolution=merge-duplicates,return=minimal",
     }
     base = f"{supabase_url}/rest/v1"
 
-    # Borrar rankings anteriores
-    log.info("Borrando rankings anteriores en Supabase...")
-    resp = requests.delete(
-        f"{base}/amtp_rankings",
-        headers={**headers, "Prefer": "return=minimal"},
-        params={"id": "neq.00000000-0000-0000-0000-000000000000"},  # borrar todos
-    )
-    resp.raise_for_status()
+    # Obtener atletas de la plataforma para filtrar
+    atletas_plataforma = fetch_platform_athletes(supabase_url, service_key)
 
-    # Construir payload
+    # Construir payload — solo atletas registrados en la plataforma
     scraped_at = datetime.now(timezone.utc).isoformat()
     rows = []
+    skipped = 0
     for genero in ("varonil", "femenil"):
         for entry in rankings.get(genero, []):
+            nombre_ranking = entry["nombre"]
+            # Buscar coincidencia con atleta de la plataforma
+            matched = next(
+                (a for a in atletas_plataforma if _nombres_match(a["nombre_completo"], nombre_ranking)),
+                None,
+            )
+            if not matched:
+                skipped += 1
+                continue
             rows.append({
-                "nombre":     entry["nombre"],
+                "nombre":     nombre_ranking,
                 "puntos":     entry["puntos"],
                 "posicion":   entry["posicion"],
                 "genero":     genero,
                 "fuente":     rankings.get("source", "api"),
                 "scraped_at": scraped_at,
+                "periodo":    periodo,
+                "athlete_id": matched["id"],
             })
 
+    log.info(f"Atletas en ranking total: {rankings.get('total', 0)} | "
+             f"Coincidencias plataforma: {len(rows)} | Ignorados: {skipped}")
+
     if not rows:
-        log.warning("No hay datos para subir.")
+        log.warning("Ningún atleta de la plataforma apareció en el ranking AMTP.")
         return
 
-    # Insert en lotes de 500
-    batch_size = 500
-    total_inserted = 0
-    for i in range(0, len(rows), batch_size):
-        batch = rows[i:i + batch_size]
-        resp = requests.post(f"{base}/amtp_rankings", headers=headers, json=batch)
-        resp.raise_for_status()
-        total_inserted += len(batch)
-        log.info(f"  → {total_inserted}/{len(rows)} registros insertados.")
-
-    log.info(f"✓ Upsert completo: {total_inserted} rankings guardados en Supabase.")
+    # Upsert (merge-duplicates por unique constraint nombre+genero+periodo)
+    resp = requests.post(f"{base}/amtp_rankings", headers=headers, json=rows)
+    resp.raise_for_status()
+    log.info(f"✓ Upsert completo: {len(rows)} registros para período {periodo}.")
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    do_upsert    = "--upsert" in args
-    nombre_args  = [a for a in args if not a.startswith("--")]
+    do_upsert = "--upsert" in args
+
+    # --periodo YYYY-MM (default: mes actual)
+    periodo: Optional[str] = None
+    if "--periodo" in args:
+        idx = args.index("--periodo")
+        if idx + 1 < len(args):
+            periodo = args[idx + 1]
+
+    nombre_args   = [a for a in args if not a.startswith("--")]
     nombre_buscar = nombre_args[0] if nombre_args else None
 
     data = scrape_amtp_rankings()
@@ -408,4 +475,5 @@ if __name__ == "__main__":
             print(f"  #{r['posicion']:>3}  {r['nombre']:<40}  {r['puntos']} pts")
 
     if do_upsert:
-        upsert_to_supabase(data)
+        # Uso: python amtp_scraper.py --upsert [--periodo 2026-06]
+        upsert_to_supabase(data, periodo=periodo)

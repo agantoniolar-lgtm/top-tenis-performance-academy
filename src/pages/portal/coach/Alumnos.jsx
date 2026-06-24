@@ -6,25 +6,47 @@ import { calcCat, fmtPeriod } from '../../../lib/athletics.js';
 import { TabBar } from './Equipo';
 
 export default function Alumnos() {
-  const { user }           = useAuth();
-  const navigate           = useNavigate();
-  const [athletes, set]    = useState([]);
-  const [loading, setLoad] = useState(true);
-  const [error,   setErr]  = useState(null);
+  const { user }             = useAuth();
+  const navigate             = useNavigate();
+  const [athletes, set]      = useState([]);
+  const [amtpMap, setAmtp]   = useState({});  // athlete_id → { posicion, periodo }
+  const [loading, setLoad]   = useState(true);
+  const [error,   setErr]    = useState(null);
 
   useEffect(() => {
     if (!user?.coach_id) return;
-    supabase
-      .from('athletes')
-      .select('id, nombre, apellido, fecha_nacimiento, mano_dominante, fecha_ingreso, utr_actual')
-      .eq('coach_id', user.coach_id)
-      .eq('activo', true)
-      .order('utr_actual', { ascending: false })
-      .then(({ data, error }) => {
-        if (error) setErr(error.message);
-        else set(data ?? []);
-        setLoad(false);
-      });
+    let cancelled = false;
+
+    async function load() {
+      const { data: aths, error: e } = await supabase
+        .from('athletes')
+        .select('id, nombre, apellido, fecha_nacimiento, mano_dominante, fecha_ingreso, utr_actual')
+        .eq('coach_id', user.coach_id)
+        .eq('activo', true)
+        .order('utr_actual', { ascending: false });
+
+      if (e) { setErr(e.message); setLoad(false); return; }
+
+      const ids = (aths ?? []).map(a => a.id);
+      let map = {};
+      if (ids.length > 0) {
+        const { data: rankings } = await supabase
+          .from('amtp_rankings')
+          .select('athlete_id, posicion, periodo')
+          .in('athlete_id', ids)
+          .order('periodo', { ascending: false });
+
+        // Quedarnos solo con el período más reciente de cada atleta
+        for (const r of rankings ?? []) {
+          if (!map[r.athlete_id]) map[r.athlete_id] = r;
+        }
+      }
+
+      if (!cancelled) { set(aths ?? []); setAmtp(map); setLoad(false); }
+    }
+
+    load().catch(e => { setErr(e.message); setLoad(false); });
+    return () => { cancelled = true; };
   }, [user?.coach_id]);
 
   if (loading) return <Shell><p className="text-[var(--ink-mute)] text-sm">Cargando…</p></Shell>;
@@ -59,11 +81,14 @@ export default function Alumnos() {
                 <th className="text-left px-4 py-3 hidden md:table-cell">Cat.</th>
                 <th className="text-left px-4 py-3 hidden md:table-cell">Mano</th>
                 <th className="text-left px-4 py-3 hidden lg:table-cell">Ingreso</th>
+                <th className="text-right px-4 py-3 hidden sm:table-cell">AMTP</th>
                 <th className="text-right px-5 py-3">UTR</th>
               </tr>
             </thead>
             <tbody>
-              {athletes.map((a) => (
+              {athletes.map((a) => {
+                const amtp = amtpMap[a.id];
+                return (
                 <tr
                   key={a.id}
                   className="hairline-t hover:bg-[var(--cream)] cursor-pointer transition"
@@ -89,6 +114,12 @@ export default function Alumnos() {
                   <td className="px-4 py-4 hidden lg:table-cell font-mono text-[11px] text-[var(--ink-mute)]">
                     {fmtPeriod(a.fecha_ingreso)}
                   </td>
+                  <td className="px-4 py-4 hidden sm:table-cell text-right">
+                    <div className="font-num font-black text-[22px] tnum leading-none" style={{ color: amtp ? 'var(--ink)' : 'var(--ink-mute)' }}>
+                      {amtp ? `#${amtp.posicion}` : '—'}
+                    </div>
+                    <div className="text-[9px] eyebrow text-[var(--ink-mute)]">{amtp ? amtp.periodo : 'AMTP'}</div>
+                  </td>
                   <td className="px-5 py-4 text-right">
                     <div className="font-num font-black text-[22px] tnum leading-none">
                       {a.utr_actual ? Number(a.utr_actual).toFixed(1) : '—'}
@@ -96,7 +127,8 @@ export default function Alumnos() {
                     <div className="text-[9px] eyebrow text-[var(--ink-mute)]">UTR</div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
