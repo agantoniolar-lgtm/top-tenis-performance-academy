@@ -1,0 +1,29 @@
+name: AMTP Rankings Scraper
+
+on:
+  schedule:
+    # Primer día de cada mes a las 6am UTC (= medianoche CDMX)
+    - cron: '0 6 1 * *'
+  workflow_dispatch: # permite correrlo manualmente desde GitHub si hace falta
+
+jobs:
+  scrape:
+    name: Scrape & Upsert AMTP Rankings
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4 python-dotenv
+
+      - name: Run scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/amtp_scraper.py --upsert
