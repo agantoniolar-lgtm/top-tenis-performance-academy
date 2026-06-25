@@ -82,6 +82,7 @@ export default function AthleteVoice() {
   const [phys,      setPhys]  = useState(defScores(PHYS, 0));
   const [char_,     setChar]  = useState(defScores(CHAR, 0));
   const [reflexion, setRef]   = useState('');
+  const [planObjectives, setPlanObj] = useState({}); // { sub_dimension: objective_text }
 
   // ── B9: lista de períodos con reporte del coach ───────────────────────────
   useEffect(() => {
@@ -148,6 +149,26 @@ export default function AthleteVoice() {
           if (av.completed_at) setSaved({ oncourt: true, physical: true, character: true });
         }
         setLoad(false);
+      });
+  }, [user?.athlete_id, period]);
+
+  // ── Cargar plan trimestral activo ─────────────────────────────────
+  useEffect(() => {
+    if (!user?.athlete_id || !period) { setPlanObj({}); return; }
+    supabase
+      .from('quarterly_plans')
+      .select('quarterly_plan_objectives(sub_dimension, objective_text)')
+      .eq('athlete_id', user.athlete_id)
+      .eq('status', 'active')
+      .lte('period_start', period)
+      .gte('period_end', period)
+      .maybeSingle()
+      .then(({ data }) => {
+        const map = {};
+        (data?.quarterly_plan_objectives ?? []).forEach(o => {
+          map[o.sub_dimension] = o.objective_text;
+        });
+        setPlanObj(map);
       });
   }, [user?.athlete_id, period]);
 
@@ -300,7 +321,8 @@ export default function AthleteVoice() {
                 {TECH.map(f => (
                   <ScoreRow key={f.key} label={f.label} value={tech[f.key]}
                             onChange={v => setTech(p => ({ ...p, [f.key]: v }))}
-                            values={[-2, -1, 0, 1, 2]} />
+                            values={[-2, -1, 0, 1, 2]}
+                            objective={planObjectives[f.key]} />
                 ))}
               </div>
             </div>
@@ -310,7 +332,8 @@ export default function AthleteVoice() {
                 {TAC.map(f => (
                   <ScoreRow key={f.key} label={f.label} desc={f.desc} value={tac[f.key]}
                             onChange={v => setTac(p => ({ ...p, [f.key]: v }))}
-                            values={[-2, -1, 0, 1, 2]} />
+                            values={[-2, -1, 0, 1, 2]}
+                            objective={planObjectives[f.key]} />
                 ))}
               </div>
             </div>
@@ -330,7 +353,8 @@ export default function AthleteVoice() {
                 {PHYS.map(f => (
                   <ScoreRow key={f.key} label={f.label} value={phys[f.key]}
                             onChange={v => setPhys(p => ({ ...p, [f.key]: v }))}
-                            values={[-2, -1, 0, 1, 2]} />
+                            values={[-2, -1, 0, 1, 2]}
+                            objective={planObjectives[f.key]} />
                 ))}
               </div>
             </div>
@@ -354,7 +378,8 @@ export default function AthleteVoice() {
                 {CHAR.map(f => (
                   <ScoreRow key={f.key} label={f.label} value={char_[f.key]}
                             onChange={v => setChar(p => ({ ...p, [f.key]: v }))}
-                            values={[-2, -1, 0, 1, 2]} />
+                            values={[-2, -1, 0, 1, 2]}
+                            objective={planObjectives[f.key]} />
                 ))}
               </div>
             </div>
@@ -429,14 +454,19 @@ function ScaleLegend() {
   );
 }
 
-function ScoreRow({ label, desc, value, onChange, values }) {
+function ScoreRow({ label, desc, value, onChange, values, objective }) {
   const labels = ONCOURT_LABELS;
   const fmt = n => n > 0 ? `+${n}` : `${n}`;
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex items-start gap-4">
       <span className="text-[13px] w-44 shrink-0" title={desc} style={desc ? { cursor: 'help' } : undefined}>
         {label}
         {desc && <span className="block text-[10px] leading-tight" style={{ color: 'var(--ink-mute)' }}>{desc}</span>}
+        {objective && (
+          <span className="block text-[10px] leading-tight mt-0.5 font-medium" style={{ color: 'var(--accent)', opacity: 0.85 }}>
+            ◎ {objective}
+          </span>
+        )}
       </span>
       <div className="flex gap-1">
         {values.map(n => (

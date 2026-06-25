@@ -35,6 +35,7 @@ export function Icon({ name, size = 16, className = '', stroke = 1.75, style }) 
     quote:       <><path d="M9 7H5a2 2 0 00-2 2v4a2 2 0 002 2h2v2a2 2 0 01-2 2v2c3 0 5-2 5-5V9a2 2 0 00-1-2z" fill="currentColor" stroke="none"/><path d="M20 7h-4a2 2 0 00-2 2v4a2 2 0 002 2h2v2a2 2 0 01-2 2v2c3 0 5-2 5-5V9a2 2 0 00-1-2z" fill="currentColor" stroke="none"/></>,
     clock:       <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
     flask:       <><path d="M9 3v6L4 18a2 2 0 002 2h12a2 2 0 002-2L15 9V3M8 3h8"/></>,
+    target:      <><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2" fill="currentColor"/></>,
   };
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"

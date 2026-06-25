@@ -5,6 +5,7 @@ import { Icon, Logo } from './ui';
 const COACH_NAV = [
   { id: 'atletas',      label: 'Atletas',     icon: 'users',  path: '/portal/alumnos' },
   { id: 'seguimiento',  label: 'Seguimiento', icon: 'check',  path: '/portal/reportes' },
+  { id: 'planes',       label: 'Planes',      icon: 'target', path: '/portal/planes' },
   { id: 'torneos',      label: 'Torneos',     icon: 'trophy', path: '/portal/torneos' },
 ];
 

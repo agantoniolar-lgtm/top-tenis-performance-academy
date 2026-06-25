@@ -87,6 +87,7 @@ export default function NuevoReporte() {
   const [error,   setErr]  = useState(null);
   const [done,    setDone] = useState(false);
   const [saved,   setSaved] = useState({ oncourt: false, physical: false, character: false });
+  const [planObjectives, setPlanObj] = useState({}); // { sub_dimension: objective_text }
 
   useEffect(() => {
     if (!user?.coach_id) return;
@@ -153,6 +154,26 @@ export default function NuevoReporte() {
         }
       });
   }, [athleteId, period, user?.coach_id]);
+
+  // Cargar plan trimestral activo para este atleta + período
+  useEffect(() => {
+    if (!athleteId || !period) { setPlanObj({}); return; }
+    supabase
+      .from('quarterly_plans')
+      .select('quarterly_plan_objectives(sub_dimension, objective_text)')
+      .eq('athlete_id', athleteId)
+      .eq('status', 'active')
+      .lte('period_start', period)
+      .gte('period_end', period)
+      .maybeSingle()
+      .then(({ data }) => {
+        const map = {};
+        (data?.quarterly_plan_objectives ?? []).forEach(o => {
+          map[o.sub_dimension] = o.objective_text;
+        });
+        setPlanObj(map);
+      });
+  }, [athleteId, period]);
 
   // B3: el reporte no puede ser anterior al mes de ingreso del atleta
   const selectedAthlete = athletes.find(a => a.id === athleteId);
@@ -305,7 +326,7 @@ export default function NuevoReporte() {
               <p className="eyebrow !text-[10px] mb-3 text-[var(--ink-mute)]">Técnica</p>
               <ScaleLegend type="oncourt" />
               <div className="space-y-3 mt-3">
-                {STROKES.map(s => <ScoreRow key={s.key} label={s.label} value={strokes[s.key]} onChange={v => setStr(p => ({ ...p, [s.key]: v }))} values={[-2,-1,0,1,2]} />)}
+                {STROKES.map(s => <ScoreRow key={s.key} label={s.label} value={strokes[s.key]} onChange={v => setStr(p => ({ ...p, [s.key]: v }))} values={[-2,-1,0,1,2]} objective={planObjectives[s.key]} />)}
               </div>
               <textarea value={tecNota} onChange={e => setTecN(e.target.value)} rows={3}
                         placeholder="Notas técnicas…"
@@ -314,7 +335,7 @@ export default function NuevoReporte() {
             <div>
               <p className="eyebrow !text-[10px] mb-3 text-[var(--ink-mute)]">Táctica</p>
               <div className="space-y-3">
-                {TACTICS.map(t => <ScoreRow key={t.key} label={t.label} desc={t.desc} value={tactics[t.key]} onChange={v => setTac(p => ({ ...p, [t.key]: v }))} values={[-2,-1,0,1,2]} />)}
+                {TACTICS.map(t => <ScoreRow key={t.key} label={t.label} desc={t.desc} value={tactics[t.key]} onChange={v => setTac(p => ({ ...p, [t.key]: v }))} values={[-2,-1,0,1,2]} objective={planObjectives[t.key]} />)}
               </div>
               <textarea value={tacNota} onChange={e => setTacN(e.target.value)} rows={3}
                         placeholder="Notas tácticas…"
@@ -327,6 +348,27 @@ export default function NuevoReporte() {
         {/* Physical */}
         {tab === 'physical' && (
           <div className="space-y-6">
+            {/* Objetivos del plan trimestral — physical */}
+            {['sprint_20m','beep_test','salto_vertical','spider_drill','fms','fuerza_inferior','fuerza_superior'].some(k => planObjectives[k]) && (
+              <div className="px-4 py-3 hairline" style={{ background: 'rgba(var(--accent-rgb, 22 101 52),.04)' }}>
+                <p className="eyebrow !text-[9px] mb-1.5" style={{ color: 'var(--accent)' }}>Objetivos Q · Physical</p>
+                <div className="space-y-1">
+                  {[
+                    { key: 'sprint_20m',      label: 'Velocidad' },
+                    { key: 'beep_test',       label: 'Resistencia' },
+                    { key: 'salto_vertical',  label: 'Potencia' },
+                    { key: 'spider_drill',    label: 'Agilidad' },
+                    { key: 'fms',             label: 'Movilidad' },
+                    { key: 'fuerza_inferior', label: 'Fuerza inf.' },
+                    { key: 'fuerza_superior', label: 'Fuerza sup.' },
+                  ].filter(f => planObjectives[f.key]).map(f => (
+                    <p key={f.key} className="text-[11px]" style={{ color: 'var(--ink-mute)' }}>
+                      <span className="font-semibold" style={{ color: 'var(--ink)' }}>{f.label}:</span>{' '}{planObjectives[f.key]}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
             <div>
               <p className="eyebrow !text-[10px] mb-3 text-[var(--ink-mute)]">Tests de rendimiento</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -371,7 +413,7 @@ export default function NuevoReporte() {
               <p className="eyebrow !text-[10px] mb-3 text-[var(--ink-mute)]">Evaluación de conducta</p>
               <ScaleLegend type="oncourt" />
               <div className="space-y-3 mt-3">
-                {CHAR_SCORES.map(s => <ScoreRow key={s.key} label={s.label} value={charScores[s.key]} onChange={v => setChar(p => ({ ...p, [s.key]: v }))} values={[-2,-1,0,1,2]} />)}
+                {CHAR_SCORES.map(s => <ScoreRow key={s.key} label={s.label} value={charScores[s.key]} onChange={v => setChar(p => ({ ...p, [s.key]: v }))} values={[-2,-1,0,1,2]} objective={planObjectives[s.key]} />)}
               </div>
             </div>
             <Field label="Liderazgo (narrativo)">
@@ -417,14 +459,19 @@ function ScaleLegend({ type }) {
   );
 }
 
-function ScoreRow({ label, desc, value, onChange, values = [-2,-1,0,1,2] }) {
+function ScoreRow({ label, desc, value, onChange, values = [-2,-1,0,1,2], objective }) {
   const labels = values.includes(0) ? ONCOURT_LABELS : CHAR_LABELS;
   const fmt = (n) => n > 0 ? `+${n}` : `${n}`;
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
+    <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4">
       <span className="text-[13px] sm:w-44 sm:shrink-0" title={desc} style={desc ? { cursor: 'help' } : undefined}>
         {label}
         {desc && <span className="block text-[10px] leading-tight" style={{ color: 'var(--ink-mute)' }}>{desc}</span>}
+        {objective && (
+          <span className="block text-[10px] leading-tight mt-0.5 font-medium" style={{ color: 'var(--accent)', opacity: 0.85 }}>
+            ◎ {objective}
+          </span>
+        )}
       </span>
       <div className="flex items-center gap-1">
         <div className="flex gap-1">

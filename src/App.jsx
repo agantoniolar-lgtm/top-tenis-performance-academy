@@ -26,6 +26,7 @@ const ReportesPorPeriodo = lazy(() => import('./pages/portal/coach/ReportesPorPe
 const NuevoAtleta        = lazy(() => import('./pages/portal/coach/NuevoAtleta'));
 const NuevoTorneoCoach   = lazy(() => import('./pages/portal/coach/NuevoTorneoCoach'));
 const TorneosCoach       = lazy(() => import('./pages/portal/coach/Torneos'));
+const PlanesCoach        = lazy(() => import('./pages/portal/coach/PlanesCoach'));
 const TalentCard    = lazy(() => import('./pages/portal/TalentCard'));
 const AtletaInicio        = lazy(() => import('./pages/portal/atleta/Inicio'));
 const AtletaPerfil        = lazy(() => import('./pages/portal/atleta/Perfil'));
@@ -88,6 +89,7 @@ export default function App() {
                   <Route path="/portal/alumnos/:id/talent-card"    element={<TalentCard />} />
                   <Route path="/portal/reportes"              element={<ReportesPorPeriodo />} />
                   <Route path="/portal/reportes/nuevo"        element={<NuevoReporte />} />
+                  <Route path="/portal/planes"                element={<PlanesCoach />} />
                   <Route path="/portal/torneos"               element={<TorneosCoach />} />
                   <Route path="/portal/torneos/registrar"     element={<NuevoTorneoCoach />} />
                 </Route>
