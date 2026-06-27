@@ -36,10 +36,22 @@ const SUB_LABEL = {
   liderazgo:             'Liderazgo',
 };
 
+const MAX_FOCOS = 5;
+const URGENCIA_ORDER = { alta: 0, media: 1, baja: 2 };
+const byUrgencia = (a, b) => (URGENCIA_ORDER[a.urgencia] ?? 1) - (URGENCIA_ORDER[b.urgencia] ?? 1);
+
+// Niveles fijos -2..+2 (peldaños hardcodeados; la descripción cambia por objetivo)
+const ANCHOR_LEVELS = [
+  ['+2', 'Superado'],
+  ['+1', 'Adelantado'],
+  ['0',  'Por buen camino'],
+  ['-1', 'Rezagado'],
+  ['-2', 'Estancado'],
+];
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function periodEndFor(startStr) {
-  // e.g. '2026-07-01' → '2026-09-30'
   const d = new Date(startStr + 'T12:00:00');
   d.setMonth(d.getMonth() + 3);
   d.setDate(d.getDate() - 1);
@@ -59,45 +71,51 @@ function athleteName(plan) {
   return a ? `${a.nombre} ${a.apellido}` : '—';
 }
 
+const focoKey = (dim, sub) => `${dim}_${sub}`;
+const uuid = () => (crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function PlanesCoach() {
   const { user } = useAuth();
 
   // view: 'list' | 'create' | 'detail'
-  const [view, setView]     = useState('list');
-  const [step, setStep]     = useState(1); // only when view === 'create'
+  const [view, setView] = useState('list');
+  const [step, setStep] = useState(1); // 1 atleta·período · 2 observaciones · 3 focos · 4 revisión
 
   // ── List ──────────────────────────────────────────────────────────
-  const [plans, setPlans]       = useState([]);
-  const [loadingList, setLL]    = useState(true);
+  const [plans, setPlans]    = useState([]);
+  const [loadingList, setLL] = useState(true);
 
-  // ── Create ────────────────────────────────────────────────────────
-  const [athletes,       setAth]    = useState([]);
-  const [selAthlete,     setSel]    = useState('');
-  const [periodStart,    setPStart] = useState(() => {
+  // ── Create — paso 1/2 ─────────────────────────────────────────────
+  const [athletes,    setAth]    = useState([]);
+  const [selAthlete,  setSel]    = useState('');
+  const [periodStart, setPStart] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
   });
-  const [observations,   setObs]   = useState('');
-  const [generating,     setGen]   = useState(false);
-  const [genError,       setGErr]  = useState(null);
-  const [objectives,     setObjs]  = useState([]); // { dimension, sub_dimension, objective_text }
-  const [validating,     setVal]   = useState(false);
-  const [validation,     setVRes]  = useState(null); // { covered, missing, vague }
-  const [valError,       setVErr]  = useState(null);
-  const [saving,         setSav]   = useState(false);
-  const [saveError,      setSErr]  = useState(null);
+  const [observations, setObs] = useState('');
 
-  // Shared inline-edit state (used in both create step 3 and detail view)
-  const [editingId,  setEditId]  = useState(null); // key string
-  const [editText,   setEditTxt] = useState('');
+  // ── Create — paso 3: selección de focos ───────────────────────────
+  const [identifying, setIdent]   = useState(false);
+  const [identified,  setIdList]  = useState([]);      // { dimension, sub_dimension, read_corto, candidata_a_foco, carryover }
+  const [selFocos,    setSelFocos]= useState(new Set()); // focoKey()
+
+  // ── Create — paso 4: generación + revisión ────────────────────────
+  const [generating,  setGen]     = useState(false);
+  const [genError,    setGErr]    = useState(null);
+  const [genFocos,    setGenFocos]= useState([]);      // { dimension, sub_dimension, diagnostico, objetivo, estandar_usado, anchors }
+  const [feedback,    setFeedback]= useState('');
+  const [promptVer,   setPromptVer]= useState(null);
+  const [genLog,      setGenLog]  = useState([]);      // filas de objective_generation_log (lineaje), se insertan al guardar
+
+  const [saving,    setSav]  = useState(false);
+  const [saveError, setSErr] = useState(null);
 
   // ── Detail ────────────────────────────────────────────────────────
-  const [activePlan,  setActivePlan] = useState(null);
-  const [updatingObj, setUpdObj]     = useState(false);
+  const [activePlan, setActivePlan] = useState(null);
 
-  // ── Load list ────────────────────────────────────────────────────
+  // ── Load list ─────────────────────────────────────────────────────
   const loadPlans = async () => {
     if (!user?.coach_id) return;
     setLL(true);
@@ -126,56 +144,137 @@ export default function PlanesCoach() {
 
   const periodEnd = periodEndFor(periodStart);
 
-  // ── Helpers ────────────────────────────────────────────────────────
+  // ── Reset / nav ───────────────────────────────────────────────────
   const resetCreate = () => {
-    setStep(1); setSel(''); setObs(''); setObjs([]);
-    setGErr(null); setSErr(null); setEditId(null);
-    setVRes(null); setVErr(null);
+    setStep(1); setSel(''); setObs('');
+    setIdList([]); setSelFocos(new Set());
+    setGenFocos([]); setFeedback(''); setGenLog([]); setPromptVer(null);
+    setGErr(null); setSErr(null);
   };
-
   const goCreate = () => { resetCreate(); setView('create'); };
-  const goList   = () => { setView('list'); setActivePlan(null); setEditId(null); };
+  const goList   = () => { setView('list'); setActivePlan(null); };
 
-  // ── Validate observations ─────────────────────────────────────────
-  const handleValidate = async () => {
+  // ── Paso 2 → 3: identificar sub-dimensiones del dump ──────────────
+  const handleIdentify = async () => {
     if (!observations.trim()) return;
-    setVal(true); setVErr(null); setVRes(null);
+    setIdent(true); setGErr(null);
     try {
-      const { data, error } = await supabase.functions.invoke('validate-quarterly-plan', {
-        body: { observations },
+      const { data, error } = await supabase.functions.invoke('generate-quarterly-plan', {
+        body: { mode: 'identify', observations },
       });
       if (error) throw error;
-      setVRes(data);
+      let list = data?.identified ?? [];
+      if (!list.length) throw new Error('No se identificaron sub-dimensiones. Agrega más detalle al texto.');
+
+      // Carryover: focos del plan anterior del atleta
+      let carryover = new Set();
+      try {
+        const { data: prior } = await supabase
+          .from('quarterly_plans')
+          .select('id')
+          .eq('athlete_id', selAthlete)
+          .lt('period_start', periodStart)
+          .order('period_start', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (prior?.id) {
+          const { data: pObjs } = await supabase
+            .from('quarterly_plan_objectives')
+            .select('sub_dimension')
+            .eq('plan_id', prior.id)
+            .eq('tipo', 'foco');
+          carryover = new Set((pObjs ?? []).map(o => o.sub_dimension));
+        }
+      } catch { /* sin plan anterior */ }
+
+      // Ordenar por urgencia (alta → baja) para que la priorización guíe la selección
+      list = list
+        .map(it => ({ ...it, carryover: carryover.has(it.sub_dimension) }))
+        .sort(byUrgencia);
+      // Pre-seleccionar las candidatas más urgentes hasta el límite
+      const pre = new Set();
+      list.filter(it => it.candidata_a_foco).sort(byUrgencia).slice(0, MAX_FOCOS)
+        .forEach(it => pre.add(focoKey(it.dimension, it.sub_dimension)));
+      setIdList(list);
+      setSelFocos(pre);
+      setStep(3);
     } catch (e) {
-      setVErr(e.message ?? 'Error al validar');
+      setGErr(e.message ?? 'Error al identificar');
     } finally {
-      setVal(false);
+      setIdent(false);
     }
   };
 
-  // ── Generate plan ─────────────────────────────────────────────────
+  const toggleFoco = (dim, sub) => {
+    const key = focoKey(dim, sub);
+    setSelFocos(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else if (next.size < MAX_FOCOS) next.add(key);
+      return next;
+    });
+  };
+
+  const selectedFocoList = () =>
+    identified
+      .filter(it => selFocos.has(focoKey(it.dimension, it.sub_dimension)))
+      .map(it => ({ dimension: it.dimension, sub_dimension: it.sub_dimension }));
+
+  // ── Paso 3 → 4: generar focos completos ───────────────────────────
   const handleGenerate = async () => {
-    if (!observations.trim()) return;
+    const focos = selectedFocoList();
+    if (!focos.length) return;
     setGen(true); setGErr(null);
     try {
       const { data, error } = await supabase.functions.invoke('generate-quarterly-plan', {
-        body: { observations },
+        body: { mode: 'generate', observations, focos },
       });
       if (error) throw error;
-      const objs = data?.objectives ?? [];
-      if (!objs.length) throw new Error('No se generaron objetivos. Intenta agregar más detalle en tus observaciones.');
-      setObjs(objs);
-      setStep(3);
+      const out = data?.focos ?? [];
+      if (!out.length) throw new Error('No se generaron focos. Revisa el detalle de las observaciones.');
+      const root = uuid();
+      setGenFocos(out);
+      setPromptVer(data?.prompt_version ?? null);
+      setGenLog([{ id: root, root_id: root, parent_id: null, mode: 'generate',
+                   coach_feedback: null, output: out, prompt_version: data?.prompt_version ?? null }]);
+      setFeedback('');
+      setStep(4);
     } catch (e) {
-      setGErr(e.message ?? 'Error al generar el plan');
+      setGErr(e.message ?? 'Error al generar');
     } finally {
       setGen(false);
     }
   };
 
-  // ── Save plan ─────────────────────────────────────────────────────
+  // ── Regenerar con feedback del coach (comentario obligatorio) ─────
+  const handleRegenerate = async () => {
+    if (!feedback.trim()) return; // regla dura: sin comentario no se regenera
+    setGen(true); setGErr(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-quarterly-plan', {
+        body: { mode: 'regenerate', observations, focos: selectedFocoList(),
+                coach_feedback: feedback.trim(), prior_output: genFocos },
+      });
+      if (error) throw error;
+      const out = data?.focos ?? [];
+      if (!out.length) throw new Error('La regeneración no devolvió focos. Ajusta el comentario.');
+      const last = genLog[genLog.length - 1];
+      const id = uuid();
+      setGenLog(prev => [...prev, { id, root_id: last?.root_id ?? id, parent_id: last?.id ?? null,
+                                    mode: 'regenerate', coach_feedback: feedback.trim(),
+                                    output: out, prompt_version: data?.prompt_version ?? promptVer }]);
+      setGenFocos(out);
+      setFeedback('');
+    } catch (e) {
+      setGErr(e.message ?? 'Error al regenerar');
+    } finally {
+      setGen(false);
+    }
+  };
+
+  // ── Guardar plan + objetivos + log de generación ──────────────────
   const handleSavePlan = async () => {
-    if (!selAthlete || !objectives.length) return;
+    if (!selAthlete || !genFocos.length) return;
     setSav(true); setSErr(null);
     try {
       const { data: plan, error: pErr } = await supabase
@@ -192,15 +291,59 @@ export default function PlanesCoach() {
         .single();
       if (pErr) throw pErr;
 
-      const rows = objectives.map((o, i) => ({
+      // Sub-dimensiones identificadas que NO son foco → mantenimiento
+      const focoKeys = new Set(genFocos.map(f => focoKey(f.dimension, f.sub_dimension)));
+      const mantenimiento = identified.filter(it => !focoKeys.has(focoKey(it.dimension, it.sub_dimension)));
+
+      const focoRows = genFocos.map((f, i) => ({
         plan_id:        plan.id,
-        dimension:      o.dimension,
-        sub_dimension:  o.sub_dimension,
-        objective_text: o.objective_text,
+        dimension:      f.dimension,
+        sub_dimension:  f.sub_dimension,
+        tipo:           'foco',
+        diagnostico:    f.diagnostico ?? null,
+        objetivo:       f.objetivo,
+        estandar_usado: f.estandar_usado ?? null,
+        anchors:        f.anchors ?? null,
+        objective_text: f.objetivo, // bridge de compatibilidad: NuevoReporte/AthleteVoice aún lo leen
         sort_order:     i,
       }));
-      const { error: oErr } = await supabase.from('quarterly_plan_objectives').insert(rows);
+      const mantRows = mantenimiento.map((m, i) => ({
+        plan_id:        plan.id,
+        dimension:      m.dimension,
+        sub_dimension:  m.sub_dimension,
+        tipo:           'mantenimiento',
+        objetivo:       'Sostener el nivel actual',
+        objective_text: 'Sostener el nivel actual',
+        sort_order:     genFocos.length + i,
+      }));
+
+      const { error: oErr } = await supabase
+        .from('quarterly_plan_objectives')
+        .insert([...focoRows, ...mantRows]);
       if (oErr) throw oErr;
+
+      // Log de generación (lineaje) — best-effort, no bloquea el guardado
+      try {
+        for (const row of genLog) {
+          await supabase.from('objective_generation_log').insert({
+            id:                row.id,
+            root_id:           row.root_id,
+            parent_id:         row.parent_id,
+            plan_id:           plan.id,
+            athlete_id:        selAthlete,
+            coach_id:          user.coach_id,
+            period_start:      periodStart,
+            mode:              row.mode,
+            prompt_version:    row.prompt_version,
+            model:             'gpt-4o-mini',
+            input_observations: observations,
+            coach_feedback:    row.coach_feedback,
+            output:            row.output,
+          });
+        }
+      } catch (logErr) {
+        console.warn('No se pudo guardar objective_generation_log:', logErr);
+      }
 
       await loadPlans();
       resetCreate();
@@ -222,27 +365,6 @@ export default function PlanesCoach() {
     if (data) { setActivePlan(data); setView('detail'); }
   };
 
-  // ── Inline edit (detail) ──────────────────────────────────────────
-  const handleUpdateObjective = async (objId) => {
-    if (!editText.trim()) { setEditId(null); return; }
-    setUpdObj(true);
-    const { error } = await supabase
-      .from('quarterly_plan_objectives')
-      .update({ objective_text: editText.trim() })
-      .eq('id', objId);
-    if (!error) {
-      setActivePlan(p => ({
-        ...p,
-        quarterly_plan_objectives: p.quarterly_plan_objectives.map(o =>
-          o.id === objId ? { ...o, objective_text: editText.trim() } : o
-        ),
-      }));
-    }
-    setEditId(null);
-    setUpdObj(false);
-  };
-
-  // ── Archive ───────────────────────────────────────────────────────
   const handleArchive = async (planId) => {
     if (!window.confirm('¿Archivar este plan? Ya no aparecerá en los reportes activos.')) return;
     await supabase.from('quarterly_plans').update({ status: 'archived' }).eq('id', planId);
@@ -305,192 +427,205 @@ export default function PlanesCoach() {
   // ────────────────────────────────────────────────────────────────────
   // RENDER — CREATE
   // ────────────────────────────────────────────────────────────────────
-  if (view === 'create') return (
-    <Shell>
-      <div className="max-w-2xl">
-        <div className="flex items-center gap-3 mb-6">
-          <button
-            onClick={goList}
-            className="text-[11px] font-semibold uppercase tracking-wide hairline px-3 py-1.5 hover:bg-[var(--cream)] transition">
-            ← Volver
-          </button>
-          <h1 className="font-display font-extrabold text-[24px] leading-none">Nuevo plan</h1>
-        </div>
-
-        <StepBar current={step} />
-
-        {/* ── Step 1: Atleta + período ────────────────────────────── */}
-        {step === 1 && (
-          <div className="space-y-5 mt-6">
-            <Field label="Atleta" required>
-              <select
-                value={selAthlete}
-                onChange={e => setSel(e.target.value)}
-                className="w-full hairline px-3 py-2 text-[13px] bg-[var(--paper)] outline-none">
-                <option value="">— seleccionar —</option>
-                {athletes.map(a => (
-                  <option key={a.id} value={a.id}>{a.nombre} {a.apellido}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Inicio del trimestre" required>
-              <input
-                type="date"
-                value={periodStart}
-                onChange={e => setPStart(e.target.value)}
-                className="hairline px-3 py-2 text-[13px] bg-[var(--paper)] outline-none" />
-              {periodStart && (
-                <p className="text-[11px] mt-1.5" style={{ color: 'var(--ink-mute)' }}>
-                  Período: <strong>{fmtPeriod(periodStart, periodEnd)}</strong>
-                </p>
-              )}
-            </Field>
+  if (view === 'create') {
+    const selAth = athletes.find(a => a.id === selAthlete);
+    return (
+      <Shell>
+        <div className="max-w-2xl">
+          <div className="flex items-center gap-3 mb-6">
             <button
-              onClick={() => setStep(2)}
-              disabled={!selAthlete || !periodStart}
-              className="px-6 py-2 text-[11px] font-semibold uppercase tracking-wide text-white disabled:opacity-40 hover:opacity-90 transition"
-              style={{ background: 'var(--accent)' }}>
-              Continuar →
+              onClick={goList}
+              className="text-[11px] font-semibold uppercase tracking-wide hairline px-3 py-1.5 hover:bg-[var(--cream)] transition">
+              ← Volver
             </button>
+            <h1 className="font-display font-extrabold text-[24px] leading-none">Nuevo plan</h1>
           </div>
-        )}
 
-        {/* ── Step 2: Observaciones ────────────────────────────────── */}
-        {step === 2 && (
-          <div className="space-y-5 mt-6">
-            <div className="hairline px-4 py-2.5" style={{ background: 'var(--cream)' }}>
-              <p className="text-[11px] font-semibold" style={{ color: 'var(--ink-mute)' }}>
-                {athletes.find(a => a.id === selAthlete)?.nombre} {athletes.find(a => a.id === selAthlete)?.apellido}
-                {' · '}{fmtPeriod(periodStart, periodEnd)}
-              </p>
-            </div>
-            <div>
-              <p className="text-[13px] mb-3" style={{ color: 'var(--ink-mute)', lineHeight: 1.6 }}>
-                Escribe lo que observas de este atleta — sin formato, en tus propias palabras. Técnica, táctica, físico, actitud, lo que sea. Mientras más detalle, mejor el plan.
-              </p>
-              <textarea
-                value={observations}
-                onChange={e => { setObs(e.target.value); setVRes(null); setVErr(null); }}
-                rows={12}
-                placeholder="Ej: Su derecha todavía se encoge, tiene que aprender a soltar el brazo. El revés es sólido pero no rota bien con los hombros. Su movilidad es muy buena. Cuando hay puntos apretados llora pero no para de competir…"
-                className="w-full hairline px-4 py-3 text-[13px] bg-[var(--paper)] outline-none resize-none"
-                style={{ lineHeight: 1.7 }}
-              />
-            </div>
-            {/* ── Validation results ─────────────────────────────── */}
-            {valError && <ErrorBox msg={valError} />}
-            {validation && (
-              <ValidationWarnings validation={validation} />
-            )}
+          <StepBar current={step} />
 
-            {genError && <ErrorBox msg={genError} />}
-            <div className="flex flex-wrap gap-3">
+          {/* ── Step 1: Atleta + período ──────────────────────────── */}
+          {step === 1 && (
+            <div className="space-y-5 mt-6">
+              <Field label="Atleta" required>
+                <select
+                  value={selAthlete}
+                  onChange={e => setSel(e.target.value)}
+                  className="w-full hairline px-3 py-2 text-[13px] bg-[var(--paper)] outline-none">
+                  <option value="">— seleccionar —</option>
+                  {athletes.map(a => (
+                    <option key={a.id} value={a.id}>{a.nombre} {a.apellido}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Inicio del trimestre" required>
+                <input
+                  type="date"
+                  value={periodStart}
+                  onChange={e => setPStart(e.target.value)}
+                  className="hairline px-3 py-2 text-[13px] bg-[var(--paper)] outline-none" />
+                {periodStart && (
+                  <p className="text-[11px] mt-1.5" style={{ color: 'var(--ink-mute)' }}>
+                    Período: <strong>{fmtPeriod(periodStart, periodEnd)}</strong>
+                  </p>
+                )}
+              </Field>
               <button
-                onClick={() => setStep(1)}
-                className="px-4 py-2 text-[11px] font-semibold uppercase tracking-wide hairline hover:bg-[var(--cream)] transition">
-                ← Volver
-              </button>
-              <button
-                onClick={handleValidate}
-                disabled={validating || !observations.trim()}
-                className="px-4 py-2 text-[11px] font-semibold uppercase tracking-wide hairline hover:bg-[var(--cream)] transition disabled:opacity-40">
-                {validating ? 'Validando…' : '⚑ Validar observaciones'}
-              </button>
-              <button
-                onClick={handleGenerate}
-                disabled={generating || !observations.trim()}
+                onClick={() => setStep(2)}
+                disabled={!selAthlete || !periodStart}
                 className="px-6 py-2 text-[11px] font-semibold uppercase tracking-wide text-white disabled:opacity-40 hover:opacity-90 transition"
                 style={{ background: 'var(--accent)' }}>
-                {generating ? 'Generando…' : 'Generar plan →'}
+                Continuar →
               </button>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* ── Step 3: Review + guardar ─────────────────────────────── */}
-        {step === 3 && (
-          <div className="space-y-6 mt-6">
-            <p className="text-[13px]" style={{ color: 'var(--ink-mute)', lineHeight: 1.6 }}>
-              Revisa los objetivos generados. Haz clic en cualquiera para editarlo antes de guardar.
-            </p>
-
-            {DIM_ORDER.filter(d => objectives.some(o => o.dimension === d)).map(dim => (
-              <div key={dim}>
-                <p className="eyebrow !text-[10px] mb-2" style={{ color: 'var(--ink-mute)' }}>
-                  {DIMENSION_LABELS[dim]}
+          {/* ── Step 2: Observaciones (dump) ──────────────────────── */}
+          {step === 2 && (
+            <div className="space-y-5 mt-6">
+              <div className="hairline px-4 py-2.5" style={{ background: 'var(--cream)' }}>
+                <p className="text-[11px] font-semibold" style={{ color: 'var(--ink-mute)' }}>
+                  {selAth?.nombre} {selAth?.apellido}{' · '}{fmtPeriod(periodStart, periodEnd)}
                 </p>
-                <div className="space-y-2">
-                  {objectives.filter(o => o.dimension === dim).map(o => {
-                    const key = `${o.dimension}_${o.sub_dimension}`;
-                    const isEdit = editingId === key;
-                    return (
-                      <div key={key} className="hairline px-4 py-3" style={{ background: 'var(--paper)' }}>
-                        <p className="eyebrow !text-[9px] mb-1.5" style={{ color: 'var(--ink-mute)' }}>
-                          {SUB_LABEL[o.sub_dimension] ?? o.sub_dimension}
-                        </p>
-                        {isEdit ? (
-                          <div className="flex items-start gap-2">
-                            <textarea
-                              autoFocus
-                              value={editText}
-                              onChange={e => setEditTxt(e.target.value)}
-                              rows={2}
-                              className="flex-1 hairline px-2 py-1 text-[12px] bg-[var(--cream)] outline-none resize-none"
-                            />
-                            <button
-                              onClick={() => {
-                                if (editText.trim()) {
-                                  setObjs(prev => prev.map(x =>
-                                    x.dimension === o.dimension && x.sub_dimension === o.sub_dimension
-                                      ? { ...x, objective_text: editText.trim() }
-                                      : x
-                                  ));
-                                }
-                                setEditId(null);
-                              }}
-                              className="text-[11px] font-semibold uppercase tracking-wide px-3 py-1 text-white hover:opacity-90 transition"
-                              style={{ background: 'var(--accent)' }}>
-                              OK
-                            </button>
-                          </div>
-                        ) : (
-                          <p
-                            className="text-[13px] leading-relaxed cursor-pointer group"
-                            onClick={() => { setEditId(key); setEditTxt(o.objective_text); }}>
-                            {o.objective_text}
-                            <span className="ml-2 text-[10px] opacity-0 group-hover:opacity-100 transition"
-                                  style={{ color: 'var(--ink-mute)' }}>
-                              editar
-                            </span>
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
               </div>
-            ))}
-
-            {saveError && <ErrorBox msg={saveError} />}
-            <div className="flex gap-3">
-              <button
-                onClick={() => { setStep(2); setObjs([]); setEditId(null); }}
-                className="px-4 py-2 text-[11px] font-semibold uppercase tracking-wide hairline hover:bg-[var(--cream)] transition">
-                ← Regenerar
-              </button>
-              <button
-                onClick={handleSavePlan}
-                disabled={saving}
-                className="px-6 py-2 text-[11px] font-semibold uppercase tracking-wide text-white disabled:opacity-40 hover:opacity-90 transition"
-                style={{ background: 'var(--accent)' }}>
-                {saving ? 'Guardando…' : 'Guardar plan'}
-              </button>
+              <div>
+                <p className="text-[13px] mb-3" style={{ color: 'var(--ink-mute)', lineHeight: 1.6 }}>
+                  Escribe lo que observas de este atleta — sin formato, en tus propias palabras.
+                  Técnica, táctica, físico, actitud, lo que sea. Tú describes; el sistema lo estructura.
+                </p>
+                <textarea
+                  value={observations}
+                  onChange={e => setObs(e.target.value)}
+                  rows={12}
+                  placeholder="Ej: El segundo saque le falta kick y lo atacan. La derecha es su arma. El revés sufre con pelota alta. Le falta selección de golpe, se apura. En el tercer set se cae físicamente. Cuando comete un error fácil tira la raqueta…"
+                  className="w-full hairline px-4 py-3 text-[13px] bg-[var(--paper)] outline-none resize-none"
+                  style={{ lineHeight: 1.7 }}
+                />
+              </div>
+              {genError && <ErrorBox msg={genError} />}
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={() => setStep(1)}
+                  className="px-4 py-2 text-[11px] font-semibold uppercase tracking-wide hairline hover:bg-[var(--cream)] transition">
+                  ← Volver
+                </button>
+                <button
+                  onClick={handleIdentify}
+                  disabled={identifying || !observations.trim()}
+                  className="px-6 py-2 text-[11px] font-semibold uppercase tracking-wide text-white disabled:opacity-40 hover:opacity-90 transition"
+                  style={{ background: 'var(--accent)' }}>
+                  {identifying ? 'Identificando…' : 'Identificar focos →'}
+                </button>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
-    </Shell>
-  );
+          )}
+
+          {/* ── Step 3: Selección de focos ────────────────────────── */}
+          {step === 3 && (
+            <div className="space-y-5 mt-6">
+              <div>
+                <p className="text-[13px]" style={{ color: 'var(--ink-mute)', lineHeight: 1.6 }}>
+                  Elige hasta <strong>{MAX_FOCOS} focos</strong> para este trimestre. Lo que no elijas
+                  queda como <strong>mantenimiento</strong> (se sigue midiendo, pero sin objetivo dedicado).
+                </p>
+                <p className="text-[11px] mt-1 font-semibold" style={{ color: selFocos.size >= MAX_FOCOS ? 'var(--accent)' : 'var(--ink-mute)' }}>
+                  {selFocos.size} / {MAX_FOCOS} seleccionados
+                </p>
+              </div>
+
+              <FocoGroup
+                title="Continúan del trimestre anterior"
+                items={identified.filter(it => it.carryover)}
+                selected={selFocos} limitReached={selFocos.size >= MAX_FOCOS} onToggle={toggleFoco}
+              />
+              <FocoGroup
+                title="Identificadas en tus observaciones"
+                items={identified.filter(it => !it.carryover)}
+                selected={selFocos} limitReached={selFocos.size >= MAX_FOCOS} onToggle={toggleFoco}
+              />
+
+              {genError && <ErrorBox msg={genError} />}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setStep(2)}
+                  className="px-4 py-2 text-[11px] font-semibold uppercase tracking-wide hairline hover:bg-[var(--cream)] transition">
+                  ← Volver
+                </button>
+                <button
+                  onClick={handleGenerate}
+                  disabled={generating || selFocos.size === 0}
+                  className="px-6 py-2 text-[11px] font-semibold uppercase tracking-wide text-white disabled:opacity-40 hover:opacity-90 transition"
+                  style={{ background: 'var(--accent)' }}>
+                  {generating ? 'Generando…' : `Generar ${selFocos.size} foco${selFocos.size === 1 ? '' : 's'} →`}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Step 4: Revisión por feedback ─────────────────────── */}
+          {step === 4 && (
+            <div className="space-y-6 mt-6">
+              <RubricaBox />
+
+              {DIM_ORDER.filter(d => genFocos.some(f => f.dimension === d)).map(dim => (
+                <div key={dim}>
+                  <p className="eyebrow !text-[10px] mb-2" style={{ color: 'var(--ink-mute)' }}>
+                    {DIMENSION_LABELS[dim]}
+                  </p>
+                  <div className="space-y-3">
+                    {genFocos.filter(f => f.dimension === dim).map(f => (
+                      <FocoCard key={focoKey(f.dimension, f.sub_dimension)} foco={f} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              {genError && <ErrorBox msg={genError} />}
+
+              {/* Regenerar por feedback */}
+              <div className="hairline p-4" style={{ background: 'var(--cream)' }}>
+                <p className="text-[11px] font-bold uppercase tracking-wide mb-1.5" style={{ color: 'var(--ink-mute)' }}>
+                  ¿Algo no cuadra?
+                </p>
+                <p className="text-[11px] mb-2" style={{ color: 'var(--ink-mute)', lineHeight: 1.6 }}>
+                  Comenta qué cambiarías y vuelve a generar. El comentario es obligatorio para regenerar.
+                </p>
+                <textarea
+                  value={feedback}
+                  onChange={e => setFeedback(e.target.value)}
+                  rows={3}
+                  placeholder="Ej: El objetivo del revés es muy genérico, enfócalo en la pelota alta. Las anclas del saque deberían distinguir mejor entre drill y partido."
+                  className="w-full hairline px-3 py-2 text-[12px] bg-[var(--paper)] outline-none resize-none"
+                  style={{ lineHeight: 1.6 }}
+                />
+                <button
+                  onClick={handleRegenerate}
+                  disabled={generating || !feedback.trim()}
+                  className="mt-2 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide hairline hover:bg-[var(--paper)] transition disabled:opacity-40">
+                  {generating ? 'Regenerando…' : '↻ Regenerar con mi comentario'}
+                </button>
+              </div>
+
+              {saveError && <ErrorBox msg={saveError} />}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setStep(3)}
+                  className="px-4 py-2 text-[11px] font-semibold uppercase tracking-wide hairline hover:bg-[var(--cream)] transition">
+                  ← Focos
+                </button>
+                <button
+                  onClick={handleSavePlan}
+                  disabled={saving}
+                  className="px-6 py-2 text-[11px] font-semibold uppercase tracking-wide text-white disabled:opacity-40 hover:opacity-90 transition"
+                  style={{ background: 'var(--accent)' }}>
+                  {saving ? 'Guardando…' : 'Guardar plan'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </Shell>
+    );
+  }
 
   // ────────────────────────────────────────────────────────────────────
   // RENDER — DETAIL
@@ -499,6 +634,8 @@ export default function PlanesCoach() {
     const objs = (activePlan.quarterly_plan_objectives ?? [])
       .slice()
       .sort((a, b) => a.sort_order - b.sort_order);
+    const focos = objs.filter(o => (o.tipo ?? 'foco') === 'foco');
+    const mant  = objs.filter(o => o.tipo === 'mantenimiento');
 
     return (
       <Shell>
@@ -532,58 +669,44 @@ export default function PlanesCoach() {
             <p style={{ color: 'var(--ink-mute)', fontSize: 13 }}>Este plan no tiene objetivos registrados.</p>
           ) : (
             <div className="space-y-6">
-              {DIM_ORDER.filter(d => objs.some(o => o.dimension === d)).map(dim => (
+              {DIM_ORDER.filter(d => focos.some(o => o.dimension === d)).map(dim => (
                 <div key={dim}>
                   <p className="eyebrow !text-[10px] mb-2" style={{ color: 'var(--ink-mute)' }}>
                     {DIMENSION_LABELS[dim]}
                   </p>
-                  <div className="space-y-2">
-                    {objs.filter(o => o.dimension === dim).map(o => {
-                      const isEdit = editingId === o.id;
-                      return (
-                        <div key={o.id} className="hairline px-4 py-3" style={{ background: 'var(--paper)' }}>
-                          <p className="eyebrow !text-[9px] mb-1.5" style={{ color: 'var(--ink-mute)' }}>
-                            {SUB_LABEL[o.sub_dimension] ?? o.sub_dimension}
-                          </p>
-                          {isEdit ? (
-                            <div className="flex items-start gap-2">
-                              <textarea
-                                autoFocus
-                                value={editText}
-                                onChange={e => setEditTxt(e.target.value)}
-                                rows={2}
-                                className="flex-1 hairline px-2 py-1 text-[12px] bg-[var(--cream)] outline-none resize-none"
-                              />
-                              <button
-                                onClick={() => handleUpdateObjective(o.id)}
-                                disabled={updatingObj}
-                                className="text-[11px] font-semibold uppercase tracking-wide px-3 py-1 text-white hover:opacity-90 transition disabled:opacity-40"
-                                style={{ background: 'var(--accent)' }}>
-                                {updatingObj ? '…' : 'OK'}
-                              </button>
-                              <button
-                                onClick={() => setEditId(null)}
-                                className="text-[11px] font-semibold uppercase tracking-wide hairline px-3 py-1 hover:bg-[var(--cream)] transition">
-                                ✕
-                              </button>
-                            </div>
-                          ) : (
-                            <p
-                              className="text-[13px] leading-relaxed cursor-pointer group"
-                              onClick={() => { setEditId(o.id); setEditTxt(o.objective_text); }}>
-                              {o.objective_text}
-                              <span className="ml-2 text-[10px] opacity-0 group-hover:opacity-100 transition"
-                                    style={{ color: 'var(--ink-mute)' }}>
-                                editar
-                              </span>
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })}
+                  <div className="space-y-3">
+                    {focos.filter(o => o.dimension === dim).map(o => (
+                      <FocoCard
+                        key={o.id}
+                        foco={{
+                          sub_dimension:  o.sub_dimension,
+                          diagnostico:    o.diagnostico,
+                          objetivo:       o.objetivo ?? o.objective_text,
+                          estandar_usado: o.estandar_usado,
+                          anchors:        o.anchors,
+                        }}
+                      />
+                    ))}
                   </div>
                 </div>
               ))}
+
+              {mant.length > 0 && (
+                <div>
+                  <p className="eyebrow !text-[10px] mb-2" style={{ color: 'var(--ink-mute)' }}>
+                    Mantenimiento
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {mant.map(o => (
+                      <span key={o.id}
+                            className="text-[10px] font-semibold px-2 py-0.5 uppercase tracking-wide hairline"
+                            style={{ color: 'var(--ink-mute)', background: 'var(--paper)' }}>
+                        {SUB_LABEL[o.sub_dimension] ?? o.sub_dimension}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -612,13 +735,13 @@ function Field({ label, required, children }) {
 }
 
 function StepBar({ current }) {
-  const steps = ['Atleta y período', 'Observaciones', 'Revisión'];
+  const steps = ['Atleta y período', 'Observaciones', 'Focos', 'Revisión'];
   return (
-    <div className="flex items-center gap-0 mb-1">
+    <div className="flex items-center gap-0 mb-1 flex-wrap">
       {steps.map((label, i) => {
         const n = i + 1;
-        const done    = n < current;
-        const active  = n === current;
+        const done   = n < current;
+        const active = n === current;
         return (
           <div key={n} className="flex items-center gap-0">
             <div className="flex items-center gap-1.5">
@@ -645,11 +768,133 @@ function StepBar({ current }) {
   );
 }
 
+function FocoGroup({ title, items, selected, limitReached, onToggle }) {
+  if (!items.length) return null;
+  return (
+    <div>
+      <p className="eyebrow !text-[10px] mb-2" style={{ color: 'var(--ink-mute)' }}>{title}</p>
+      <div className="space-y-1.5">
+        {items.map(it => {
+          const key = focoKey(it.dimension, it.sub_dimension);
+          const isSel = selected.has(key);
+          const disabled = !isSel && limitReached;
+          return (
+            <button
+              key={key}
+              onClick={() => onToggle(it.dimension, it.sub_dimension)}
+              disabled={disabled}
+              className="w-full flex items-start gap-3 px-4 py-3 hairline text-left transition disabled:opacity-40"
+              style={{ background: isSel ? 'var(--cream)' : 'var(--paper)',
+                       borderColor: isSel ? 'var(--accent)' : undefined }}>
+              <span className="w-4 h-4 mt-0.5 shrink-0 flex items-center justify-center text-[10px] font-bold"
+                    style={{ background: isSel ? 'var(--accent)' : 'transparent',
+                             border: isSel ? 'none' : '1px solid var(--border)',
+                             color: 'white' }}>
+                {isSel ? '✓' : ''}
+              </span>
+              <span className="flex-1 min-w-0">
+                <span className="flex items-center gap-2">
+                  <span className="text-[12px] font-semibold">
+                    {SUB_LABEL[it.sub_dimension] ?? it.sub_dimension}
+                  </span>
+                  <span className="text-[9px] uppercase tracking-wide" style={{ color: 'var(--ink-mute)' }}>
+                    {DIMENSION_LABELS[it.dimension]}
+                  </span>
+                  {it.candidata_a_foco && <UrgenciaChip urgencia={it.urgencia} />}
+                </span>
+                <span className="block text-[11px] mt-0.5" style={{ color: 'var(--ink-mute)', lineHeight: 1.5 }}>
+                  {it.read_corto}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function UrgenciaChip({ urgencia }) {
+  const map = {
+    alta:  { label: 'urgente',     bg: 'rgba(220,38,38,.12)',  color: '#b91c1c' },
+    media: { label: 'a trabajar',  bg: 'rgba(234,179,8,.15)',  color: '#a16207' },
+    baja:  { label: 'menor',       bg: 'rgba(107,114,128,.12)', color: '#6b7280' },
+  };
+  const s = map[urgencia] ?? map.media;
+  return (
+    <span className="text-[9px] font-semibold px-1.5 py-0.5 uppercase tracking-wide"
+          style={{ background: s.bg, color: s.color }}>
+      {s.label}
+    </span>
+  );
+}
+
+function FocoCard({ foco }) {
+  return (
+    <div className="hairline px-4 py-3" style={{ background: 'var(--paper)' }}>
+      <div className="flex items-center gap-2 mb-1.5">
+        <p className="eyebrow !text-[9px]" style={{ color: 'var(--ink-mute)' }}>
+          {SUB_LABEL[foco.sub_dimension] ?? foco.sub_dimension}
+        </p>
+        {foco.estandar_usado && (
+          <span className="text-[9px] font-semibold px-1.5 py-0.5 uppercase tracking-wide"
+                style={{ background: 'var(--cream)', color: 'var(--ink-mute)' }}>
+            {foco.estandar_usado}
+          </span>
+        )}
+      </div>
+      {foco.diagnostico && (
+        <p className="text-[11px] italic mb-1.5" style={{ color: 'var(--ink-mute)', lineHeight: 1.6 }}>
+          {foco.diagnostico}
+        </p>
+      )}
+      <p className="text-[13px] font-medium leading-relaxed mb-2">{foco.objetivo}</p>
+      {foco.anchors && <AnchorList anchors={foco.anchors} />}
+    </div>
+  );
+}
+
+function AnchorList({ anchors }) {
+  return (
+    <div className="mt-2 space-y-0.5">
+      {ANCHOR_LEVELS.map(([k, label]) => (
+        <div key={k} className="flex items-start gap-2 text-[11px]" style={{ lineHeight: 1.5 }}>
+          <span className="w-6 shrink-0 font-bold tabular-nums"
+                style={{ color: k.startsWith('-') ? '#b91c1c' : k === '0' ? 'var(--ink-mute)' : '#15803d' }}>
+            {k}
+          </span>
+          <span className="w-[88px] shrink-0 text-[10px] uppercase tracking-wide" style={{ color: 'var(--ink-mute)' }}>
+            {label}
+          </span>
+          <span className="flex-1" style={{ color: 'var(--ink)' }}>{anchors[k]}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RubricaBox() {
+  return (
+    <div className="hairline p-4" style={{ background: 'rgba(22,163,74,.05)' }}>
+      <p className="text-[11px] font-bold uppercase tracking-wide mb-1.5" style={{ color: '#15803d' }}>
+        Qué revisar
+      </p>
+      <p className="text-[11px]" style={{ color: 'var(--ink)', lineHeight: 1.6 }}>
+        Que cada objetivo represente lo que quieres trabajar este trimestre, que sea
+        <strong> alcanzable en 3 meses</strong> (no una meta de carrera), y que las 5 anclas describan
+        avances claros de <strong>rezagado a superado</strong>. El nivel <strong>0 = por buen camino</strong> es
+        el punto de partida esperado. Si algo no cuadra, comenta y regenera.
+      </p>
+    </div>
+  );
+}
+
 function StatusBadge({ status }) {
   const map = {
-    active:   { label: 'Activo',    bg: 'rgba(22,163,74,.1)',    color: '#15803d' },
-    draft:    { label: 'Borrador',  bg: 'rgba(234,179,8,.12)',   color: '#a16207' },
-    archived: { label: 'Archivado', bg: 'rgba(107,114,128,.1)',  color: '#6b7280' },
+    active:    { label: 'Activo',     bg: 'rgba(22,163,74,.1)',   color: '#15803d' },
+    draft:     { label: 'Borrador',   bg: 'rgba(234,179,8,.12)',  color: '#a16207' },
+    completed: { label: 'Completado', bg: 'rgba(59,130,246,.12)', color: '#1d4ed8' },
+    archived:  { label: 'Archivado',  bg: 'rgba(107,114,128,.1)', color: '#6b7280' },
   };
   const s = map[status] ?? map.archived;
   return (
@@ -672,66 +917,6 @@ function EmptyState({ onNew }) {
         style={{ background: 'var(--accent)' }}>
         + Crear primer plan
       </button>
-    </div>
-  );
-}
-
-function ValidationWarnings({ validation }) {
-  const { missing = [], vague = [] } = validation;
-  const allClear = missing.length === 0 && vague.length === 0;
-
-  if (allClear) {
-    return (
-      <div className="p-3 text-[12px] font-medium hairline flex items-center gap-2"
-           style={{ background: 'rgba(22,163,74,.07)', color: '#15803d' }}>
-        <span>✓</span>
-        <span>Cobertura completa y descripciones suficientes. Listo para generar.</span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      {missing.length > 0 && (
-        <div className="hairline p-4" style={{ background: 'rgba(234,179,8,.07)' }}>
-          <p className="text-[11px] font-bold uppercase tracking-wide mb-2" style={{ color: '#92400e' }}>
-            ⚠ Dimensiones no cubiertas en tus observaciones ({missing.length})
-          </p>
-          <p className="text-[11px] mb-3" style={{ color: '#78350f', lineHeight: 1.6 }}>
-            Si quieres que estas sub-dimensiones aparezcan en los reportes mensuales,
-            mencionarlas en el texto — aunque sea a nivel de mantenimiento.
-            Ejemplo: <em>"La volea quiero mantenerla en su nivel actual este trimestre."</em>
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {missing.map(k => (
-              <span key={k}
-                    className="text-[10px] font-semibold px-2 py-0.5 uppercase tracking-wide"
-                    style={{ background: 'rgba(234,179,8,.18)', color: '#92400e' }}>
-                {SUB_LABEL[k] ?? k}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-      {vague.length > 0 && (
-        <div className="hairline p-4" style={{ background: 'rgba(234,179,8,.07)' }}>
-          <p className="text-[11px] font-bold uppercase tracking-wide mb-2" style={{ color: '#92400e' }}>
-            ⚠ Descripciones con poco detalle ({vague.length})
-          </p>
-          <div className="space-y-2">
-            {vague.map(v => (
-              <div key={v.sub_dimension}>
-                <p className="text-[11px] font-semibold" style={{ color: '#78350f' }}>
-                  {SUB_LABEL[v.sub_dimension] ?? v.sub_dimension}
-                </p>
-                <p className="text-[11px]" style={{ color: '#92400e', lineHeight: 1.6 }}>
-                  {v.reason}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
