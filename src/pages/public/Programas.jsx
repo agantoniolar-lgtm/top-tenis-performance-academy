@@ -32,6 +32,16 @@ export default function Programas() {
     <div>
       {/* Hero */}
       <section className="relative w-full h-[340px] bg-[#1B3A2A] flex items-center justify-center overflow-hidden">
+        {fotoHero?.url && (
+          <>
+            <img
+              src={fotoHero.url}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover opacity-30"
+            />
+            <div className="absolute inset-0 bg-[#1B3A2A]/50" />
+          </>
+        )}
         <div
           className="absolute inset-0 opacity-[0.04]"
           style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M-1 5L5-1M3 9L9 3' stroke='white' stroke-width='0.6'/%3E%3C/svg%3E")` }}
