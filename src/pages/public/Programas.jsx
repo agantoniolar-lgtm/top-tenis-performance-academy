@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 import { CheckCircle, ClipboardList, Phone, UserCheck, Rocket, CalendarCheck } from 'lucide-react';
 import ImagePlaceholder from '../../components/shared/ImagePlaceholder';
+import { CmsImage } from '../../components/shared/PublicMedia';
+import { usePublicContent } from '../../contexts/PublicContent';
 
 const queIncluye = [
   'Entrenamiento diario de alto rendimiento (matutino o vespertino)',
@@ -22,6 +24,9 @@ const pasos = [
 ];
 
 export default function Programas() {
+  const { text, asset } = usePublicContent();
+  const fotoPrograma = asset('programas', 'foto_programa');
+
   return (
     <div>
       {/* Hero */}
@@ -53,10 +58,10 @@ export default function Programas() {
                 Nuestro programa
               </p>
               <h2 className="font-['Playfair_Display'] text-3xl md:text-4xl font-bold text-[#1A1A1A] mb-4">
-                Alto Rendimiento
+                {text('programas', 'titulo', 'Alto Rendimiento')}
               </h2>
               <p className="text-gray-600 leading-relaxed mb-6">
-                Para jugadores juniors que quieren competir al m&aacute;s alto nivel en M&eacute;xico. Se requiere ranking AMTP, participaci&oacute;n en torneos UTR o ITF Junior, o el potencial para llegar a ese nivel. La evaluaci&oacute;n inicial es el primer paso.
+                {text('programas', 'descripcion', 'Para jugadores juniors que quieren competir al más alto nivel en México. Se requiere ranking AMTP, participación en torneos UTR o ITF Junior, o el potencial para llegar a ese nivel. La evaluación inicial es el primer paso.')}
               </p>
 
               <h3 className="text-base font-bold text-[#1A1A1A] mb-3">Horarios</h3>
@@ -112,7 +117,11 @@ export default function Programas() {
         <div className="max-w-6xl mx-auto px-6">
           <div className="grid md:grid-cols-2 gap-12 items-center">
             <div className="order-2 md:order-1">
-              <ImagePlaceholder description="Canchas Club Casa Blanca Lomas Verdes" />
+              <CmsImage
+                url={fotoPrograma?.url}
+                alt="Canchas Club Casa Blanca Lomas Verdes"
+                fallback={<ImagePlaceholder description="Canchas Club Casa Blanca Lomas Verdes" />}
+              />
             </div>
             <div className="order-1 md:order-2">
               <p className="uppercase tracking-wider text-sm text-[#8B4513] font-semibold mb-3">

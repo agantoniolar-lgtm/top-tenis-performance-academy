@@ -1,7 +1,9 @@
-import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { Award, Users, Heart } from 'lucide-react';
 import ImagePlaceholder from '../../components/shared/ImagePlaceholder';
 import Badge from '../../components/shared/Badge';
+import { supabase } from '../../lib/supabase';
+import { usePublicContent } from '../../contexts/PublicContent';
 
 const timeline = [
   '#1 EdoMex \u00b7 #4 Nacional Mexicano',
@@ -11,38 +13,43 @@ const timeline = [
   'Regres\u00f3 a M\u00e9xico y fund\u00f3 Top Tenis PA',
 ];
 
-const coaches = [
-  {
-    nombre: 'Armando Tlacaelel',
-    rol: 'Director General',
-    credencial: 'UTR 12.07 \u00b7 Division I',
-    desc: 'Fundador de TTPA. Lleg\u00f3 al #1 del Estado de M\u00e9xico y al #4 nacional. Cuatro a\u00f1os en Marian University (Indianapolis) como capit\u00e1n del equipo, invicto en la Crossroads League 2019.',
-  },
-  {
-    nombre: 'Marco Reyes',
-    rol: 'Head Coach',
-    credencial: 'Jugador activo ATP',
-    desc: 'Jugador profesional activo en el circuito ATP. Combina su experiencia competitiva con una metodolog\u00eda de entrenamiento enfocada en resultados.',
-  },
-  {
-    nombre: 'Roberto Garc\u00eda',
-    rol: 'Entrenador',
-    credencial: 'Selecci\u00f3n estatal',
-    desc: 'Integrante de la selecci\u00f3n estatal con amplia experiencia en formaci\u00f3n de jugadores juveniles de alto nivel.',
-  },
-  {
-    nombre: 'Laura M\u00e9ndez',
-    rol: 'Entrenadora',
-    credencial: 'Especialista t\u00e9cnica',
-    desc: 'Especialista en desarrollo t\u00e9cnico y biomec\u00e1nica del tenis. Enfoque detallado en la correcci\u00f3n y optimizaci\u00f3n de golpes.',
-  },
-];
-
 export default function Nosotros() {
+  const { asset } = usePublicContent();
+  const heroImg = asset('nosotros', 'foto_academia');
+  const [coaches, setCoaches] = useState([]);
+  const [loadingCoaches, setLoadingCoaches] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const { data } = await supabase
+        .from('coaches')
+        .select('id, nombre, apellido, foto_url, rol, credencial, bio')
+        .eq('visible_en_sitio', true)
+        .order('orden', { ascending: true })
+        .order('nombre', { ascending: true });
+      if (!alive) return;
+      setCoaches(data ?? []);
+      setLoadingCoaches(false);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const director = coaches.find((c) => (c.rol || '').toLowerCase().includes('director'));
+
   return (
     <div>
       {/* Section 1 — Hero interior */}
       <section className="relative w-full h-[400px] bg-[#1B3A2A] flex items-center justify-center overflow-hidden">
+        {heroImg?.url && (
+          <img
+            src={heroImg.url}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover opacity-30"
+          />
+        )}
         <div
           className="absolute inset-0 opacity-[0.04]"
           style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M-1 5L5-1M3 9L9 3' stroke='white' stroke-width='0.6'/%3E%3C/svg%3E")` }}
@@ -92,10 +99,20 @@ export default function Nosotros() {
               </div>
             </div>
             <div>
-              <ImagePlaceholder
-                description="Armando Tlacaelel en cancha"
-                aspectRatio="aspect-[3/4]"
-              />
+              {director?.foto_url ? (
+                <div className="aspect-[3/4] w-full overflow-hidden rounded-xl">
+                  <img
+                    src={director.foto_url}
+                    alt={`${director.nombre} ${director.apellido}`}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ) : (
+                <ImagePlaceholder
+                  description="Armando Tlacaelel en cancha"
+                  aspectRatio="aspect-[3/4]"
+                />
+              )}
             </div>
           </div>
         </div>
@@ -107,26 +124,53 @@ export default function Nosotros() {
           <h2 className="font-['Playfair_Display'] text-3xl md:text-4xl font-bold text-[#1A1A1A] text-center mb-14">
             Nuestro equipo
           </h2>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {coaches.map((coach, i) => (
-              <div
-                key={i}
-                className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition"
-              >
-                <ImagePlaceholder
-                  description={coach.nombre}
-                  aspectRatio="aspect-[3/4]"
-                  className="rounded-none"
-                />
-                <div className="p-5">
-                  <h3 className="text-lg font-bold text-[#1A1A1A]">{coach.nombre}</h3>
-                  <p className="text-[#8B4513] text-sm font-semibold mb-2">{coach.rol}</p>
-                  <Badge type="utr" className="mb-3">{coach.credencial}</Badge>
-                  <p className="text-gray-600 text-sm leading-relaxed">{coach.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+          {loadingCoaches ? (
+            <p className="text-center text-gray-500 text-sm">Cargando equipo…</p>
+          ) : coaches.length === 0 ? (
+            <p className="text-center text-gray-500 text-sm">
+              Aún no hay coaches publicados.
+            </p>
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
+              {coaches.map((coach) => {
+                const nombreCompleto = `${coach.nombre} ${coach.apellido}`;
+                return (
+                  <div
+                    key={coach.id}
+                    className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition"
+                  >
+                    {coach.foto_url ? (
+                      <div className="aspect-[3/4] w-full overflow-hidden">
+                        <img
+                          src={coach.foto_url}
+                          alt={nombreCompleto}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <ImagePlaceholder
+                        description={nombreCompleto}
+                        aspectRatio="aspect-[3/4]"
+                        className="rounded-none"
+                      />
+                    )}
+                    <div className="p-5">
+                      <h3 className="text-lg font-bold text-[#1A1A1A]">{nombreCompleto}</h3>
+                      {coach.rol && (
+                        <p className="text-[#8B4513] text-sm font-semibold mb-2">{coach.rol}</p>
+                      )}
+                      {coach.credencial && (
+                        <Badge type="utr" className="mb-3">{coach.credencial}</Badge>
+                      )}
+                      {coach.bio && (
+                        <p className="text-gray-600 text-sm leading-relaxed">{coach.bio}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </section>
 

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronDown, GraduationCap, Users, Trophy } from 'lucide-react';
+import { CmsVideo } from '../../components/shared/PublicMedia';
+import { usePublicContent } from '../../contexts/PublicContent';
 
 const timelineSteps = [
   {
@@ -78,20 +80,42 @@ const faqItems = [
 
 export default function CaminoUSA() {
   const [openFaq, setOpenFaq] = useState(null);
+  const { text, asset } = usePublicContent();
+  const heroImg = asset('camino-usa', 'foto_hero');
+  const procesoVideo = asset('camino-usa', 'video_proceso');
 
   return (
     <div>
       {/* Hero */}
-      <section className="bg-[#1B3A2A] min-h-[500px] flex items-center">
-        <div className="max-w-4xl mx-auto px-6 py-20 text-center">
+      <section className="relative bg-[#1B3A2A] min-h-[500px] flex items-center overflow-hidden">
+        {heroImg?.url && (
+          <>
+            <img
+              src={heroImg.url}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover opacity-30"
+            />
+            <div className="absolute inset-0 bg-[#1B3A2A]/50" />
+          </>
+        )}
+        <div className="relative z-10 max-w-4xl mx-auto px-6 py-20 text-center">
           <h1 className="font-['Playfair_Display',serif] text-4xl md:text-5xl lg:text-6xl text-white font-bold leading-tight mb-6">
-            El tenis que juegas aquí abre puertas allá.
+            {text('camino-usa', 'titulo', 'El tenis que juegas aquí abre puertas allá.')}
           </h1>
           <p className="text-white/80 text-lg md:text-xl max-w-3xl mx-auto leading-relaxed">
-            Tenemos los contactos, la metodología y la experiencia para guiarte en cada paso del proceso de reclutamiento universitario en Estados Unidos.
+            {text('camino-usa', 'descripcion', 'Tenemos los contactos, la metodología y la experiencia para guiarte en cada paso del proceso de reclutamiento universitario en Estados Unidos.')}
           </p>
         </div>
       </section>
+
+      {/* Video del proceso — aparece solo si el CMS tiene uno cargado */}
+      {procesoVideo?.url && (
+        <section className="bg-white py-16">
+          <div className="max-w-3xl mx-auto px-6">
+            <CmsVideo url={procesoVideo.url} title="El proceso Camino USA" />
+          </div>
+        </section>
+      )}
 
       {/* Timeline */}
       <section className="py-20 bg-[#F8F6F2]">

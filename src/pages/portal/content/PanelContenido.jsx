@@ -148,7 +148,68 @@ function ProfileCard({ id, nombre, fotoUrl, table, onUploaded }) {
   );
 }
 
-function TabPerfiles({ athletes, coaches, onAthletePhotoUploaded, onCoachPhotoUploaded }) {
+function CoachFields({ coach, onSaved }) {
+  const [rol,        setRol]        = useState(coach.rol ?? '');
+  const [credencial, setCredencial] = useState(coach.credencial ?? '');
+  const [bio,        setBio]        = useState(coach.bio ?? '');
+  const [orden,      setOrden]      = useState(coach.orden ?? 100);
+  const [visible,    setVisible]    = useState(coach.visible_en_sitio ?? true);
+  const [status,     setStatus]     = useState(null);
+
+  const dirty =
+    rol !== (coach.rol ?? '') ||
+    credencial !== (coach.credencial ?? '') ||
+    bio !== (coach.bio ?? '') ||
+    Number(orden) !== (coach.orden ?? 100) ||
+    visible !== (coach.visible_en_sitio ?? true);
+
+  async function save() {
+    setStatus('saving');
+    const patch = {
+      rol: rol || null,
+      credencial: credencial || null,
+      bio: bio || null,
+      orden: Number(orden) || 100,
+      visible_en_sitio: visible,
+    };
+    const { error } = await supabase.from('coaches').update(patch).eq('id', coach.id);
+    if (error) { setStatus('error'); return; }
+    onSaved(coach.id, patch);
+    setStatus('saved');
+    setTimeout(() => setStatus(null), 2500);
+  }
+
+  const inputCls =
+    'w-full border border-[#E0DED8] rounded-[2px] px-3 py-2 text-sm bg-[#FAFAF7] focus:outline-none focus:ring-1 focus:ring-[#8B4513]/30 focus:border-[#8B4513]';
+
+  return (
+    <div className="flex-1 min-w-[240px] space-y-2">
+      <div className="grid grid-cols-2 gap-2">
+        <input className={inputCls} placeholder="Rol (ej. Head Coach)"
+               value={rol} onChange={e => setRol(e.target.value)} />
+        <input className={inputCls} placeholder="Credencial (ej. UTR 12.07)"
+               value={credencial} onChange={e => setCredencial(e.target.value)} />
+      </div>
+      <textarea rows={3} className={`${inputCls} resize-y`} placeholder="Bio / descripción"
+                value={bio} onChange={e => setBio(e.target.value)} />
+      <div className="flex items-center gap-3 flex-wrap">
+        <label className="text-[11px] flex items-center gap-1" style={{ color: 'var(--ink-mute)' }}>
+          Orden
+          <input type="number" className={`${inputCls} w-16 py-1`}
+                 value={orden} onChange={e => setOrden(e.target.value)} />
+        </label>
+        <label className="text-[11px] flex items-center gap-1.5" style={{ color: 'var(--ink-mute)' }}>
+          <input type="checkbox" checked={visible} onChange={e => setVisible(e.target.checked)} />
+          Visible en el sitio
+        </label>
+        <Btn variant={dirty ? 'primary' : 'default'} onClick={save} disabled={!dirty}>Guardar</Btn>
+        <SaveStatus status={status} />
+      </div>
+    </div>
+  );
+}
+
+function TabPerfiles({ athletes, coaches, onAthletePhotoUploaded, onCoachPhotoUploaded, onCoachUpdated }) {
   return (
     <div className="space-y-6">
       <p className="text-sm" style={{ color: 'var(--ink-mute)' }}>
@@ -170,15 +231,21 @@ function TabPerfiles({ athletes, coaches, onAthletePhotoUploaded, onCoachPhotoUp
       </Card>
 
       <Card title="Coaches" label={`${coaches.length} perfiles`}>
-        <div className="flex flex-wrap gap-5">
+        <p className="text-xs mb-4" style={{ color: 'var(--ink-mute)' }}>
+          La foto, el rol, la credencial y la bio se publican en la página <strong>Nosotros</strong>. El orden controla la posición; desmarca “Visible” para ocultar un coach del sitio.
+        </p>
+        <div className="space-y-6">
           {coaches.map(c => (
-            <ProfileCard
-              key={c.id} id={c.id}
-              nombre={`${c.nombre} ${c.apellido}`}
-              fotoUrl={c.foto_url}
-              table="coaches"
-              onUploaded={onCoachPhotoUploaded}
-            />
+            <div key={c.id} className="flex flex-col sm:flex-row gap-5 pb-6 last:pb-0 hairline-b last:border-b-0">
+              <ProfileCard
+                id={c.id}
+                nombre={`${c.nombre} ${c.apellido}`}
+                fotoUrl={c.foto_url}
+                table="coaches"
+                onUploaded={onCoachPhotoUploaded}
+              />
+              <CoachFields coach={c} onSaved={onCoachUpdated} />
+            </div>
           ))}
         </div>
       </Card>
@@ -616,7 +683,7 @@ export default function PanelContenido() {
         supabase.from('content_blocks').select('page, slot, value'),
         supabase.from('media_assets').select('page, slot, url, type'),
         supabase.from('athletes').select('id, nombre, apellido, foto_url').eq('activo', true).order('nombre'),
-        supabase.from('coaches').select('id, nombre, apellido, foto_url').order('nombre'),
+        supabase.from('coaches').select('id, nombre, apellido, foto_url, rol, credencial, bio, orden, visible_en_sitio').order('orden').order('nombre'),
       ]);
 
       const bMap = {};
@@ -653,6 +720,9 @@ export default function PanelContenido() {
   function handleCoachPhotoUploaded(id, url) {
     setCoaches(list => list.map(c => c.id === id ? { ...c, foto_url: url } : c));
   }
+  function handleCoachUpdated(id, patch) {
+    setCoaches(list => list.map(c => c.id === id ? { ...c, ...patch } : c));
+  }
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -678,6 +748,7 @@ export default function PanelContenido() {
                 athletes={athletes} coaches={coaches}
                 onAthletePhotoUploaded={handleAthletePhotoUploaded}
                 onCoachPhotoUploaded={handleCoachPhotoUploaded}
+                onCoachUpdated={handleCoachUpdated}
               />
             )}
             {tab === 'highlights' && <TabHighlights athletes={athletes} />}

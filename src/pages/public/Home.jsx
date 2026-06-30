@@ -4,8 +4,9 @@ import {
   Target, BarChart3, GraduationCap, Trophy,
   Users, ArrowRight, CheckCircle,
 } from 'lucide-react';
-import VideoPlaceholder from '../../components/shared/VideoPlaceholder';
 import ImagePlaceholder from '../../components/shared/ImagePlaceholder';
+import { CmsVideo } from '../../components/shared/PublicMedia';
+import { usePublicContent } from '../../contexts/PublicContent';
 
 // ─── Animated counter ─────────────────────────────────────────────────────────
 
@@ -150,20 +151,34 @@ const ARMANDO_BADGES = [
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Home() {
+  const { text, asset } = usePublicContent();
+  const heroImg = asset('home', 'hero_imagen');
+  const heroVideo = asset('home', 'video_principal');
+
   return (
     <div>
 
       {/* ── S1 — Hero ──────────────────────────────────────────────────────── */}
-      <section className="relative min-h-screen flex items-center justify-center bg-[#1B3A2A]">
+      <section className="relative min-h-screen flex items-center justify-center bg-[#1B3A2A] overflow-hidden">
+        {heroImg?.url && (
+          <>
+            <img
+              src={heroImg.url}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover opacity-30"
+            />
+            <div className="absolute inset-0 bg-[#1B3A2A]/50" />
+          </>
+        )}
         <div className="relative z-10 max-w-5xl mx-auto px-6 text-center">
           <p className="uppercase text-xs tracking-[3px] text-[#8B4513] mb-6">
             ACADEMIA DE ALTO RENDIMIENTO &middot; NAUCALPAN, M&Eacute;XICO
           </p>
           <h1 className="font-['Playfair_Display'] font-bold text-5xl md:text-7xl text-white mb-6 leading-tight">
-            Formamos a los mejores juniors de M&eacute;xico.
+            {text('home', 'hero_titulo', 'Formamos a los mejores juniors de México.')}
           </h1>
           <p className="text-lg text-gray-300 max-w-2xl mx-auto mb-10">
-            Entrenamiento de alto rendimiento, medici&oacute;n con datos reales y un sistema probado para obtener becas universitarias en Estados Unidos.
+            {text('home', 'hero_subtitulo', 'Entrenamiento de alto rendimiento, medición con datos reales y un sistema probado para obtener becas universitarias en Estados Unidos.')}
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
             <Link
@@ -180,7 +195,11 @@ export default function Home() {
             </Link>
           </div>
           <div className="max-w-3xl mx-auto">
-            <VideoPlaceholder description="[VIDEO] Entrenamiento en cancha — sesi&oacute;n de alto rendimiento TTPA" />
+            <CmsVideo
+              url={heroVideo?.url}
+              title="Entrenamiento en cancha — TTPA"
+              fallbackDescription="[VIDEO] Entrenamiento en cancha — sesión de alto rendimiento TTPA"
+            />
           </div>
         </div>
       </section>
