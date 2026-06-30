@@ -25,7 +25,8 @@ const pasos = [
 
 export default function Programas() {
   const { text, asset } = usePublicContent();
-  const fotoPrograma = asset('programas', 'foto_programa');
+  const fotoHero = asset('programas', 'foto_hero');
+  const fotoSede = asset('programas', 'foto_sede');
 
   return (
     <div>
@@ -118,7 +119,7 @@ export default function Programas() {
           <div className="grid md:grid-cols-2 gap-12 items-center">
             <div className="order-2 md:order-1">
               <CmsImage
-                url={fotoPrograma?.url}
+                url={fotoSede?.url}
                 alt="Canchas Club Casa Blanca Lomas Verdes"
                 fallback={<ImagePlaceholder description="Canchas Club Casa Blanca Lomas Verdes" />}
               />

@@ -14,7 +14,8 @@ const IMAGE_SLOTS = [
   { page: 'home',       slot: 'hero_imagen',   label: 'Home — Imagen hero',         hint: '1920×1080 px mín.' },
   { page: 'nosotros',   slot: 'foto_academia', label: 'Nosotros — Foto hero',       hint: '1920×600 px mín.'  },
   { page: 'nosotros',   slot: 'foto_coaches',  label: 'Nosotros — Foto del equipo', hint: '1920×600 px mín.'  },
-  { page: 'programas',  slot: 'foto_programa', label: 'Programas — Foto hero',      hint: '1920×600 px mín.'  },
+  { page: 'programas',  slot: 'foto_hero',     label: 'Programas — Imagen hero',                hint: '1920×600 px mín.'  },
+  { page: 'programas',  slot: 'foto_sede',     label: 'Programas — Foto de la sede (canchas)', hint: '1920×600 px mín.'  },
   { page: 'camino-usa', slot: 'foto_hero',     label: 'Camino USA — Imagen hero',   hint: '1920×600 px mín.'  },
 ];
 
@@ -92,7 +93,9 @@ function ProfileCard({ id, nombre, fotoUrl, table, onUploaded }) {
       if (upErr) throw upErr;
 
       const { data } = supabase.storage.from('public-media').getPublicUrl(path);
-      const url = data.publicUrl;
+      // Cache-busting: la ruta en storage es fija (id.ext), así que sin esto el
+      // navegador/CDN serviría la imagen anterior tras un reemplazo.
+      const url = `${data.publicUrl}?v=${Date.now()}`;
 
       const { error: dbErr } = await supabase.from(table).update({ foto_url: url }).eq('id', id);
       if (dbErr) throw dbErr;
@@ -274,7 +277,7 @@ function HighlightPhotoSlot({ athleteId, slotKey, url, onUploaded }) {
       if (upErr) throw upErr;
 
       const { data } = supabase.storage.from('public-media').getPublicUrl(path);
-      const publicUrl = data.publicUrl;
+      const publicUrl = `${data.publicUrl}?v=${Date.now()}`;
 
       const { error: dbErr } = await supabase.from('athlete_media').upsert(
         { athlete_id: athleteId, type: 'photo', category: slotKey, url: publicUrl },
