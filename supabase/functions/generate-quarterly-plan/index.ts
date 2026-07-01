@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-const PROMPT_VERSION = 'pm-v2.2-2026-06-27';
+const PROMPT_VERSION = 'pm-v2.4-2026-07-01';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -57,13 +57,21 @@ REGLAS:
 - "read_corto": una sola línea (máx ~120 caracteres) que resuma lo que el coach observó sobre esa sub-dimensión, en sus propias palabras.
 - "candidata_a_foco": true si lo observado describe algo a TRABAJAR (un problema, una intención de mejora); false si solo describe algo que el atleta ya sostiene bien (candidata a mantenimiento).
 - "urgencia": "alta" | "media" | "baja" — magnitud del problema observado. alta = problema claro que le limita el juego hoy; media = mejora relevante pero no crítica; baja = detalle menor o fortaleza (las no-candidatas usan "baja"). Sirve para priorizar qué se vuelve foco.
+- **No dependas de marcadores de estructura** (numeración, viñetas, "primero"/"segundo", "uno"/"dos") para detectar temas distintos. El coach puede mencionar varios temas en prosa corrida, sin enumerarlos explícitamente — lee por CONTENIDO, no por formato. Si el texto describe un tema y luego, en la misma oración o en la siguiente, describe otro tema distinto (aunque no haya una marca que los separe), identifícalos como dos sub-dimensiones separadas, no los fusiones en una sola.
+
+ADEMÁS, evalúa la calidad general del dump completo (no por sub-dimensión, sino del texto en conjunto):
+- "dump_quality.level": "detallado" | "vago".
+  - "vago" cuando las observaciones son genéricas o superficiales para una o más sub-dimensiones identificadas — por ejemplo "la derecha está bien aunque puede mejorar", sin mecánica, situación o comportamiento concreto. Con un dump así, un generador de objetivos tendría que INVENTAR detalle técnico que el coach nunca dio.
+  - "detallado" cuando el texto trae mecánica, comportamiento o situación concretos (qué pasa, cuándo, cómo) para las sub-dimensiones que identificaste, aunque sea breve.
+- "dump_quality.motivo": si es "vago", una línea corta explicando qué falta (ej. "la observación de derecha no dice qué falla técnicamente"). Si es "detallado", cadena vacía.
 - Responde ÚNICAMENTE con JSON válido, sin markdown ni texto extra.
 
 FORMATO:
 {
   "identified": [
     { "dimension": "tecnica|tactica|physical|character", "sub_dimension": "<key>", "read_corto": "<1 línea>", "candidata_a_foco": true, "urgencia": "alta|media|baja" }
-  ]
+  ],
+  "dump_quality": { "level": "detallado|vago", "motivo": "<line o cadena vacía>" }
 }`;
 
 const GENERATE_SYSTEM = `Eres un asistente especializado en tenis de alto rendimiento.
@@ -100,6 +108,10 @@ PRESCRIPCIÓN ESTRUCTURAL (no literal)
 No reformules el síntoma como instrucción ("pega de brazo → que cargue la pierna", "está parado atrás → que dé un paso"). Apunta a la CAUSA estructural/mecánica que produce el síntoma y al resultado de desempeño que se busca; el objetivo debe describir el sistema de movimiento a construir, no el síntoma invertido.
 - Síntoma: "pega de puro brazo en el saque, no carga la pierna de atrás" → "Mejorar la preparación de piernas para lograr mayor potencia al despegar del piso en el saque"
 - Síntoma: "espera la devolución parado atrás, no da un paso adelante" → "Solidificar el movimiento de la devolución para conseguir mayor aceleración y contacto hacia adelante con la bola"
+
+TONO Y REFERENCIA AL ATLETA (estricta)
+Nunca uses el nombre del atleta en el diagnóstico ni en el objetivo — el plan ya está scopeado a un solo atleta, repetir el nombre no aporta y puede sonar a señalamiento personal. Redacta ambos en tono constructivo y CONDUCTUAL: describe qué pasa y cuándo, no un juicio de carácter sobre la persona.
+Si la observación del coach viene fraseada como crítica directa a la persona (ej. "Fulano no tiene término medio", "le falta compromiso"), TRADÚCELA a la conducta observable sin perder el contenido ni inventar (ej. "la toma de decisiones alterna entre extremos, sin una selección intermedia" en vez de repetir el juicio sobre la persona).
 
 SOBRE EL FEEDBACK DEL COACH (regeneración)
 Si el coach propone una idea u objetivo en su feedback, NO lo copies literal: reescríbelo con la estructura de arriba (prescripción + dirección + estándar) y regenera las anclas para que sean coherentes con el objetivo reescrito.
@@ -183,7 +195,12 @@ Deno.serve(async (req) => {
       const identified = (parsed.identified ?? [])
         .filter((o) => ALL_DIMS.has(o.dimension) && ALL_KEYS.has(o.sub_dimension))
         .map((o) => ({ ...o, urgencia: URG.has(o.urgencia) ? o.urgencia : 'media' }));
-      return jsonResponse({ mode, prompt_version: PROMPT_VERSION, identified });
+      const rawQuality = parsed.dump_quality ?? {};
+      const dump_quality = {
+        level: rawQuality.level === 'vago' ? 'vago' : 'detallado',
+        motivo: typeof rawQuality.motivo === 'string' ? rawQuality.motivo : '',
+      };
+      return jsonResponse({ mode, prompt_version: PROMPT_VERSION, identified, dump_quality });
     }
 
     if (mode === 'generate' || mode === 'regenerate') {

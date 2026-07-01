@@ -96,10 +96,17 @@ export default function PlanesCoach() {
   });
   const [observations, setObs] = useState('');
 
+  // ── Create — draft persistente + guard un plan por atleta/periodo ──
+  const [draftPlanId,     setDraftPlanId]    = useState(null);
+  const [checkingExisting,setCheckingExisting]= useState(false);
+  const [existingBlock,   setExistingBlock]  = useState(null); // plan activo/completado que bloquea crear uno nuevo
+
   // ── Create — paso 3: selección de focos ───────────────────────────
   const [identifying, setIdent]   = useState(false);
   const [identified,  setIdList]  = useState([]);      // { dimension, sub_dimension, read_corto, candidata_a_foco, carryover }
   const [selFocos,    setSelFocos]= useState(new Set()); // focoKey()
+  const [dumpQuality, setDumpQuality] = useState(null);  // { level: 'detallado'|'vago', motivo }
+  const [lastIdentifiedObs, setLastIdentifiedObs] = useState(null); // texto del dump para el que `identified` es válido
 
   // ── Create — paso 4: generación + revisión ────────────────────────
   const [generating,  setGen]     = useState(false);
@@ -144,19 +151,100 @@ export default function PlanesCoach() {
 
   const periodEnd = periodEndFor(periodStart);
 
+  // Cambiar atleta/período invalida el chequeo de plan existente ya hecho
+  useEffect(() => { setExistingBlock(null); }, [selAthlete, periodStart]);
+
   // ── Reset / nav ───────────────────────────────────────────────────
   const resetCreate = () => {
     setStep(1); setSel(''); setObs('');
-    setIdList([]); setSelFocos(new Set());
+    setIdList([]); setSelFocos(new Set()); setDumpQuality(null); setLastIdentifiedObs(null);
     setGenFocos([]); setFeedback(''); setGenLog([]); setPromptVer(null);
     setGErr(null); setSErr(null);
+    setDraftPlanId(null); setExistingBlock(null); setCheckingExisting(false);
   };
   const goCreate = () => { resetCreate(); setView('create'); };
   const goList   = () => { setView('list'); setActivePlan(null); };
 
+  // ── Draft persistente: guardar checkpoint (best-effort, no bloquea) ─
+  const persistDraft = async (fields) => {
+    if (!draftPlanId) return;
+    try {
+      await supabase.from('quarterly_plans').update(fields).eq('id', draftPlanId);
+    } catch (e) {
+      console.warn('No se pudo guardar el borrador:', e);
+    }
+  };
+
+  // Hidrata el estado local del wizard a partir de un plan draft de la BD
+  const hydrateFromDraft = (plan) => {
+    const ds = plan.draft_state ?? {};
+    setDraftPlanId(plan.id);
+    setObs(plan.raw_input ?? '');
+    setIdList(ds.identified ?? []);
+    setSelFocos(new Set(ds.selFocos ?? []));
+    setDumpQuality(ds.dumpQuality ?? null);
+    setGenFocos(ds.genFocos ?? []);
+    setGenLog(ds.genLog ?? []);
+    setPromptVer(ds.promptVer ?? null);
+    setLastIdentifiedObs((ds.identified?.length ?? 0) > 0 ? (plan.raw_input ?? '').trim() : null);
+    setFeedback('');
+    setGErr(null); setSErr(null);
+    setStep(ds.step ?? 2);
+  };
+
+  // ── Paso 1 → 2: valida que no exista ya un plan para atleta+periodo ─
+  const handleStep1Continue = async () => {
+    if (!selAthlete || !periodStart) return;
+    setCheckingExisting(true); setExistingBlock(null); setGErr(null);
+    try {
+      const { data: existing, error } = await supabase
+        .from('quarterly_plans')
+        .select('id, status, raw_input, draft_state')
+        .eq('athlete_id', selAthlete)
+        .eq('period_start', periodStart)
+        .neq('status', 'archived')
+        .maybeSingle();
+      if (error) throw error;
+
+      if (existing?.status === 'draft') {
+        hydrateFromDraft(existing);
+        return;
+      }
+      if (existing) {
+        setExistingBlock(existing);
+        return;
+      }
+
+      const { data: created, error: cErr } = await supabase
+        .from('quarterly_plans')
+        .insert({
+          athlete_id:   selAthlete,
+          coach_id:     user.coach_id,
+          period_start: periodStart,
+          period_end:   periodEnd,
+          status:       'draft',
+        })
+        .select('id')
+        .single();
+      if (cErr) throw cErr;
+      setDraftPlanId(created.id);
+      setStep(2);
+    } catch (e) {
+      setGErr(e.message ?? 'Error al validar si ya existe un plan para este atleta y periodo');
+    } finally {
+      setCheckingExisting(false);
+    }
+  };
+
   // ── Paso 2 → 3: identificar sub-dimensiones del dump ──────────────
   const handleIdentify = async () => {
     if (!observations.trim()) return;
+    // Sin cambios en el dump desde la última identificación: no vuelvas a llamar al modelo,
+    // solo avanza con lo que ya se identificó (evita regenerar focos al ir y volver del paso 2).
+    if (lastIdentifiedObs !== null && observations.trim() === lastIdentifiedObs && identified.length > 0) {
+      setStep(3);
+      return;
+    }
     setIdent(true); setGErr(null);
     try {
       const { data, error } = await supabase.functions.invoke('generate-quarterly-plan', {
@@ -165,6 +253,7 @@ export default function PlanesCoach() {
       if (error) throw error;
       let list = data?.identified ?? [];
       if (!list.length) throw new Error('No se identificaron sub-dimensiones. Agrega más detalle al texto.');
+      const quality = data?.dump_quality ?? null;
 
       // Carryover: focos del plan anterior del atleta
       let carryover = new Set();
@@ -197,7 +286,13 @@ export default function PlanesCoach() {
         .forEach(it => pre.add(focoKey(it.dimension, it.sub_dimension)));
       setIdList(list);
       setSelFocos(pre);
+      setDumpQuality(quality);
+      setLastIdentifiedObs(observations.trim());
       setStep(3);
+      persistDraft({
+        raw_input: observations,
+        draft_state: { step: 3, identified: list, selFocos: [...pre], dumpQuality: quality },
+      });
     } catch (e) {
       setGErr(e.message ?? 'Error al identificar');
     } finally {
@@ -233,12 +328,18 @@ export default function PlanesCoach() {
       const out = data?.focos ?? [];
       if (!out.length) throw new Error('No se generaron focos. Revisa el detalle de las observaciones.');
       const root = uuid();
+      const promptVersion = data?.prompt_version ?? null;
+      const log = [{ id: root, root_id: root, parent_id: null, mode: 'generate',
+                     coach_feedback: null, output: out, prompt_version: promptVersion }];
       setGenFocos(out);
-      setPromptVer(data?.prompt_version ?? null);
-      setGenLog([{ id: root, root_id: root, parent_id: null, mode: 'generate',
-                   coach_feedback: null, output: out, prompt_version: data?.prompt_version ?? null }]);
+      setPromptVer(promptVersion);
+      setGenLog(log);
       setFeedback('');
       setStep(4);
+      persistDraft({
+        draft_state: { step: 4, identified, selFocos: [...selFocos], dumpQuality,
+                        genFocos: out, genLog: log, promptVer: promptVersion },
+      });
     } catch (e) {
       setGErr(e.message ?? 'Error al generar');
     } finally {
@@ -260,11 +361,17 @@ export default function PlanesCoach() {
       if (!out.length) throw new Error('La regeneración no devolvió focos. Ajusta el comentario.');
       const last = genLog[genLog.length - 1];
       const id = uuid();
-      setGenLog(prev => [...prev, { id, root_id: last?.root_id ?? id, parent_id: last?.id ?? null,
-                                    mode: 'regenerate', coach_feedback: feedback.trim(),
-                                    output: out, prompt_version: data?.prompt_version ?? promptVer }]);
+      const newVer = data?.prompt_version ?? promptVer;
+      const log = [...genLog, { id, root_id: last?.root_id ?? id, parent_id: last?.id ?? null,
+                                 mode: 'regenerate', coach_feedback: feedback.trim(),
+                                 output: out, prompt_version: newVer }];
+      setGenLog(log);
       setGenFocos(out);
       setFeedback('');
+      persistDraft({
+        draft_state: { step: 4, identified, selFocos: [...selFocos], dumpQuality,
+                        genFocos: out, genLog: log, promptVer: newVer },
+      });
     } catch (e) {
       setGErr(e.message ?? 'Error al regenerar');
     } finally {
@@ -275,21 +382,19 @@ export default function PlanesCoach() {
   // ── Guardar plan + objetivos + log de generación ──────────────────
   const handleSavePlan = async () => {
     if (!selAthlete || !genFocos.length) return;
+    if (!draftPlanId) { setSErr('No se encontró el borrador de este plan. Vuelve al paso 1 e inténtalo de nuevo.'); return; }
     setSav(true); setSErr(null);
     try {
-      const { data: plan, error: pErr } = await supabase
+      const { error: pErr } = await supabase
         .from('quarterly_plans')
-        .insert({
-          athlete_id:   selAthlete,
-          coach_id:     user.coach_id,
-          period_start: periodStart,
-          period_end:   periodEnd,
-          raw_input:    observations,
-          status:       'active',
+        .update({
+          raw_input:   observations,
+          status:      'active',
+          draft_state: null,
         })
-        .select('id')
-        .single();
+        .eq('id', draftPlanId);
       if (pErr) throw pErr;
+      const plan = { id: draftPlanId };
 
       // Sub-dimensiones identificadas que NO son foco → mantenimiento
       const focoKeys = new Set(genFocos.map(f => focoKey(f.dimension, f.sub_dimension)));
@@ -365,6 +470,32 @@ export default function PlanesCoach() {
     if (data) { setActivePlan(data); setView('detail'); }
   };
 
+  // Reanudar un borrador desde la lista (hidrata el wizard y va a create)
+  const resumeDraftFromList = async (planId) => {
+    const { data } = await supabase
+      .from('quarterly_plans')
+      .select('id, athlete_id, period_start, raw_input, draft_state')
+      .eq('id', planId)
+      .single();
+    if (!data) return;
+    setSel(data.athlete_id);
+    setPStart(data.period_start);
+    hydrateFromDraft(data);
+    setView('create');
+  };
+
+  const openPlan = (plan) => {
+    if (plan.status === 'draft') resumeDraftFromList(plan.id);
+    else openDetail(plan.id);
+  };
+
+  const handleDiscardDraft = async (e, planId) => {
+    e.stopPropagation();
+    if (!window.confirm('¿Descartar este borrador? Se perderá el progreso.')) return;
+    await supabase.from('quarterly_plans').delete().eq('id', planId);
+    setPlans(ps => ps.filter(p => p.id !== planId));
+  };
+
   const handleArchive = async (planId) => {
     if (!window.confirm('¿Archivar este plan? Ya no aparecerá en los reportes activos.')) return;
     await supabase.from('quarterly_plans').update({ status: 'archived' }).eq('id', planId);
@@ -401,10 +532,13 @@ export default function PlanesCoach() {
           {plans.map(p => {
             const nObj = (p.quarterly_plan_objectives ?? []).length;
             return (
-              <button
+              <div
                 key={p.id}
-                onClick={() => openDetail(p.id)}
-                className="w-full flex items-center gap-4 px-4 py-3 hairline text-left hover:bg-[var(--cream)] transition"
+                role="button"
+                tabIndex={0}
+                onClick={() => openPlan(p)}
+                onKeyDown={e => { if (e.key === 'Enter') openPlan(p); }}
+                className="w-full flex items-center gap-4 px-4 py-3 hairline text-left hover:bg-[var(--cream)] transition cursor-pointer"
                 style={{ background: 'var(--paper)' }}>
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-semibold truncate">{athleteName(p)}</p>
@@ -416,7 +550,15 @@ export default function PlanesCoach() {
                   {nObj} obj.
                 </span>
                 <StatusBadge status={p.status} />
-              </button>
+                {p.status === 'draft' && (
+                  <button
+                    onClick={e => handleDiscardDraft(e, p.id)}
+                    className="text-[10px] font-semibold uppercase tracking-wide shrink-0 hover:underline"
+                    style={{ color: 'var(--ink-mute)' }}>
+                    Descartar
+                  </button>
+                )}
+              </div>
             );
           })}
         </div>
@@ -469,12 +611,27 @@ export default function PlanesCoach() {
                   </p>
                 )}
               </Field>
+              {genError && <ErrorBox msg={genError} />}
+              {existingBlock && (
+                <div className="hairline p-3" style={{ background: 'rgba(220,38,38,.06)' }}>
+                  <p className="text-[12px]" style={{ color: '#b91c1c', lineHeight: 1.6 }}>
+                    Ya existe un plan <strong>{existingBlock.status === 'active' ? 'activo' : 'completado'}</strong> para
+                    este atleta en este período. Solo puede haber un plan por atleta y periodo — archívalo o bórralo
+                    desde su detalle para poder crear uno nuevo.
+                  </p>
+                  <button
+                    onClick={() => openDetail(existingBlock.id)}
+                    className="mt-2 text-[11px] font-semibold uppercase tracking-wide hairline px-3 py-1.5 hover:bg-[var(--paper)] transition">
+                    Ver plan existente →
+                  </button>
+                </div>
+              )}
               <button
-                onClick={() => setStep(2)}
-                disabled={!selAthlete || !periodStart}
+                onClick={handleStep1Continue}
+                disabled={!selAthlete || !periodStart || checkingExisting}
                 className="px-6 py-2 text-[11px] font-semibold uppercase tracking-wide text-white disabled:opacity-40 hover:opacity-90 transition"
                 style={{ background: 'var(--accent)' }}>
-                Continuar →
+                {checkingExisting ? 'Verificando…' : 'Continuar →'}
               </button>
             </div>
           )}
@@ -531,6 +688,23 @@ export default function PlanesCoach() {
                   {selFocos.size} / {MAX_FOCOS} seleccionados
                 </p>
               </div>
+
+              {dumpQuality?.level === 'vago' && (
+                <div className="hairline p-3" style={{ background: 'rgba(234,179,8,.08)' }}>
+                  <p className="text-[11px] font-bold uppercase tracking-wide mb-1" style={{ color: '#a16207' }}>
+                    Observaciones un poco generales
+                  </p>
+                  <p className="text-[11px]" style={{ color: 'var(--ink)', lineHeight: 1.6 }}>
+                    {dumpQuality.motivo || 'Con este nivel de detalle el sistema puede inventar mecánica que no describiste. Puedes continuar así o volver y agregar más detalle concreto (qué pasa, cuándo, cómo).'}
+                  </p>
+                  <button
+                    onClick={() => setStep(2)}
+                    className="mt-2 text-[11px] font-semibold uppercase tracking-wide hairline px-3 py-1.5 hover:bg-[var(--paper)] transition"
+                    style={{ color: '#a16207' }}>
+                    ← Agregar más detalle
+                  </button>
+                </div>
+              )}
 
               <FocoGroup
                 title="Continúan del trimestre anterior"

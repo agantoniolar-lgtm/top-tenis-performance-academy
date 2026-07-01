@@ -305,3 +305,41 @@ Marco quiere priorizar voz en tres frentes:
 - **Dump vago/superficial (edge case 1).** El modelo inventa cuando el dump no tiene mecánica (*"la derecha está bien aunque puede mejorar"* → *"reducir el margen de error…"*, que el coach nunca pidió). **Decisión:** agregar un **guardrail no-bloqueante** en el paso del dump: un warning que avise que las observaciones no son lo suficientemente detalladas/concretas para generar focos completos, sin impedir continuar. (Task Dev.)
 - **Fortalezas + un foco urgente (edge case 2).** Funcionó bien y sin cambios. Confirmado como válido que un plan tenga **un solo foco** y el resto en mantenimiento (puede reflejar un avance importante que se quiere sostener). El patrón "mantener…" en las no-foco gustó.
 - **Coach que prescribe (edge case 3).** Persiste el loro-repetidor: convierte el síntoma en instrucción literal. **Corregido con prescripción estructural** (§4, `pm-v2.2`): el objetivo apunta a la causa estructural/mecánica, no al síntoma invertido.
+
+## 16. Tercer test en vivo (1 Jul 2026) — Caso 1 (Mariana), dumps sintéticos de edge cases
+
+Marco construyó un set de 5 dumps sintéticos para cubrir edge cases de calidad de input (`docs/dumps-test-planning-edge-cases.md`) y corrió el Caso 1 (Mariana — completo y bien definido). Hallazgos:
+
+### UX — re-identificación innecesaria (corregido)
+- **Bug:** si el coach identificaba focos, volvía al paso 2 a editar el dump y regresaba sin haber cambiado el texto, el sistema volvía a llamar a `identify` de cero — recalculando (y potencialmente reordenando/perdiendo) la lista de focos ya revisada.
+- **Fix:** se cachea el texto del dump al momento de identificar (`lastIdentifiedObs`). Si el coach vuelve a "Identificar focos →" con el mismo texto, se navega directo al paso 3 sin llamar al modelo. Si el texto cambió, sí se re-identifica. (Task Dev, resuelto en la misma sesión.)
+
+### Rúbrica de objetivos — falta anclaje a la filosofía de la academia (hueco nuevo)
+- **Problema.** El objetivo generado puede cumplir la gramática (§4) y aun así ser vago *sustantivamente*, porque la observación del coach ya viene con la solución implícita en vez de describir el síntoma. Ejemplo real (Mariana, `transferencia_partido`):
+  - Observación: *"en set de práctica o torneo el nivel de ejecución baja notoriamente comparado con el entrenamiento controlado"*.
+  - Objetivo generado: *"Mantener el nivel de ejecución del entrenamiento controlado durante sets de práctica y torneo, en situaciones de partido"*.
+  - El objetivo es prácticamente un calco de la observación — "mantener el nivel de ejecución en partido" es la solución obvia a "baja el nivel en partido", no una prescripción concreta. La causa real (qué hace distinto en entrenamiento vs. partido) no está en la observación, así que el LLM no tiene de dónde sacar la prescripción concreta.
+- **Segundo hueco relacionado (calidad de la observación misma):** el ejemplo anterior también expone que la observación no está lo bastante bien construida para la dimensión — describe el síntoma (baja el nivel) pero no el comportamiento observable de la causa. Contraste con una observación bien construida para `transferencia_partido`: *"juega con mucha energía y confianza en su derecha en entrenamiento, pero en partidos pierde esa energía y solo pasa la bola sin proponer"* — aquí sí hay algo concreto y accionable (la energía/confianza en la ejecución del golpe) del cual el LLM puede prescribir sin inventar.
+- **Decisión:** esto no se resuelve con más reglas sueltas en el prompt — hace falta una **rúbrica explícita y un skill dedicado** (tanto para verificar observaciones como para generar/evaluar objetivos) que codifique la filosofía de la academia sobre qué hace a una observación y a un objetivo "sustanciales", no solo gramaticalmente correctos. Se agregan dos items de backlog (Team, Phase 2 — Analytics), ligados al rediseño de evals:
+  1. **Rúbrica/skill — objetivos alineados a la filosofía de la academia.**
+  2. **Rúbrica/skill — verificación de observaciones** (que cada dimensión identificada traiga algo concreto y accionable, no solo la etiqueta del síntoma).
+  Ambos items necesitan su propio doc de scoping antes de construirse — no son ajuste de prompt, son trabajo de producto/filosofía primero.
+
+### Dimensiones numéricas (physical) — sin definir (hueco ya conocido, reconfirmado)
+- El Caso 1 tocó `beep_test` de forma cualitativa ("no es de fuerza, es de resistencia") porque no hay catálogo de baselines/targets/unidades para `physical` (ya señalado en §11 "Fuera de alcance"). Se reconfirma como bloqueante para que `physical` tenga objetivos tan medibles como técnica/táctica/carácter.
+- **Decisión:** nuevo item de backlog (Team) — definir observaciones y objetivos esperados específicamente para las sub-dimensiones numéricas (`beep_test`, `spider_drill`, `sprint_20m`, `salto_vertical`, `fuerza_inferior`, `fuerza_superior`, `fms`), con su propio doc de scoping. No se resuelve dentro de este ciclo de build.
+
+## 17. Cuarto test en vivo (1 Jul 2026) — Caso 2 (Emilio, narrow)
+
+### Bug — `identify` dependía de marcadores de estructura (corregido)
+- Con el dump enumerado ("Uno: la derecha... Dos: el manejo de riesgo...") `identify` detectaba las dos sub-dimensiones bien. Al quitar "Uno:"/"Dos:" y dejar el mismo contenido en prosa corrida, dejó de reconocer `manejo_riesgo` — solo detectaba `forehand`.
+- **Fix (`pm-v2.4`):** regla explícita en `IDENTIFY_SYSTEM` de no depender de numeración/viñetas/marcadores para separar temas — leer por contenido. Caso de regresión agregado como **Caso 2b** en `docs/dumps-test-planning-edge-cases.md`.
+
+### Aclaración — el estándar "sin recordatorio" no es un edge case, es un estándar válido
+- Salió `estandar_usado: "sin recordatorio"` en un objetivo de `manejo_riesgo` (táctica). No es un bug: §13 ya definió `sin recordatorio` como uno de los tres estándares válidos ("bajo presión" y "sin recordatorio" además del default "de forma consistente"), elegido por el LLM según el objetivo — sin restricción de dimensión. Significa que el atleta sostiene el comportamiento sin que el coach se lo tenga que recordar en el momento (aplicable a táctica igual que a carácter, no es exclusivo de una dimensión).
+- **Decidido (1 Jul 2026):** no se agrega tooltip por ahora. Queda como está — se revisita si vuelve a generar confusión, o cuando se construya la rúbrica/skill de objetivos (§16).
+
+### Tono y nombre del atleta en diagnóstico/objetivo (corregido)
+- El dump de Emilio frasea el manejo de riesgo como juicio directo a la persona ("Emilio no tiene término medio") y usa su nombre. Riesgo: si el `diagnostico` (que debe ser "fiel al dump", §13) hereda ese tono y nombre, se siente como un ataque cuando el coach lo discuta con el atleta — el diagnóstico/objetivo eventualmente son material de conversación con el atleta, no solo input interno.
+- **Fix (`pm-v2.4`):** regla nueva en `GENERATE_SYSTEM` — nunca usar el nombre del atleta en diagnóstico/objetivo, y traducir crítica directa a la persona en conducta observable, sin inventar ni perder el contenido.
+- **Decisión relacionada:** la convención de tono/nombre se agrega también a las notas del task de backlog "Rúbrica/skill — verificación de observaciones" (§16), porque el mismo criterio debe aplicar hacia atrás — cómo el coach redacta la observación, no solo cómo el LLM redacta la salida.
