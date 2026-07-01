@@ -56,12 +56,12 @@ Cuando Marco dé la instrucción **"let's end the session and log progress for t
    - **Open items / follow-ups**: pendientes que quedan abiertos para la próxima sesión.
 
 2. **Actualizar la página principal** — en [🎾 Top Tennis Performance Academy](https://www.notion.so/3685a7ea466081f1b19ff96798d6497a):
-   - **Last Session:** fecha y resumen breve de lo trabajado
-   - **Next Session:** foco de la próxima sesión y deadline si aplica
+   - **Last Session:** **siempre se reemplaza por completo** con la fecha y el resumen de la sesión que se acaba de cerrar — nunca acumula sesiones anteriores. El historial completo de todas las sesiones vive en Session Logs, no en esta página; Last Session es solo un snapshot de la más reciente.
+   - **Next Session:** foco de la próxima sesión y deadline si aplica — se actualiza siempre para reflejar la prioridad correcta de cara a lo que sigue.
 
 No hacer esto de manera automática — esperar el comando explícito de Marco.
 
-Si hay más de una sesión en el mismo día: no reemplazar el contenido de Last Session en la página principal — **agregar** lo nuevo al final del campo **What we did** existente. Next Session sí se puede actualizar si el foco cambió. Agregar también una nueva entrada en la tabla de Session Logs, indicando en **What we did** que es una sesión adicional del mismo día.
+Si hay más de una sesión en el mismo día: el historial se preserva en **Session Logs** — agregar ahí una entrada nueva por cada sesión adicional, indicando en **What we did** que es una sesión adicional del mismo día. La página principal (Last Session) igual se **reemplaza** con el resumen de la sesión que se acaba de cerrar, no se le agrega al texto anterior.
 
 ---
 
