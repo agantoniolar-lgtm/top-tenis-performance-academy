@@ -343,3 +343,114 @@ Marco construyó un set de 5 dumps sintéticos para cubrir edge cases de calidad
 - El dump de Emilio frasea el manejo de riesgo como juicio directo a la persona ("Emilio no tiene término medio") y usa su nombre. Riesgo: si el `diagnostico` (que debe ser "fiel al dump", §13) hereda ese tono y nombre, se siente como un ataque cuando el coach lo discuta con el atleta — el diagnóstico/objetivo eventualmente son material de conversación con el atleta, no solo input interno.
 - **Fix (`pm-v2.4`):** regla nueva en `GENERATE_SYSTEM` — nunca usar el nombre del atleta en diagnóstico/objetivo, y traducir crítica directa a la persona en conducta observable, sin inventar ni perder el contenido.
 - **Decisión relacionada:** la convención de tono/nombre se agrega también a las notas del task de backlog "Rúbrica/skill — verificación de observaciones" (§16), porque el mismo criterio debe aplicar hacia atrás — cómo el coach redacta la observación, no solo cómo el LLM redacta la salida.
+
+## 18. Quinto test en vivo (1 Jul 2026) — Caso 3 (Sofía, vago/superficial)
+
+Marco corrió el Caso 3 del set sintético manualmente en el UI (paso a paso, sin trace automatizado). El caso está diseñado para "fallar" — y falló, exponiendo que la rúbrica actual no alcanza. Hallazgos:
+
+### Guardrail de especificidad no se disparó (hueco central — dispara el redesign)
+- El guardrail `dump_quality` no marcó el dump como "vago" pese a que la derecha y el revés se describen solo como "está bien, puede mejorar" — sin mecánica ni dirección de mejora concreta.
+- **Edge case identificado:** cuando una dimensión se menciona como "está bien también" sin señalar qué mejorar, el sistema no tiene una acción definida — no descarta la dimensión ni le pregunta al coach. Comportamiento deseado (ejemplo de Marco): *"mencionaste que el revés también está bien, pero no hay un área de mejora — ¿quieres incluir un foco en esa dimensión?"*
+- **Decisión:** no se resuelve con un ajuste suelto de prompt — es el caso que justifica el redesign de rúbrica. Se agrega como criterio explícito al task de backlog **P&M — Rúbrica/skill: verificación de observaciones por dimensión**.
+- Conclusión de Marco: *"la ejecución de este caso falla por completo porque no se flaggea la falta de especificidad"* — antes de generar objetivo + anclas para un foco debería haber certeza de que ese foco es específico, medible y concreto. Esa certeza es exactamente lo que la rúbrica del redesign tiene que codificar.
+
+### Bug — foco de carryover sin explicación clara
+- Salió `ética de trabajo` como foco de carryover del periodo anterior, sin que sea evidente de dónde vino dentro del dump sintético de Sofía.
+- **Hipótesis (sin confirmar):** el entorno de prueba solo tiene un atleta real en BD (dummy data reset del 30 Jun). Si el Caso 3 se corrió contra ese atleta real, el carryover está jalando el plan trimestral real anterior de ese atleta — no sería un bug sino un artefacto de correr casos sintéticos contra datos reales. Pendiente confirmar con Marco.
+
+### Bug — focos identificados no persistieron
+- En el UI pareció que los focos identificados se tuvieron que regenerar en vez de reusar el cache — lo cual contradice el fix de re-identificación del mismo día (`pm-v2.4`, §16). Necesita repro: confirmar si el texto del dump cambió entre pasos, o si el cache (`lastIdentifiedObs`) se está invalidando de más (p. ej. al recargar la página o retomar un draft).
+
+### No determinismo entre corridas de `identify`
+- Corriendo `identify` varias veces sobre el mismo dump, el número de focos varió (3 → 2 en la tercera corrida) y `coachabilidad` reapareció de forma inconsistente entre corridas.
+- Esperado hasta cierto punto (`temperature: 0.3`), pero para efectos de confiabilidad es una señal de que `identify` necesita medirse por consistencia, no solo por calidad puntual. Se conecta con el framework de evals Tier B (`docs/skills-backlog.md` #1).
+
+### Fix menor — diagnóstico no debe abrir con el sustantivo del atleta
+- El texto de diagnóstico por dimensión abre con "la atleta presenta..." — debe redactarse sin sujeto explícito al inicio. Ejemplo: sustituir *"la atleta presenta una fuerza inferior que podría ser más completa para mejorar su rendimiento"* por *"presenta una fuerza inferior que podría ser más completa para mejorar su rendimiento"*. Ajuste acotado en `GENERATE_SYSTEM` (regla de tono, junto al fix de nombre del atleta de §17).
+
+### Anclas — confirman hueco ya registrado
+- Las anclas generadas se sienten genéricas en su redacción actual. No es un hallazgo nuevo — confirma el backlog ya existente **P&M v2 — Rúbrica de calidad de anclas + set de estándares de cierre** (§13).
+
+### Idea nueva (backlog, sin scope) — "Acciones" / "Actions"
+- Feature propuesta por Marco: después de que el coach confirma objetivo + anclas de un foco, generar **acciones concretas** — qué tiene que hacer el atleta para cumplir ese objetivo. Prioridad baja, sin scoping todavía; queda registrada como backlog.
+
+### Siguiente paso
+Con Caso 3 cerrado, quedan pendientes Caso 4 (Diego) y Caso 5 (Kevin) del set sintético antes de entrar a scopear las rúbricas/skills del redesign — ver Next Session en la página principal de Notion.
+
+## 19. Sexto test en vivo (1 Jul 2026) — Caso 4 (Diego, 5 focos sin concreción)
+
+### Confirmado — sí genera 5 focos
+Cubrió las 5 sub-dimensiones esperadas (`volea`, `devolucion`, `manejo_riesgo`, `fuerza_inferior`, `liderazgo`). Correcto según el QA del caso.
+
+### Preguntas de Marco (respondidas, no son bug)
+- **¿El texto chico bajo cada sub-dimensión en la selección de focos (`text-[11px] mt-0.5`) es un parafraseo del dump?** Sí, confirmado en código: es el campo `read_corto` que devuelve `identify` — una paráfrasis de ~120 caracteres en palabras del modelo, no una cita textual del coach.
+- **¿Si se deselecciona un foco identificado, se vuelve mantenimiento?** Sí, confirmado en `handleSavePlan`: todo lo que `identify` detectó y no quedó dentro de los focos generados se guarda como `tipo: 'mantenimiento'` con `objetivo: 'Sostener el nivel actual'` — sin diagnóstico ni anclas propias.
+- **¿Cómo se conecta el `read_corto` del paso de selección con el `diagnóstico` que aparece en revisión?** No están linkeados directamente — `generate` vuelve a leer el dump completo (no recibe el `read_corto`) y redacta el `diagnóstico` desde cero para cada foco seleccionado. Por diseño pueden decir cosas distintas del mismo texto fuente, y es exactamente el canal por el que se cuela la invención de detalle documentada abajo.
+
+### Bug/hallazgo central — la REGLA ANTI-INVENCIÓN (ya existente en el prompt) se viola con observaciones delgadas
+`GENERATE_SYSTEM` ya prohíbe inventar detalle que el coach no mencionó ("si falta detalle, mantente general en vez de inventar"), pero con los dumps de una sola frase del Caso 4 el modelo sí inventó, repetidamente:
+- Obs: *"Su volea es muy floja."* → diagnóstico: *"la volea es muy floja **y carece de potencia**"* — "carece de potencia" no está en la observación.
+- Obs: *"La devolución también necesita mejorar bastante."* → diagnóstico: *"la devolución necesita mejorar bastante **en precisión y agresividad**"* — "precisión y agresividad" inventado.
+- Obs: *"le falta fuerza en las piernas, se le nota"* → diagnóstico agrega *"lo cual afecta su rendimiento"* — inferencia no dicha por el coach.
+
+Esto confirma (otra vez, con ejemplos más nítidos que Caso 3) que el guardrail actual no está funcionando a nivel de foco individual — el QA del Caso 4 esperaba justamente esto.
+
+### Bug/hallazgo central — el objetivo no está causalmente ligado al diagnóstico
+Incluso cuando el diagnóstico no inventa, el objetivo elige **una** causa posible entre varias sin que la observación la respalde:
+- Diagnóstico: volea floja sin potencia. Objetivo: *"Aumentar la potencia de la volea mediante una correcta preparación y ejecución del golpeo"* — la falta de potencia puede deberse a no cruzar el paso, no estabilizarse con el brazo libre, preparación baja de raqueta, etc. El coach nunca dijo cuál. El objetivo prescribe una causa arbitraria como si fuera la correcta.
+- Mismo patrón con devolución: objetivo *"...mediante un enfoque claro en el contacto con la bola"* — otra causa posible entre muchas, presentada como la prescripción correcta.
+- Marco: *"la observación del coach no es lo suficientemente clara como para que esa sea la prescripción correcta — el redesign tiene que tener reglas, estructura y una rúbrica para poder identificar el objetivo correcto."*
+- **Va como evidencia concreta al backlog P&M — Rúbrica/skill: objetivos alineados a la filosofía de la academia.**
+
+### Hallazgo — objetivo vs. acción, límites confusos
+- Objetivo generado para fuerza de piernas: *"Desarrollar la fuerza en las piernas mediante ejercicios específicos de resistencia y potencia"* — Marco: no está mal porque sí resuelve la observación con una prescripción clara, pero *"ejercicios específicos de resistencia y potencia"* se lee más como una **acción** que acompaña al objetivo, no como el objetivo en sí.
+- Esto conecta directo con la idea de backlog de **"Acciones"** (§18) — el redesign necesita distinguir con claridad qué es el objetivo medible (-2..+2) y qué son las acciones concretas que lo persiguen.
+
+### Hallazgo — objetivo institucional, no específico al atleta
+- Obs: *"está callado y le falta liderazgo y comunicación"* → objetivo: *"Fomentar la comunicación y el liderazgo en el grupo mediante intervenciones activas durante los entrenamientos"*.
+- Falla la prueba de especificidad ya presente en el prompt, pero de una forma nueva: no es solo "genérico para cualquier tenista" — suena a algo que **la academia** debe hacer (intervenir), no a una conducta que el atleta tiene que cambiar. Nuevo modo de falla a codificar en la rúbrica.
+
+### Anclas
+Reitera el hueco ya registrado (§13, §18) — necesitan redefinirse con criterios más claros de nomenclatura.
+
+### Feature — caja de texto de observaciones muy chica
+UX menor, corregible sin esperar al redesign.
+
+### Feature — feedback de regeneración se pierde de vista mientras corre
+Al mandar "Regenerar con mi comentario", si el coach se distrae mientras corre la llamada, no hay dónde recordar qué cambio pidió ni comparar qué cambió. Marco: no hace falta mostrar el texto anterior verbatim, pero sí debe quedar claro qué se ajustó según el comentario. Necesita diseño (no es una caja de texto simple) — queda en backlog Dev.
+
+### Siguiente paso
+Falta Caso 5 (Kevin) para cerrar el set sintético antes de scopear las rúbricas/skills del redesign.
+
+## 20. Séptimo test en vivo (1 Jul 2026) — Caso 5 (Kevin, verboso all-over-the-place)
+
+### Resuelto — misterio del carryover (Caso 3 §18 y Caso 4 §19)
+Confirmado por SQL contra `quarterly_plans`/`quarterly_plan_objectives`: la query de carryover en `handleIdentify` **no filtra por `status`**:
+```js
+.from('quarterly_plans').select('id').eq('athlete_id', selAthlete)
+  .lt('period_start', periodStart).order('period_start', { ascending: false }).limit(1)
+```
+El único atleta real en BD tiene un plan **archivado** (`2581c5b1…`, creado 27 Jun) con focos `serve`, `backhand`, `devolucion`, `seleccion_golpe`, `etica_trabajo` — coincide exactamente con `etica_trabajo` (Caso 3) y `devolucion` (Caso 4) que aparecieron sin explicación. No es un artefacto del dump sintético ni un bug de matching: es que el carryover toma el plan más reciente por `period_start` **sin importar si está archivado, completado o activo**. Cada caso sintético que Marco guarda contamina el carryover del siguiente caso corrido contra el mismo atleta real.
+**Fix concreto:** agregar `.eq('status', 'active')` (o `.in('status', ['active','completed'])` si se quiere incluir cierres recientes) a esa query. Bug bien entendido, no depende del redesign de rúbrica — candidato a fix inmediato.
+
+### Edge case nuevo — misma dimensión mencionada dos veces en el dump
+`identify` devolvió **dos entradas separadas de `liderazgo`** (una del inicio del dump, otra de la mitad). Pregunta de Marco: ¿cómo debería manejarse cuando el coach toca la misma dimensión en dos puntos distintos del texto?
+- Intuición de Marco: destilar en una sola entrada.
+- Alternativa (descartada por ahora): decidir cuál de las dos menciones tiene mayor impacto en el juego — requeriría su propia rúbrica, "overkill" por ahora.
+- **Bug técnico asociado:** como la UI usa `focoKey(dimension, sub_dimension)` tanto para el `key` de React como para el Set de selección (`selFocos`), dos entradas con la misma dimensión/sub-dimensión colisionan — seleccionar una selecciona ambas visualmente (comparten la misma llave). No se repara con un fix de UI aislado; el fix correcto es que `identify` nunca devuelva dos entradas para la misma sub-dimensión (mergear en el prompt).
+- Va como item nuevo al backlog del redesign.
+
+### Edge case nuevo — el resumen (`read_corto`) puede perder parte del mensaje de una observación compuesta
+- Observación original (Kevin, táctica): *"no ajusta el plan cuando el rival le cambia el ritmo del partido — sigue con el mismo patrón aunque no le esté funcionando."*
+- `read_corto` (paso 3, selección de focos) truncó a: *"no ajusta el plan cuando el rival le cambia el ritmo del partido"* — perdió la segunda mitad ("sigue con el mismo patrón...").
+- `diagnóstico` (paso 4, revisión) sí recuperó el texto casi completo, porque `generate` vuelve a leer el dump entero en vez de partir del `read_corto` (§19).
+- **Decisión pendiente para el redesign:** ponerle un límite al `read_corto` para que no termine perdiendo el mensaje central de una observación compuesta — no necesita ser exhaustivo, pero si la observación tiene dos cláusulas relevantes, ambas deberían sobrevivir el resumen.
+
+### Feature — falta un tag "va bien" / "de mantenimiento" en la selección de focos
+Hoy `UrgenciaChip` solo se renderiza para `candidata_a_foco === true` (urgente/a trabajar/menor). Las sub-dimensiones que el coach describe como que van bien no tienen ningún indicador visual — quedan sin chip, ambiguo entre "no se detectó" y "está bien". Falta un chip verde tipo "en buen estado" para esas.
+
+### Feature — los focos generados en revisión no tienen cache; cambiar la selección regenera todo
+Si el coach ya generó y revisó objetivos/anclas para varios focos y luego vuelve al paso 3 a cambiar la selección (quitar uno, agregar otro), el botón "Generar" vuelve a llamar al modelo para **todos** los focos seleccionados — no solo para el que cambió. Se pierde lo ya revisado/confirmado y se vuelve a generar con la variabilidad de siempre (§18, no determinismo). Comportamiento esperado: quitar una selección solo la quita de revisión; agregar una nueva selección solo genera esa, sin tocar lo ya generado. Relacionado con el bug de cache de `identify` de §18 (mismo problema de fondo: el wizard no distingue "cambió el input" de "cambió la selección").
+
+### Siguiente paso
+Con los 5 casos del set sintético cubiertos, toca cerrar la sesión y — en la próxima — empezar a scopear los docs de las rúbricas/skills del redesign con todo lo acumulado en §16–§20.

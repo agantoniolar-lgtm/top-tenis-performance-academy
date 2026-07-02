@@ -262,6 +262,7 @@ export default function PlanesCoach() {
           .from('quarterly_plans')
           .select('id')
           .eq('athlete_id', selAthlete)
+          .in('status', ['active', 'completed'])
           .lt('period_start', periodStart)
           .order('period_start', { ascending: false })
           .limit(1)
@@ -652,10 +653,10 @@ export default function PlanesCoach() {
                 <textarea
                   value={observations}
                   onChange={e => setObs(e.target.value)}
-                  rows={12}
+                  rows={22}
                   placeholder="Ej: El segundo saque le falta kick y lo atacan. La derecha es su arma. El revés sufre con pelota alta. Le falta selección de golpe, se apura. En el tercer set se cae físicamente. Cuando comete un error fácil tira la raqueta…"
-                  className="w-full hairline px-4 py-3 text-[13px] bg-[var(--paper)] outline-none resize-none"
-                  style={{ lineHeight: 1.7 }}
+                  className="w-full hairline px-4 py-3 text-[13px] bg-[var(--paper)] outline-none resize-y"
+                  style={{ lineHeight: 1.7, minHeight: 320 }}
                 />
               </div>
               {genError && <ErrorBox msg={genError} />}

@@ -335,7 +335,8 @@ def fetch_platform_athletes(supabase_url: str, service_key: str) -> list[dict]:
     )
     resp.raise_for_status()
     athletes = resp.json()
-    log.info(f"Atletas en plataforma: {len(athletes)} → {[f\"{a['nombre']} {a['apellido']}\" for a in athletes]}")
+    nombres = ', '.join(f"{a['nombre']} {a['apellido']}" for a in athletes)
+    log.info(f"Atletas en plataforma: {len(athletes)} → {nombres}")
     return athletes  # lista de {id, nombre, apellido, segundo_apellido}
 
 
