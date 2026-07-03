@@ -1,7 +1,7 @@
 # Scope — Rediseño de Planning + Measurement
 
 **Estado:** Propuesta acordada + decisiones de aterrizaje resueltas (26 Jun 2026). Build sujeto al gate de buy-in de coaches.
-**Fecha:** 25 Jun 2026 — actualizado 26 Jun 2026 (§13)
+**Fecha:** 25 Jun 2026 — actualizado 26 Jun 2026 (§13), 2 Jul 2026 (§21)
 **Task Notion:** Scope: rediseño de planning + measurement (Team, Phase 2 — Analytics)
 **Reemplaza:** El comportamiento actual de `generate-quarterly-plan`, `validate-quarterly-plan` y el wizard de `PlanesCoach.jsx`.
 
@@ -33,7 +33,7 @@ Cada foco se guarda como objeto estructurado, no como una oración:
 | `objetivo` | La meta del trimestre, con gramática estándar (§4) |
 | `anchors` | Los 5 niveles del −2..+2 para esta sub-dimensión (§5) |
 | `carryover_of` | Link al objetivo del trimestre anterior, si continúa |
-| `outcome` | Al cierre: `logrado` / `parcial` / `continua` (§7) |
+| `outcome` | Al cierre: `logrado` / `parcial` / `continua` / `deprioritized` (§7, §21) |
 | `final_assessment` | Al cierre: texto narrativo del coach |
 
 Para **physical** se agregan: `baseline` (número del último test), `target` (número meta), `unit`. El `objetivo` y las `anchors` se derivan de esos números.
@@ -109,9 +109,12 @@ Las 5 anclas no se inventan cada vez: se construyen sobre un eje fijo por tipo d
 
 | Dimensión | Eje | Peldaños (−2 → +2) |
 |---|---|---|
-| Técnica / Táctica | Transferencia | drill aislado → drill controlado → punto jugado → sparring/set → partido bajo presión |
+| Técnica | Transferencia — **consistencia** | drill aislado → drill controlado → punto jugado → sparring/set → consistente en partido (alto % de ejecución correcta) |
+| Táctica | Transferencia — **bajo presión** | drill aislado → drill controlado → punto jugado → sparring/set → repite el patrón en partido bajo presión, incluso cuando el rival cambia el ritmo o ataca |
 | Carácter | Frecuencia del comportamiento | nunca → con recordatorio → consistente en entrenamiento → consistente en partido → lo modela para otros |
 | Physical | Bandas numéricas | bandas alrededor del target |
+
+*(Corrección 2 Jul 2026, §21: técnica y táctica comparten el eje de transferencia pero no el mismo techo. La técnica se transfiere de forma consistente — pegarle bien con alto porcentaje; la táctica se transfiere bajo presión — repetir el patrón cuando el rival ataca o cambia el ritmo. `GENERATE_SYSTEM` hoy usa el mismo peldaño +2 ("lo sostiene en partido bajo presión") para ambas — pendiente de actualizar cuando se construya la rúbrica de anclas, ver §21.)*
 
 ## 6. Modelo de focos + mantenimiento
 
@@ -169,8 +172,9 @@ Default de producto: el coach observa y describe; el LLM estructura. *"El coach 
 | `objetivo` | text | reemplaza el uso de `objective_text` como meta |
 | `anchors` | jsonb | `{"-2":…,"-1":…,"0":…,"+1":…,"+2":…}` |
 | `carryover_of` | uuid → `quarterly_plan_objectives.id` | nullable |
-| `outcome` | text check (`logrado`,`parcial`,`continua`) | nullable hasta el cierre |
+| `outcome` | text check (`logrado`,`parcial`,`continua`,`deprioritized`) | nullable hasta el cierre |
 | `final_assessment` | text | nullable hasta el cierre |
+| `deprioritized_at` | timestamptz | nullable; se llena solo si `outcome = 'deprioritized'` — fecha en que el coach decidió no continuar el foco (§21) |
 | `baseline` | numeric | solo physical |
 | `target` | numeric | solo physical |
 | `unit` | text | solo physical |
@@ -197,7 +201,7 @@ No se tocan `report_on_court` / `report_physical` / `report_character` en esta f
 
 ## 11. Fuera de alcance (futuro)
 
-- Integración SwingVision, UTR automatizado, y match stats (first serve %, break points won) como `measurement_method` objetivos. El diseño del objetivo debe permitir que entren como método de verificación sin re-arquitectar.
+- Integración SwingVision, UTR automatizado, y match stats (first serve %, break points won) como `measurement_method` objetivos. El diseño del objetivo debe permitir que entren como método de verificación sin re-arquitectar. **UTR automatizado queda depreciado hasta nuevo aviso** (2 Jul 2026): el API no funciona y sacar el rating manualmente sale caro. Captura manual: el UTR se registra cuando el atleta contesta su report, no vía integración.
 - Planning forward-looking que ingiera **todo el historial** del atleta (todos los reportes, tests, UTR, torneos a lo largo de su carrera) para proponer baselines y targets automáticamente. Crítico, pero hoy no hay datos suficientes; se habilita conforme se acumulen reportes. **Nota:** el handoff del periodo *inmediatamente anterior* (§7.1) **no** es parte de este futuro — ya está en el modelo core.
 
 ## 12. Decisiones abiertas → resueltas
@@ -267,7 +271,8 @@ Resoluciones tomadas para hacer v2 construible. Esta sección es la fuente de ve
 - **El eval set se siembra con las muestras de los primeros planes reales** y con la tabla de feedback. Es el mecanismo de mantenimiento de calidad; el judge automático/híbrido se gana el derecho a existir cuando haya volumen.
 - **Rúbrica de "anclas bien diferenciadas":** monotonía (cada peldaño más exigente que el anterior), mutuamente excluyentes, observable (el coach asigna sin adivinar), semántica de escala correcta (`0` = por buen camino vs plan, `+2` = superado, `−2` = estancado/rezagado vs plan — **no** "estado actual"), gramática §4 respetada.
 - **Criterio de horizonte trimestral (validador).** El validador debe asegurar que cada objetivo sea **alcanzable y medible en 3 meses**, no un resultado de largo plazo. Razón: el coach escribe observaciones, no planes estructurados — mezcla corto plazo (técnica) con resultados de carrera (ranking, "Top 100 ITF", competir en Europa). El plan es trimestral por diseño, así que estructurar el horizonte es trabajo del sistema, no del coach.
-  - Un **resultado** (posición de ranking, título) **no es un objetivo trimestral** salvo que sea alcanzable dentro del periodo (p. ej. atleta ya en top ~120 → top 100 sí es medible en el trimestre). Top 100 ITF para un U12 que recién entra es un resultado de carrera y debe quedar fuera del plan trimestral.
+  - Un **resultado** (posición de ranking, UTR, título) **nunca es un objetivo trimestral**, sin excepción — es un *by-product* del trabajo técnico/táctico/físico/carácter del periodo, no algo que el plan prescriba directamente. *(Corrección 2 Jul 2026, §21: se retira el ejemplo anterior de "atleta en top ~120 → top 100 sí es medible en el trimestre" como caso donde un resultado sí calificaría como objetivo — el ranking sigue siendo resultado, no objetivo, sin importar qué tan cerca esté la meta.)*
+  - Lo que sí vale conectar, pero como análisis futuro y no como objetivo dentro del plan: el **resultado** del periodo (UTR, ranking AMTP, resultados ITF, W/L record — las key metrics actuales) contra el **trabajo hecho según el plan** del mismo periodo, para empezar a ver qué focos/cambios se correlacionan con mejoras reales. Es trabajo de un agente de monitoring con memoria longitudinal, no un target dentro del objetivo — ver `docs/agentic-fit-check-pm.md` §5.3 y §21 abajo.
   - El validador flaggea (advisory) los objetivos que lean a largo plazo para que el coach los reformule o los baje a alcance trimestral.
 
 ### Secuencia de build
@@ -454,3 +459,51 @@ Si el coach ya generó y revisó objetivos/anclas para varios focos y luego vuel
 
 ### Siguiente paso
 Con los 5 casos del set sintético cubiertos, toca cerrar la sesión y — en la próxima — empezar a scopear los docs de las rúbricas/skills del redesign con todo lo acumulado en §16–§20.
+
+## 21. Revisión de Marco del scope completo (2 Jul 2026) — antes de scopear las rúbricas
+
+Marco releyó este doc completo y dejó una serie de notas y correcciones antes de arrancar el scoping de las dos rúbricas/skills en Backlog. Quedan capturadas aquí; las que tocan tablas normativas (§3, §5, §9, §11, §13) ya se actualizaron inline con referencia de vuelta a esta sección.
+
+### Outcome nuevo — `deprioritized` (gap en el modelo de cierre)
+Ninguno de los tres outcomes existentes (`logrado`, `parcial`, `continua`) cubre el caso de un foco que llevaba un trimestre activo y el coach decide, al cerrar el periodo, **no darle carryover** — sin que haya sido logrado ni esté en progreso parcial. Es una decisión de priorización, no un veredicto sobre el avance.
+- **Resuelto:** se agrega el cuarto valor `deprioritized` al enum de `outcome`, más la columna `deprioritized_at` (timestamptz, nullable) que registra cuándo se tomó esa decisión. Ver §3 y §9 ya actualizados.
+- **Resuelto (confirmado por Marco, 2 Jul 2026):** `deprioritized` **no requiere** `final_assessment` — a diferencia de `logrado`/`parcial`/`continua`, basta con `deprioritized_at`. No hay narrativa obligatoria para un foco que simplemente se deja de priorizar.
+- Esto vive dentro del mismo momento de decisión que ya describe §7.1 (el handoff propone continuar vs. cerrar cada foco anterior); `deprioritized` es simplemente la etiqueta correcta para la rama "cerrar sin haber sido logrado ni parcial".
+
+### Estándar de observación bien formada — estructura preliminar (a discutir)
+Hueco identificado en §16/§18: no hay una definición explícita de qué hace a una observación del coach lo bastante concreta para derivar un objetivo sin inventar. Propuesta preliminar de Marco (no tan estricta como la gramática del objetivo en §4, porque la observación sale de un dump libre, pero sí con una anatomía mínima verificable):
+
+| Componente | Ejemplo bueno | Ejemplo malo |
+|---|---|---|
+| **Dimensión clara** — qué parte del juego se está describiendo | "su derecha..." | "le pega mal" |
+| **Enfoque/patrón** *(nombre provisional — falta decidir el término; candidatos: "enfoque", "patrón", "mecanismo")* — qué hace específicamente esa dimensión | "su derecha **se cierra**..." | "le pega mal **y la manda a la red**" |
+| **Intensidad** — qué tan marcado es | "su derecha se cierra **muy rápido**..." | "...**mucho**" |
+| **Context clarifier** — bajo qué condición ocurre | "...con **bolas rápidas**" | "...**en partidos**" |
+| **Adicional (opcional)** — matiz extra | "...cuando **lo atacan en partidos**" | "...en partidos **de torneo**" |
+
+Esta tabla es el insumo directo para el task de Notion **"P&M — Rúbrica/skill: verificación de observaciones por dimensión"** — se agrega a sus Notes para que el doc de scoping de esa rúbrica parta de aquí en vez de empezar de cero. Sigue siendo preliminar: falta decidir el nombre del segundo componente y validar la estructura contra ejemplos reales de dumps (los 5 casos sintéticos de §16–§20 son buen material de prueba).
+
+### Backlog — formato de cierre compartido (atleta / papá / coach)
+Cuando el plan se cierra y pasa a `completed`, generar un formato tipo cards o documento que puedan tener el atleta, el papá y el coach — la versión "presentable" del cierre del trimestre. Prioridad baja, no bloquea nada del redesign — queda registrado en backlog sin scoping todavía.
+
+### Retrospective — definición mínima
+Faltaba definir qué contiene `coach_retrospective` / `athlete_retrospective` (§7, §13). Decisión de Marco: mantenerlo simple — como todo ya se mide mes a mes, pedir más sería overhead innecesario. Máximo **3 preguntas de texto libre**, destiladas después con un LLM para sacar las notas importantes del periodo. **Confirmado por Marco (2 Jul 2026)** — las 3 preguntas:
+- Coach: ¿qué del plan funcionó mejor este trimestre? / ¿qué no funcionó o quedó incompleto? / ¿qué debería priorizarse el siguiente trimestre?
+- Atleta: ¿qué sientes que mejoraste más? / ¿qué se te dificultó? / ¿en qué quieres enfocarte el próximo trimestre?
+
+### Backlog — quitar el constraint de asignación coach↔atleta
+Marco quiere que cualquier coach pueda agregar notas/observaciones a cualquier atleta, no solo su atleta "asignado" — varios coaches rotan por entrenamientos y torneos distintos, y forzar que un solo coach agrupe todo el feedback del periodo no es realista operativamente. Conecta con la idea de "log de anotaciones por atleta" ya priorizada en §14 (voz y grabaciones).
+- **Alcance real:** esto no es solo un ajuste de P&M — el concepto de coach↔atleta asignado aparece hoy en varias pantallas del portal coach (`Alumnos.jsx`, `Equipo.jsx`, `AlumnoDetalle.jsx`, `NuevoReporte.jsx`, `ReportesPorPeriodo.jsx`, `NuevoAtleta.jsx`, `useAuth.jsx`), y probablemente en RLS. Es un cambio de modelo de datos transversal a la academia, no una feature aislada de planning.
+- Queda en **backlog, sin scoping todavía** — necesita su propio doc (schema + RLS) antes de tocarse, siguiendo el flujo del Skill #2 (`docs/skills-backlog.md`).
+
+### Aclaración técnica — ¿se contaminan los modos `identify` y `generate` en la edge function?
+Pregunta de Marco sobre `supabase/functions/generate-quarterly-plan/index.ts`. Respuesta, leyendo el código actual (`pm-v2.4`):
+- **No hay contaminación de prompt entre modos.** `identify`, `generate`/`regenerate`, y el modo `legacy` son tres llamadas **completamente separadas y sin estado** a OpenAI (`callOpenAI`), cada una con su propio system prompt (`IDENTIFY_SYSTEM` o `GENERATE_SYSTEM`) y sin historial de conversación compartido entre llamadas. No hay forma de que las instrucciones de un modo se filtren al otro a nivel de API.
+- **Lo que sí se comparte es data, explícitamente pasada por el cliente:** `generate` no recibe el `read_corto` de `identify` — vuelve a leer el `observations` completo desde cero, más el array `focos` (solo `dimension`/`sub_dimension`/`urgencia`, sin texto). Esto ya se había notado en §19 como el canal por el que se cuela la invención de detalle (el modelo redacta el diagnóstico sin ver lo que `identify` ya resumió).
+- **`validate-quarterly-plan` todavía no existe como código** — solo está especificado en §10. Es terreno en blanco: se puede diseñar desde cero como módulo separado, en vez de agregarse como más reglas dentro de `GENERATE_SYSTEM` (que ya es un prompt largo con anti-invención + gramática + prescripción estructural + tono + ejes de anclas + manejo de feedback, todo junto). Esto refuerza la recomendación del fit-check (`docs/agentic-fit-check-pm.md` §5.1): la rúbrica de objetivos/observaciones debe vivir como módulo propio y versionado, no como más párrafos dentro de un system prompt que ya está cargado.
+
+### UTR y criterio de horizonte trimestral — ya corregidos inline
+Ver §11 (UTR automatizado depreciado, captura manual) y §13 (se retira el ejemplo de ranking "top 120 → top 100" como objetivo trimestral; el resultado se conecta al trabajo del plan como análisis longitudinal futuro, no como target dentro del objetivo).
+
+### Siguiente paso
+Con estas correcciones incorporadas, el scope queda listo para empezar los docs de scoping de las dos rúbricas en Backlog — la de observaciones parte de la tabla preliminar de este §21; la de objetivos parte de los hallazgos ya acumulados en §16–§20.
