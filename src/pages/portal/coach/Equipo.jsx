@@ -16,6 +16,7 @@ export default function Equipo() {
 
   const [athletes,  setAthletes]  = useState([]);
   const [coaches,   setCoaches]   = useState({});   // coachId → { nombre }
+  const [amtpByAth, setAmtpByAth] = useState({});   // athleteId → { posicion, periodo }
   const [repsByAth, setRepsByAth] = useState({});   // athleteId → [report, ...]
   const [ocByRep,   setOcByRep]   = useState({});   // reportId  → on_court row
   const [chByRep,   setChByRep]   = useState({});   // reportId  → character row
@@ -27,26 +28,40 @@ export default function Equipo() {
     let cancelled = false;
 
     async function load() {
-      // 1. Athletes + coaches in parallel
-      const [athRes, cchRes] = await Promise.all([
-        supabase.from('athletes')
-          .select('id, nombre, apellido, fecha_nacimiento, coach_id, utr_actual')
-          .eq('activo', true)
-          .order('utr_actual', { ascending: false }),
-        supabase.from('coaches').select('id, nombre'),
-      ]);
+      // 1. Athletes
+      const athRes = await supabase.from('athletes')
+        .select('id, nombre, apellido, fecha_nacimiento, coach_id, utr_actual')
+        .eq('activo', true)
+        .order('utr_actual', { ascending: false });
       if (athRes.error) { if (!cancelled) { setErr(athRes.error.message); setLoad(false); } return; }
 
-      const aths = athRes.data ?? [];
+      const aths   = athRes.data ?? [];
+      const athIds = aths.map(a => a.id);
+
+      // 2. Coaches + AMTP ranking (período más reciente por atleta) en paralelo
+      const [cchRes, amtpRes] = await Promise.all([
+        supabase.from('coaches').select('id, nombre'),
+        athIds.length > 0
+          ? supabase.from('amtp_rankings')
+              .select('athlete_id, posicion, periodo')
+              .in('athlete_id', athIds)
+              .order('periodo', { ascending: false })
+          : Promise.resolve({ data: [] }),
+      ]);
+
       const coachMap = Object.fromEntries((cchRes.data ?? []).map(c => [c.id, c]));
 
-      const athIds = aths.map(a => a.id);
+      const amtpMap = {};
+      for (const r of (amtpRes.data ?? [])) {
+        if (!amtpMap[r.athlete_id]) amtpMap[r.athlete_id] = r;   // queda el período más reciente
+      }
+
       if (athIds.length === 0) {
-        if (!cancelled) { setAthletes([]); setCoaches(coachMap); setLoad(false); }
+        if (!cancelled) { setAthletes([]); setCoaches(coachMap); setAmtpByAth(amtpMap); setLoad(false); }
         return;
       }
 
-      // 2. Reports for all athletes — last 3 each
+      // 3. Reports for all athletes — last 3 each
       const { data: reps, error: e2 } = await supabase
         .from('reports')
         .select('id, period, athlete_id')
@@ -64,11 +79,11 @@ export default function Equipo() {
       const lastRepIds = Object.values(byAth).map(rs => rs[0]?.id).filter(Boolean);
 
       if (allRepIds.length === 0) {
-        if (!cancelled) { setAthletes(aths); setCoaches(coachMap); setRepsByAth(byAth); setLoad(false); }
+        if (!cancelled) { setAthletes(aths); setCoaches(coachMap); setRepsByAth(byAth); setAmtpByAth(amtpMap); setLoad(false); }
         return;
       }
 
-      // 3. on_court for ALL recent reports (pill completion + metrics)
+      // 4. on_court for ALL recent reports (pill completion + metrics)
       //    character only for last report (headline metric)
       const [ocRes, chRes] = await Promise.all([
         supabase.from('report_on_court')
@@ -87,6 +102,7 @@ export default function Equipo() {
         setRepsByAth(byAth);
         setOcByRep(toMap(ocRes.data));
         setChByRep(toMap(chRes.data));
+        setAmtpByAth(amtpMap);
         setLoad(false);
       }
     }
@@ -129,6 +145,7 @@ export default function Equipo() {
               athlete={a}
               isOwn={a.coach_id === myCoachId}
               coachName={coaches[a.coach_id]?.nombre}
+              amtp={amtpByAth[a.id]}
               reports={repsByAth[a.id] ?? []}
               ocByRep={ocByRep}
               chByRep={chByRep}
@@ -140,6 +157,7 @@ export default function Equipo() {
         <TeamTable
           athletes={athletes}
           coaches={coaches}
+          amtpByAth={amtpByAth}
           repsByAth={repsByAth}
           ocByRep={ocByRep}
           chByRep={chByRep}
@@ -153,7 +171,7 @@ export default function Equipo() {
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
-function AthleteCard({ athlete: a, isOwn, coachName, reports, ocByRep, chByRep, onClick }) {
+function AthleteCard({ athlete: a, isOwn, coachName, amtp, reports, ocByRep, chByRep, onClick }) {
   const lastOC  = reports[0] ? ocByRep[reports[0].id] : null;
   const lastCH  = reports[0] ? chByRep[reports[0].id] : null;
   const ocLabel = ocAvgLabel(avg(lastOC, OC_KEYS));
@@ -186,8 +204,9 @@ function AthleteCard({ athlete: a, isOwn, coachName, reports, ocByRep, chByRep, 
         </div>
 
         {/* Metrics */}
-        <div className="grid grid-cols-3 gap-px bg-[var(--line)] hairline mb-3">
+        <div className="grid grid-cols-4 gap-px bg-[var(--line)] hairline mb-3">
           <CardMetric label="UTR"      value={a.utr_actual ? Number(a.utr_actual).toFixed(1) : '—'} big />
+          <CardMetric label="AMTP"     value={amtp ? `#${amtp.posicion}` : '—'} />
           <CardMetric label="On-court" value={ocLabel ?? '—'} />
           <CardMetric label="Carácter" value={chLabel ?? '—'} />
         </div>
@@ -238,7 +257,7 @@ function CardMetric({ label, value, big = false }) {
 
 // ─── Table ────────────────────────────────────────────────────────────────────
 
-function TeamTable({ athletes, coaches, repsByAth, ocByRep, chByRep, myCoachId, onRowClick }) {
+function TeamTable({ athletes, coaches, amtpByAth, repsByAth, ocByRep, chByRep, myCoachId, onRowClick }) {
   return (
     <div className="hairline bg-[var(--paper)] overflow-x-auto">
       <table className="w-full text-[12px] min-w-[640px]">
@@ -247,6 +266,7 @@ function TeamTable({ athletes, coaches, repsByAth, ocByRep, chByRep, myCoachId, 
             <th className="text-left px-5 py-3">Atleta</th>
             <th className="text-left px-4 py-3 hidden md:table-cell">Cat.</th>
             <th className="text-right px-4 py-3">UTR</th>
+            <th className="text-right px-4 py-3 hidden sm:table-cell">AMTP</th>
             <th className="text-left px-4 py-3 hidden lg:table-cell">On-court</th>
             <th className="text-left px-4 py-3 hidden lg:table-cell">Carácter</th>
             <th className="text-left px-5 py-3">Reportes</th>
@@ -255,6 +275,7 @@ function TeamTable({ athletes, coaches, repsByAth, ocByRep, chByRep, myCoachId, 
         <tbody>
           {athletes.map(a => {
             const isOwn   = a.coach_id === myCoachId;
+            const amtp    = amtpByAth[a.id];
             const reports = repsByAth[a.id] ?? [];
             const lastOC  = reports[0] ? ocByRep[reports[0].id] : null;
             const lastCH  = reports[0] ? chByRep[reports[0].id] : null;
@@ -290,6 +311,9 @@ function TeamTable({ athletes, coaches, repsByAth, ocByRep, chByRep, myCoachId, 
                   <span className="font-num font-black text-[20px] tnum leading-none">
                     {a.utr_actual ? Number(a.utr_actual).toFixed(1) : '—'}
                   </span>
+                </td>
+                <td className="px-4 py-3 text-right hidden sm:table-cell" style={{ color: 'var(--ink-soft)' }}>
+                  {amtp ? `#${amtp.posicion}` : '—'}
                 </td>
                 <td className="px-4 py-3 hidden lg:table-cell" style={{ color: 'var(--ink-soft)' }}>
                   {ocLabel ?? '—'}

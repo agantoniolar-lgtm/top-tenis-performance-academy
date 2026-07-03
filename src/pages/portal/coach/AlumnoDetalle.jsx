@@ -62,7 +62,7 @@ export default function AlumnoDetalle() {
       const repIds = (reps ?? []).map(r => r.id);
 
       if (repIds.length === 0) {
-        if (!cancelled) { setAth(ath); setRep([]); setLoad(false); }
+        if (!cancelled) { setAth(ath); setRep([]); setAmtp(amtpData ?? []); setLoad(false); }
         return;
       }
 
