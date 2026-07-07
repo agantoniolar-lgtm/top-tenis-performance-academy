@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-const PROMPT_VERSION = 'pm-v2.4-2026-07-01';
+const PROMPT_VERSION = 'pm-v2.5-2026-07-04';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -46,6 +46,27 @@ const ALL_KEYS = new Set(Object.values(SUB_DIMENSIONS).flatMap((a) => a.map((x) 
 const ALL_DIMS = new Set(Object.keys(SUB_DIMENSIONS));
 const ESTANDARES = ['de forma consistente', 'bajo presión', 'sin recordatorio'];
 
+// Rúbrica de observaciones — módulo propio y versionado (docs/scope-rubrica-observaciones.md).
+// Se concatena dentro de IDENTIFY_SYSTEM, igual que SUB_DIMENSIONS. Separado en su propia
+// constante para poder iterarlo sin tocar el resto de las reglas de identify.
+const RUBRIC_VERSION = 'rubrica-observaciones-v1-2026-07-04';
+const RUBRICA_OBSERVACIONES = `RÚBRICA — ¿ES SUFICIENTE LA OBSERVACIÓN DE CADA SUB-DIMENSIÓN? (${RUBRIC_VERSION})
+Antes de responder, evalúa CADA sub-dimensión candidata por separado (no el dump completo) contra esta anatomía de una observación bien formada:
+1. Dimensión clara — qué parte del juego describe (ya la tienes si detectaste la sub-dimensión).
+2. Mecanismo — QUÉ hace específicamente esa dimensión: la mecánica o conducta observable (ej. "se cierra la preparación", "juega clavado atrás sin arriesgar"). Es el componente crítico: sin mecanismo no hay de dónde prescribir un objetivo después.
+3. Intensidad (opcional, refuerza) — qué tan marcado o frecuente es (ej. "muy rápido").
+4. Context clarifier — bajo qué condición ocurre (ej. "con bolas rápidas", "en puntos clave"). Un contexto demasiado amplio como solo "en partidos" no cuenta como condición específica.
+5. Adicional (opcional) — matiz extra, nunca obligatorio.
+
+REGLA DE SUFICIENCIA: marca "observacion_suficiente": true SOLO si la observación trae Dimensión (1) + Mecanismo (2) + al menos una condición (3 o 4). Si el coach solo da un juicio de resultado ("está bien", "le falta", "necesita mejorar", "es floja", "puede mejorar") sin describir la conducta o mecánica detrás, marca "observacion_suficiente": false — aunque la sub-dimensión siga siendo real y "candidata_a_foco" pueda seguir siendo true.
+Prueba rápida: ¿el coach describió algo que VIO (una acción, una decisión, un patrón de movimiento), o solo un juicio sobre el resultado? Si es solo juicio, es insuficiente.
+
+CONVENCIÓN DE TONO: si el coach frasea la observación como juicio directo a la persona o usa su nombre (ej. "Fulano no tiene término medio"), no la descalifiques solo por eso — para evaluar el mecanismo, busca si en algún punto de esa misma observación SÍ hay conducta observable (con frecuencia aparece un renglón después del juicio). El "read_corto" nunca debe repetir el nombre del atleta ni el juicio directo — tradúcelo a conducta observable.
+
+FUSIÓN DE MENCIONES REPETIDAS: si el dump menciona la misma sub-dimensión en dos puntos distintos del texto, NUNCA la devuelvas como dos entradas separadas — fusiona el contenido de ambas menciones en una sola entrada antes de responder.
+
+PISO DE COBERTURA DEL "read_corto": si una observación trae más de un componente relevante (ej. mecanismo + dos context clarifiers, o dos cláusulas de una oración compuesta), el "read_corto" debe conservarlos TODOS aunque supere ~120 caracteres — no trunques una cláusula relevante solo por longitud. El "read_corto" es la única fuente que usará el siguiente paso (generación) para redactar el diagnóstico; una cláusula perdida aquí se pierde para siempre.`;
+
 const IDENTIFY_SYSTEM = `Eres un asistente especializado en tenis de alto rendimiento.
 A partir de las observaciones libres de un coach, identificas QUÉ sub-dimensiones del desarrollo del atleta están presentes, explícita o implícitamente.
 
@@ -54,10 +75,13 @@ ${JSON.stringify(SUB_DIMENSIONS, null, 2)}
 
 REGLAS:
 - Solo incluye sub-dimensiones realmente mencionadas o claramente implicadas por el texto. No inventes.
-- "read_corto": una sola línea (máx ~120 caracteres) que resuma lo que el coach observó sobre esa sub-dimensión, en sus propias palabras.
+- "read_corto": resumen que capture lo que el coach observó sobre esa sub-dimensión, en sus propias palabras — ver piso de cobertura en la rúbrica de abajo.
 - "candidata_a_foco": true si lo observado describe algo a TRABAJAR (un problema, una intención de mejora); false si solo describe algo que el atleta ya sostiene bien (candidata a mantenimiento).
 - "urgencia": "alta" | "media" | "baja" — magnitud del problema observado. alta = problema claro que le limita el juego hoy; media = mejora relevante pero no crítica; baja = detalle menor o fortaleza (las no-candidatas usan "baja"). Sirve para priorizar qué se vuelve foco.
+- "observacion_suficiente": booleano — ver rúbrica de abajo. Se evalúa por sub-dimensión, no por dump completo.
 - **No dependas de marcadores de estructura** (numeración, viñetas, "primero"/"segundo", "uno"/"dos") para detectar temas distintos. El coach puede mencionar varios temas en prosa corrida, sin enumerarlos explícitamente — lee por CONTENIDO, no por formato. Si el texto describe un tema y luego, en la misma oración o en la siguiente, describe otro tema distinto (aunque no haya una marca que los separe), identifícalos como dos sub-dimensiones separadas, no los fusiones en una sola.
+
+${RUBRICA_OBSERVACIONES}
 
 ADEMÁS, evalúa la calidad general del dump completo (no por sub-dimensión, sino del texto en conjunto):
 - "dump_quality.level": "detallado" | "vago".
@@ -69,7 +93,7 @@ ADEMÁS, evalúa la calidad general del dump completo (no por sub-dimensión, si
 FORMATO:
 {
   "identified": [
-    { "dimension": "tecnica|tactica|physical|character", "sub_dimension": "<key>", "read_corto": "<1 línea>", "candidata_a_foco": true, "urgencia": "alta|media|baja" }
+    { "dimension": "tecnica|tactica|physical|character", "sub_dimension": "<key>", "read_corto": "<resumen, con piso de cobertura>", "candidata_a_foco": true, "urgencia": "alta|media|baja", "observacion_suficiente": true }
   ],
   "dump_quality": { "level": "detallado|vago", "motivo": "<line o cadena vacía>" }
 }`;
@@ -88,6 +112,9 @@ El objetivo normalmente "vive" en el peldaño de punto jugado / partido.
 
 REGLA ANTI-INVENCIÓN (estricta)
 El diagnóstico y el objetivo SOLO pueden usar mecánica, comportamiento o situaciones que aparezcan en las observaciones del coach. Prohibido inventar detalles técnicos que el coach no mencionó. Si falta detalle, mantente general en vez de inventar.
+
+FUENTE DEL DIAGNÓSTICO
+Cada foco seleccionado ya trae su propio "read_corto" — el resumen que ya se hizo de esa sub-dimensión al identificarla, con piso de cobertura (no pierde cláusulas relevantes). Redacta el "diagnostico" a partir de ESE "read_corto", no releyendo el dump completo desde cero para armar una lectura distinta o adicional. Usa el dump completo únicamente como contexto de respaldo si el "read_corto" de un foco resulta ambiguo — nunca para agregar mecánica o matices que no estén en ninguno de los dos.
 
 GRAMÁTICA DEL OBJETIVO (técnica / táctica / carácter)
 El objetivo es una PRESCRIPCIÓN al problema observado, NO una meta genérica.
@@ -192,9 +219,29 @@ Deno.serve(async (req) => {
         1500,
       );
       const URG = new Set(['alta', 'media', 'baja']);
-      const identified = (parsed.identified ?? [])
+      const URG_RANK = { alta: 0, media: 1, baja: 2 };
+      const cleaned = (parsed.identified ?? [])
         .filter((o) => ALL_DIMS.has(o.dimension) && ALL_KEYS.has(o.sub_dimension))
-        .map((o) => ({ ...o, urgencia: URG.has(o.urgencia) ? o.urgencia : 'media' }));
+        .map((o) => ({
+          ...o,
+          urgencia: URG.has(o.urgencia) ? o.urgencia : 'media',
+          // Default conservador: si el modelo no lo incluyó, no generar warnings espurios.
+          observacion_suficiente: typeof o.observacion_suficiente === 'boolean' ? o.observacion_suficiente : true,
+        }));
+
+      // Merge defensivo: la rúbrica ya instruye al modelo a fusionar menciones repetidas de la
+      // misma sub-dimensión, pero esto es una red de seguridad (ver docs/scope-rubrica-observaciones.md §8).
+      const bySubDim = new Map();
+      for (const o of cleaned) {
+        const key = `${o.dimension}_${o.sub_dimension}`;
+        const prev = bySubDim.get(key);
+        if (!prev) { bySubDim.set(key, { ...o }); continue; }
+        prev.read_corto = [prev.read_corto, o.read_corto].filter(Boolean).join(' · ');
+        prev.candidata_a_foco = prev.candidata_a_foco || o.candidata_a_foco;
+        prev.observacion_suficiente = prev.observacion_suficiente || o.observacion_suficiente;
+        if (URG_RANK[o.urgencia] < URG_RANK[prev.urgencia]) prev.urgencia = o.urgencia;
+      }
+      const identified = [...bySubDim.values()];
       const rawQuality = parsed.dump_quality ?? {};
       const dump_quality = {
         level: rawQuality.level === 'vago' ? 'vago' : 'detallado',
@@ -209,8 +256,8 @@ Deno.serve(async (req) => {
       if (focos.length === 0) return jsonResponse({ error: 'focos is required for generate' }, 400);
       if (focos.length > 5) return jsonResponse({ error: 'máximo 5 focos' }, 400);
 
-      let userMsg = `Observaciones del coach:\n\n${observations}\n\n`;
-      userMsg += `Focos seleccionados (genera un objetivo completo por cada uno):\n${JSON.stringify(focos, null, 2)}\n`;
+      let userMsg = `Observaciones del coach (dump completo, úsalo solo como respaldo — ver FUENTE DEL DIAGNÓSTICO):\n\n${observations}\n\n`;
+      userMsg += `Focos seleccionados (cada uno trae su "read_corto"; genera un objetivo completo por cada uno a partir de ese read_corto):\n${JSON.stringify(focos, null, 2)}\n`;
 
       if (body.prior_bundle) {
         userMsg += `\nContexto del periodo anterior (úsalo para proponer continuidad/evolución, no para inventar):\n${JSON.stringify(body.prior_bundle, null, 2)}\n`;

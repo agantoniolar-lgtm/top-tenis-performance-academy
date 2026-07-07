@@ -103,7 +103,7 @@ export default function PlanesCoach() {
 
   // ── Create — paso 3: selección de focos ───────────────────────────
   const [identifying, setIdent]   = useState(false);
-  const [identified,  setIdList]  = useState([]);      // { dimension, sub_dimension, read_corto, candidata_a_foco, carryover }
+  const [identified,  setIdList]  = useState([]);      // { dimension, sub_dimension, read_corto, candidata_a_foco, urgencia, observacion_suficiente, carryover }
   const [selFocos,    setSelFocos]= useState(new Set()); // focoKey()
   const [dumpQuality, setDumpQuality] = useState(null);  // { level: 'detallado'|'vago', motivo }
   const [lastIdentifiedObs, setLastIdentifiedObs] = useState(null); // texto del dump para el que `identified` es válido
@@ -314,7 +314,9 @@ export default function PlanesCoach() {
   const selectedFocoList = () =>
     identified
       .filter(it => selFocos.has(focoKey(it.dimension, it.sub_dimension)))
-      .map(it => ({ dimension: it.dimension, sub_dimension: it.sub_dimension }));
+      // read_corto viaja hasta generate: el diagnóstico se deriva de él, no de releer el dump
+      // completo desde cero (docs/scope-rubrica-observaciones.md §7).
+      .map(it => ({ dimension: it.dimension, sub_dimension: it.sub_dimension, read_corto: it.read_corto }));
 
   // ── Paso 3 → 4: generar focos completos ───────────────────────────
   const handleGenerate = async () => {
@@ -690,23 +692,6 @@ export default function PlanesCoach() {
                 </p>
               </div>
 
-              {dumpQuality?.level === 'vago' && (
-                <div className="hairline p-3" style={{ background: 'rgba(234,179,8,.08)' }}>
-                  <p className="text-[11px] font-bold uppercase tracking-wide mb-1" style={{ color: '#a16207' }}>
-                    Observaciones un poco generales
-                  </p>
-                  <p className="text-[11px]" style={{ color: 'var(--ink)', lineHeight: 1.6 }}>
-                    {dumpQuality.motivo || 'Con este nivel de detalle el sistema puede inventar mecánica que no describiste. Puedes continuar así o volver y agregar más detalle concreto (qué pasa, cuándo, cómo).'}
-                  </p>
-                  <button
-                    onClick={() => setStep(2)}
-                    className="mt-2 text-[11px] font-semibold uppercase tracking-wide hairline px-3 py-1.5 hover:bg-[var(--paper)] transition"
-                    style={{ color: '#a16207' }}>
-                    ← Agregar más detalle
-                  </button>
-                </div>
-              )}
-
               <FocoGroup
                 title="Continúan del trimestre anterior"
                 items={identified.filter(it => it.carryover)}
@@ -980,6 +965,11 @@ function FocoGroup({ title, items, selected, limitReached, onToggle }) {
                 <span className="block text-[11px] mt-0.5" style={{ color: 'var(--ink-mute)', lineHeight: 1.5 }}>
                   {it.read_corto}
                 </span>
+                {it.candidata_a_foco && it.observacion_suficiente === false && (
+                  <span className="block text-[10.5px] mt-1 font-medium" style={{ color: '#a16207' }}>
+                    Mencionaste esto pero no hay un área de mejora concreta — vuelve y agrega más detalle, o déjalo en mantenimiento.
+                  </span>
+                )}
               </span>
             </button>
           );
