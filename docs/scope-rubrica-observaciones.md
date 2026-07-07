@@ -123,3 +123,165 @@ Esta tabla es el criterio de aceptación antes de construir: si al implementar e
 ## 13. Siguiente paso
 
 Con este doc aprobado por Marco: (a) implementar el módulo de rúbrica y engancharlo a `identify`, incluyendo el cambio de contrato de §7 (`read_corto` viajando hasta `generate`) (Task Dev, nueva — no existe hoy en el backlog con ese scope, se crea al aprobar), (b) correr los 5 casos sintéticos como regresión antes de pasar a producción, (c) mover el Notion task a Done cuando el módulo pase la tabla de §11. Después de esto, sigue el doc de scoping de **"P&M — Rúbrica/skill: objetivos alineados a la filosofía de la academia"**, que puede apoyarse en esta anatomía como su primer filtro de entrada.
+
+## 14. Regresión ejecutada contra los 5 casos sintéticos (7 Jul 2026)
+
+Módulo implementado en commit `2307af2` (pm-v2.5-2026-07-04). Se deployó a Supabase (`generate-quarterly-plan` v9) y se corrieron los 5 casos de `docs/dumps-test-planning-edge-cases.md` en modo `identify` contra la function real.
+
+**Nota metodológica:** el sandbox de Cowork no tiene salida de red directa a `*.supabase.co`. La corrida se hizo invocando la function desde dentro de la base de datos vía la extensión Postgres `http` (`CREATE EXTENSION http`), removida (`DROP EXTENSION`) al terminar — no queda como dependencia permanente del proyecto.
+
+| Caso | Esperado (§11) | Resultado real | Veredicto |
+|---|---|---|---|
+| 1 — Mariana | Pasar en las 5 | Identifica exactamente `serve`, `puntos_clave`, `transferencia_partido`, `beep_test`, `coachabilidad`, las 5 con `observacion_suficiente: true` | **PASA** |
+| 2 — Emilio | Pasar en `forehand` y `manejo_riesgo`, ninguna otra | Identifica exactamente esas 2, ambas suficientes | **PASA** (con hallazgo de tono, ver abajo) |
+| 2b — Emilio sin marcadores | Igual que Caso 2 (regresión del bug pm-v2.3) | Identifica `forehand` y `manejo_riesgo` igual que el Caso 2 — el fix de no depender de marcadores de estructura se sostiene | **PASA** |
+| 3 — Sofía | Fallar en todas las candidatas | Identifica 2: `fuerza_inferior` (suficiente=false, correcto) y `etica_trabajo` (suficiente=**true**, incorrecto — el read_corto "a veces se desconcentra... necesita ser más constante" es puro juicio, sin mecanismo) | **FALLA PARCIAL** |
+| 4 — Diego | Fallar en las 5 | Identifica las 5 correctamente (`volea`, `devolucion`, `manejo_riesgo`, `fuerza_inferior`, `liderazgo`) pero **las 5 quedan marcadas `observacion_suficiente: true`** | **FALLA TOTAL** |
+| 5 — Kevin | Pasar en la mayoría; valida fusión (§8) y piso de cobertura (§7) | Identifica 15 sub-dimensiones; fusión de `liderazgo` funciona (une "le falta liderazgo" + "falta regulación emocional" en una sola entrada con "·"); piso de cobertura funciona (`adaptacion_tactica` conserva la cláusula completa). Falta `forehand`/derecha pese a mención explícita como fortaleza — miss de `identify`, no de la rúbrica | **PASA** (con miss de identify aparte) |
+
+### Hallazgos que bloquean pasar a producción
+
+1. **Caso 4 (Diego) — falla total, y es exactamente el caso que motivó construir esta rúbrica (§1).** "La volea es muy floja", "la devolución también necesita mejorar bastante", "el manejo de riesgo... no está bien", "le falta fuerza en las piernas", "le falta ser más líder" — ninguna de estas cinco trae mecanismo (componente 2), solo juicio de resultado. La regla de suficiencia (§3) las debería marcar `false` a las cinco. En producción las cinco pasan como `true`. El guardrail no se dispara en el caso que originó todo el proyecto.
+2. **Caso 3 (Sofía) — falla parcial.** Mismo patrón: `etica_trabajo` pasa como suficiente cuando el read_corto asociado es puro juicio ("se desconcentra", "necesita ser más constante"), sin mecanismo observable.
+3. **Violación de tono en Casos 2/2b (§6).** El `read_corto` de `manejo_riesgo` repite literalmente *"Emilio no tiene término medio"* — usa el nombre del atleta y el juicio directo sin traducirlo a conducta observable, pese a que la regla de §6 lo prohíbe explícitamente y pese a que el propio dump da la conducta un renglón después ("o juega clavado atrás... o va por el ganador imposible").
+4. **Miss de `identify` en Caso 5 (no es bug de la rúbrica).** No identificó `forehand`/derecha pese a mención explícita como fortaleza ("la derecha la tiene sólida, es su arma"). La rúbrica solo califica sub-dimensiones ya identificadas — este miss es anterior, de la detección misma.
+
+### Lectura de conjunto
+
+Los mecanismos de **fusión** (§8) y **piso de cobertura** (§7) sí funcionan como se diseñaron (validado en Caso 5). El mecanismo central — la regla de suficiencia por dimensión — falla exactamente en los dos casos vagos/de puro juicio (3 y 4), que son los que existen para atacar. Consistente con el riesgo ya anotado en §10: el modelo (`gpt-4o-mini`) ya incumplía una regla más simple (anti-invención) en el mismo Caso 4 antes de esta rúbrica — el campo de salida obligatorio no fue suficiente por sí solo para forzar el razonamiento buscado.
+
+### Siguiente paso
+
+**No se puede mover el Notion task a Done** — la rúbrica no reproduce la tabla de §11 en los dos casos que existen específicamente para probarla. Antes de considerar esto listo para producción:
+(a) reforzar la regla de suficiencia con un ejemplo explícito calcado del propio Caso 4 dentro de `RUBRICA_OBSERVACIONES` (ya que sigue siendo el caso real que falla);
+(b) corregir la convención de tono para que `read_corto` nunca copie nombre propio ni juicio directo (Casos 2/2b) — reforzar con un ejemplo negativo explícito;
+(c) re-correr esta misma regresión después de cualquier ajuste al prompt, antes de dar por cerrado el task.
+
+## 15. Fix aplicado — regla de suficiencia (pm-v2.6-2026-07-07)
+
+Se aborda primero el hallazgo más crítico (§14.1, Caso 4) de forma aislada del hallazgo de tono (§14.3), para poder aislar el efecto de cada fix en la regresión — no se mezclan en el mismo cambio.
+
+**Cambio en `RUBRICA_OBSERVACIONES`** (`supabase/functions/generate-quarterly-plan/index.ts`, `RUBRIC_VERSION` → `v2-2026-07-07`, `PROMPT_VERSION` → `pm-v2.6-2026-07-07`): se agrega, después de la "Prueba rápida", un párrafo de advertencia explícito —identificar bien la sub-dimensión no es evidencia de que haya mecanismo, un dump puede nombrar 5 áreas reales sin describir ninguna a fondo— seguido de dos bloques de ejemplos:
+
+- **3 ejemplos de "solo juicio" (`observacion_suficiente: false`)**, calcados literalmente de las frases del Caso 4 que fallaron en la regresión de §14: `volea` ("es muy floja"), `devolucion` ("necesita mejorar bastante"), `fuerza_inferior` ("le falta fuerza... se le nota"). Se excluye a propósito el ejemplo de `liderazgo` del Caso 4 (decisión de Marco, 7 Jul 2026) para no sobrecargar el prompt con 4 ejemplos del mismo polo.
+- **4 ejemplos de "sí tiene mecanismo" (`observacion_suficiente: true`)**, uno por cada categoría de dimensión (técnica, táctica, physical, character), tomados de los casos que sí pasaron correctamente en la regresión de §14: `forehand` (Caso 2, Emilio), `puntos_clave` y `beep_test` (Caso 1, Mariana), `coachabilidad` (Caso 1, Mariana). Reemplaza el contraste único que había en el primer borrador de este fix.
+
+La convención de tono (§14.3, Casos 2/2b) queda sin tocar en este cambio — es el siguiente fix, con su propia regresión.
+
+**Pendiente:** deployar esta versión y re-correr los 5 casos sintéticos para confirmar que Caso 3 y Caso 4 ahora fallan correctamente sin romper Casos 1, 2, 2b y 5.
+
+### Re-corrida (7 Jul 2026, mismo día) — deploy v10, pm-v2.6-2026-07-07
+
+| Caso | Antes (pm-v2.5, §14) | Ahora (pm-v2.6) | Veredicto |
+|---|---|---|---|
+| 1 — Mariana | Pasa 5/5 | Pasa 5/5, sin cambios | **PASA** |
+| 2 — Emilio | Pasa 2/2 (con violación de tono) | Pasa 2/2, violación de tono sigue igual (no se tocó en este fix) | **PASA** |
+| 2b — sin marcadores | Pasa | Pasa, sin cambios | **PASA** |
+| 3 — Sofía | Identifica 2 candidatas, 1 falla mal (`etica_trabajo` pasa cuando no debería) | Ahora identifica 4 candidatas (`forehand`, `backhand`, `fuerza_inferior`, `etica_trabajo`); las primeras 3 ahora fallan correctamente, pero `etica_trabajo` **sigue pasando como suficiente** con el mismo read_corto ("se desconcentra en partido... necesita ser más constante") | **MEJORA PARCIAL, sigue sin pasar completo** |
+| 4 — Diego | Las 5 pasan como suficientes (falla total) | `volea`, `devolucion` y `fuerza_inferior` — los 3 ejemplos que sí se enseñaron explícitamente — **ahora fallan correctamente**. `manejo_riesgo` y `liderazgo` siguen pasando como suficientes | **MEJORA GRANDE (3/5 corregidos), sigue sin pasar completo** |
+| 5 — Kevin | Pasa; fusión y piso de cobertura validados; faltaba `forehand` | Pasa igual; esta vez sí identifica `forehand` como fortaleza (candidata_a_foco=false) — variación normal del modelo, no atribuible al fix | **PASA** |
+
+**Lectura:** el fix funciona exactamente donde se enseñó y no se generaliza más allá de eso. Los 3 ejemplos calcados del Caso 4 corrigieron esas 3 sub-dimensiones puntualmente. Mismo patrón que persiste en `manejo_riesgo` de Diego (que además es un caso genuinamente más ambiguo: "a veces se pasa de arriesgado y a veces juega muy conservador" sí describe un patrón de comportamiento, solo le falta un context clarifier explícito — ver criterio abierto de §12) y sobre todo en `liderazgo` de Diego, que es prácticamente idéntico al ejemplo que se removió a pedido de Marco (7 Jul 2026, ver §15 más arriba). **Ese es el costo directo de haber quitado el ejemplo de liderazgo**: el modelo no generalizó la regla a ese caso sin el ejemplo específico.
+
+**Siguiente decisión para Marco:** ¿agregar de vuelta un ejemplo de `liderazgo` (o uno equivalente de la dimensión character) para cerrar ese hueco, o aceptar que la rúbrica es más un conjunto de ejemplos ancla que una regla generalizable con este modelo, y compensar con más ejemplos por dimensión? El fix de tono (Casos 2/2b) sigue pendiente como el siguiente task aislado.
+
+### Test de generalización — Caso Valeria (7 Jul 2026, mismo día)
+
+Antes de decidir si agregar de vuelta el ejemplo de `liderazgo`, Marco pidió descartar la hipótesis de que el fix solo funciona por overfit a las frases literales del Caso 4 (Diego). Se construyó un caso sintético nuevo, con la misma estructura (5 sub-dimensiones, todas de puro juicio sin mecanismo) pero **sin reusar ninguna frase ni sub-dimensión de los ejemplos enseñados** — deliberadamente no forma parte de los 5 casos originales de `docs/dumps-test-planning-edge-cases.md`, es exclusivo para esta prueba de generalización.
+
+**Atleta:** Valeria (sintético, sin registro real)
+
+**Dump:** "Con Valeria este trimestre quiero atacar cinco áreas. El saque sigue siendo flojo, no es su fuerte. La selección de golpe deja bastante que desear, no elige bien. El manejo de riesgo tampoco anda bien, todavía le falta madurar ahí. Físicamente el salto no es su punto fuerte, se nota que le falta potencia. Y como líder del grupo, todavía le falta camino por recorrer, no termina de tomar ese papel."
+
+**Resultado contra pm-v2.6 (sin ejemplo de liderazgo):**
+
+| Sub-dimensión | Esperado | Resultado | Veredicto |
+|---|---|---|---|
+| `serve` | false (puro juicio) | false | correcto |
+| `seleccion_golpe` | false (puro juicio) | false | correcto |
+| `manejo_riesgo` | false (puro juicio) | **true** | incorrecto |
+| `salto_vertical` | false (puro juicio) | false | correcto |
+| `liderazgo` | false (puro juicio) | **true** | incorrecto |
+
+**Conclusión — no es overfit a las frases, es un patrón sistemático.** La regla de suficiencia sí generaliza correctamente a frases y sub-dimensiones nunca vistas en técnica y physical (3/3 correctas con wording 100% nuevo). Pero falla exactamente en las mismas dos áreas que en el Caso 4 — `manejo_riesgo` y `liderazgo` — con una redacción completamente distinta y sin ningún parecido literal a los ejemplos enseñados. Esto descarta que el problema sea "memorizó las frases de Diego": el modelo parece tener un sesgo estructural a tratar juicios sobre manejo de riesgo y sobre carácter/liderazgo como "suficientemente informativos" incluso cuando no describen ninguna conducta observable, mientras que sí aplica el criterio correctamente en técnica y físico.
+
+**Implicación:** agregar de vuelta el ejemplo de `liderazgo` probablemente no bastaría por sí solo — el sesgo parece ser de categoría (táctica de "manejo/riesgo" y character), no de una sub-dimensión puntual. Antes de agregar más ejemplos ad hoc, vale la pena considerar si `manejo_riesgo` y las 3 sub-dimensiones de `character` necesitan una regla o ejemplo específico por categoría en vez de un ejemplo aislado por sub-dimensión — pendiente de decisión de Marco.
+
+## 16. Fix aplicado — ejemplos de manejo_riesgo y liderazgo (pm-v2.7-2026-07-07)
+
+Se agregan 2 ejemplos más a `RUBRICA_OBSERVACIONES` (`RUBRIC_VERSION` → `v3-2026-07-07`, `PROMPT_VERSION` → `pm-v2.7-2026-07-07`): la frase de `manejo_riesgo` de Diego (Caso 4) y la de `liderazgo` de Diego (la misma que se había excluido a propósito en §15, reincorporada ahora que el test de generalización de Valeria confirmó que el hueco era real y no un caso aislado). Cada ejemplo incluye una nota "OJO" marcando la categoría completa (táctica de decisiones, y las 3 sub-dimensiones de character) como zona de riesgo, no solo la sub-dimensión puntual.
+
+**Deploy v11, re-corrida (7 Jul 2026):**
+
+| Caso | Sub-dimensión en duda | Corrida 1 | Corrida 2 (repetición) |
+|---|---|---|---|
+| 4 — Diego | `manejo_riesgo` | true (incorrecto) | **false (correcto)** |
+| 4 — Diego | `liderazgo` | **false (correcto)** | **false (correcto)** |
+| Valeria (generalización) | `manejo_riesgo` + `liderazgo` | **false + false (correcto, 5/5)** | — |
+| 2 — Emilio | `manejo_riesgo` (debe seguir true, sí tiene mecanismo) | **true (correcto, sin regresión)** | — |
+| 3 — Sofía | observación de concentración en partido | true (¿incorrecto?) | true (repetido, mismo resultado) |
+
+**Lectura:** `liderazgo` queda resuelto de forma estable (2/2 corridas correctas) — el ejemplo explícito sí cerró ese hueco. `manejo_riesgo` de Diego dio inconsistente entre dos corridas idénticas (true, luego false) — con `temperature: 0.3` el modelo no es determinista; una sola corrida no alcanza para concluir pass/fail en casos límite, hace falta repetir antes de dar un caso por bueno o malo. Emilio (que si tiene mecanismo real en `manejo_riesgo`) se mantiene correctamente en `true` — el fix no volvió la rúbrica más estricta de lo debido ahí.
+
+**Hallazgo que vale la pena señalar, no necesariamente un bug:** en Sofía, la línea "a veces se desconcentra en partido y se le va el foco" sigue marcándose `true` de forma consistente (2/2 corridas, incluso cambiando de sub_dimension entre `etica_trabajo` y `coachabilidad` según la corrida). Revisando la anatomía (§3) con más cuidado, esta frase sí trae un mecanismo ("se desconcentra") y un context clarifier ("en partido") — es decir, cumple la regla de suficiencia tal como está escrita, aunque el criterio original de aceptación (§11) esperaba que **todo** Caso 3 fallara. Puede que la tabla de aceptación original haya sido más estricta de lo que la propia anatomía de 5 componentes exige para esta línea puntual — vale la pena que Marco decida si esto es en efecto un pase legítimo (cumple la anatomía) o si el criterio de "vago" para Sofía debería endurecerse para excluir frases como esta.
+
+**Estado:** el fix de suficiencia queda considerablemente mejor que pm-v2.5 (Caso 4 pasa de 0/5 a 5/5 en la corrida limpia; Valeria pasa 5/5 con wording nunca visto). Persisten dos frentes abiertos, no bloqueantes para seguir iterando: (a) variabilidad de muestreo en `manejo_riesgo` bajo ciertas redacciones — probablemente requiere más ejemplos o bajar la temperatura; (b) revisar si el criterio de aceptación para el tipo de frase de Sofía necesita ajustarse. El fix de tono (Casos 2/2b) sigue como el siguiente task aislado, sin tocar todavía.
+
+**Decisión de Marco (7 Jul 2026):** el hallazgo de Sofía (§16) se acepta como correcto — la línea sí cumple la anatomía (mecanismo + contexto), el criterio de aceptación original era más estricto de lo necesario. No se toca. Marco también señaló que, de cara a producción, la rúbrica va a necesitar más ejemplos reales (no solo los sintéticos) para seguir afinándose — queda anotado como dirección de trabajo futura, no como task inmediato.
+
+## 17. Fix aplicado — tono no debe repetir nombre propio (pm-v2.8-2026-07-07)
+
+Se agrega a `CONVENCIÓN DE TONO` un ejemplo explícito correcto/incorrecto (calcado del propio texto de Emilio) y la instrucción de reescribir la oración completa en tercera persona impersonal, no solo sustituir el nombre por un pronombre. `RUBRIC_VERSION` → `v4-2026-07-07`, `PROMPT_VERSION` → `pm-v2.8-2026-07-07`. Deploy v12.
+
+**Re-corridas — Caso 2 y 2b, 2 veces cada uno (7 Jul 2026):**
+
+| Corrida | Caso | read_corto de `manejo_riesgo` | ¿Usa nombre? |
+|---|---|---|---|
+| 1 | 2 (con marcadores "Uno:"/"Dos:") | "La toma de decisiones oscila entre jugar clavado atrás..." | **No — correcto** |
+| 2 | 2 (repetición) | "Emilio alterna entre jugar clavado atrás..." | Sí — incorrecto |
+| 1 | 2b (sin marcadores) | "Emilio alterna entre jugar clavado atrás..." | Sí — incorrecto |
+| 2 | 2b (repetición) | "Emilio alterna entre jugar clavado atrás..." | Sí — incorrecto |
+
+**Resultado: 1 de 4 corridas corrige el nombre.** A diferencia del fix de suficiencia (que estabilizó rápido con ejemplos concretos), este fix **no está funcionando de forma confiable** — el modelo vuelve a "Emilio alterna entre..." la mayoría de las veces pese al ejemplo explícito de qué NO hacer. Posibles razones a explorar: (a) el ejemplo agregado puede no ser lo bastante fuerte frente a la tentación de usar el nombre como sujeto natural de la oración en español; (b) puede hacer falta una instrucción más mecánica tipo "nunca escribas el nombre propio del atleta en ningún campo de este JSON" en vez de depender de que el modelo infiera la regla de un ejemplo; (c) esta regla puede necesitar vivir como un post-procesamiento determinístico (buscar y quitar el nombre del atleta del string antes de devolver la respuesta) en vez de depender 100% del LLM, ya que es una regla mecánica (no requiere juicio) y por lo tanto es candidata perfecta para validación de código en vez de instrucción de prompt.
+
+**Pendiente de decisión de Marco:** ¿iterar el prompt una vez más con instrucción más dura, o resolverlo con una función de post-procesamiento en `index.ts` que reemplace el nombre del atleta por nada/pronombre antes de devolver `read_corto`? Esta segunda opción sería más confiable dado que ya sabemos el nombre del atleta en el momento de la llamada (viene del registro del atleta en la base de datos), a diferencia de la regla de suficiencia que sí requiere juicio genuino del LLM.
+
+## 18. Fix de tono, segunda iteración — reestructurar en vez de post-procesar (pm-v2.9-2026-07-07)
+
+Antes de resolver por código, Marco pidió intentar una reformulación del prompt que no "anclara" al modelo hacia el nombre propio. Hipótesis del cambio: el ejemplo de §17 mostraba primero el bloque INCORRECTO (con "Fulano...") y luego el CORRECTO — el modelo podía estar fijándose en la forma del ejemplo incorrecto como plantilla de qué palabras usar, no solo de qué evitar. `RUBRIC_VERSION` → `v5-2026-07-07`, `PROMPT_VERSION` → `pm-v2.9-2026-07-07`.
+
+**Cambios de estructura respecto a pm-v2.8:**
+- Título de sección cambia a "CONVENCIÓN DE TONO (ESTRICTA — PROHIBICIÓN ABSOLUTA DE NOMBRE PROPIO)" — mismo patrón de énfasis que ya usa `GENERATE_SYSTEM` en su sección equivalente (que sí funciona de forma confiable).
+- Se elimina el bloque "INCORRECTO" explícito — ya no se le muestra al modelo la forma exacta de la respuesta mala, solo se describe en prosa que existe y por qué está mal.
+- Se agrega un paso de **autochequeo obligatorio**: "relee cada read_corto que hayas escrito, si el nombre aparece, bórralo y reescribe" — instrucción de verificación posterior a la generación, no solo regla previa.
+- El único ejemplo mostrado es el CORRECTO, presentado como el resultado esperado directamente, no como contraste.
+
+**Deploy v13, re-corrida — Casos 2 y 2b, 2 veces cada uno:**
+
+| Corrida | Caso | ¿Usa nombre en read_corto de manejo_riesgo? |
+|---|---|---|
+| 1 | 2 | No |
+| 2 | 2 | No |
+| 1 | 2b | No |
+| 2 | 2b | No |
+
+**Resultado: 4 de 4 corridas correctas — mejora completa respecto al 1/4 de pm-v2.8.** La reestructuración (quitar el ejemplo incorrecto explícito + agregar autochequeo obligatorio + calificar la regla como "estricta" igual que su contraparte ya validada en `GENERATE_SYSTEM`) resolvió el problema sin necesidad de post-procesamiento en código. Sigue siendo una muestra pequeña (4 corridas) — con `temperature: 0.3` no hay garantía de 100% en producción, pero el contraste frente al fix anterior es consistente con la hipótesis de que el ejemplo incorrecto estaba anclando al modelo.
+
+**Estado:** los 3 hallazgos de la regresión original (§14) están atendidos: suficiencia (§15-16, con una advertencia abierta sobre variabilidad de muestreo en `manejo_riesgo`), tono (§17-18, resuelto en esta iteración), y el criterio de Sofía (aceptado como correcto, no requiere cambio).
+
+## 19. Regresión final completa contra pm-v2.9-2026-07-07 (v13, deployado)
+
+Corrida de cierre: los 5 casos originales de `docs/dumps-test-planning-edge-cases.md`, contra la versión final del día (pm-v2.9, con los 3 fixes de §15-18 ya incluidos).
+
+| Caso | Resultado | Comparado con lo esperado (§11) / decisiones tomadas hoy |
+|---|---|---|
+| 1 — Mariana | 5/5 `observacion_suficiente: true`, sin nombre en ningún read_corto | **PASA**, sin cambios respecto a todas las corridas previas |
+| 2 — Emilio | 2/2, sin nombre (`El manejo de riesgo es inconsistente...`) | **PASA** — tono corregido, confirmado por 2ª vez |
+| 2b — Emilio sin marcadores | 2/2, sin nombre | **PASA** — tono corregido, confirmado por 2ª vez, incluyendo el caso que antes fallaba 0/2 |
+| 3 — Sofía | `forehand`/`backhand`/`fuerza_inferior` en false (correcto); `etica_trabajo` (la observación de concentración en partido) en true | **Consistente con la decisión de Marco (§16, aceptado como correcto)** |
+| 4 — Diego | `volea`/`devolucion`/`fuerza_inferior`/`liderazgo` en false (correcto); `manejo_riesgo` en true | **Consistente con la variabilidad de muestreo ya documentada (§18)** — no es una regresión nueva, es el mismo caso límite conocido |
+| 5 — Kevin | 14 sub-dimensiones, ninguna con nombre propio, fusión de `liderazgo` funcionando | **PASA**, sin cambios |
+
+**Conclusión: no hay regresiones.** Los 3 fixes aplicados hoy (suficiencia §15, ejemplos manejo_riesgo/liderazgo §16, tono §18) se sostienen juntos sin pisarse entre sí. El único frente abierto conocido es la variabilidad de muestreo en `manejo_riesgo` de Diego específicamente (pasa unas veces, falla otras, documentado desde §16) — no bloqueante, calificado como mejora futura, no como bug de este ciclo.
+
+**Cierre del día:** con esta regresión, `generate-quarterly-plan` queda en pm-v2.9-2026-07-07 (v13) en producción. El Notion task de esta rúbrica puede pasar a Done en cuanto se autorice el conector de Notion — pendiente por falta de acceso en esta sesión (ver nota de la sesión anterior). Línea de trabajo futura anotada por Marco: la rúbrica va a necesitar ejemplos reales de producción (no solo sintéticos) para seguir afinándose.

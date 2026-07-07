@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-const PROMPT_VERSION = 'pm-v2.5-2026-07-04';
+const PROMPT_VERSION = 'pm-v2.9-2026-07-07';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -49,7 +49,7 @@ const ESTANDARES = ['de forma consistente', 'bajo presión', 'sin recordatorio']
 // Rúbrica de observaciones — módulo propio y versionado (docs/scope-rubrica-observaciones.md).
 // Se concatena dentro de IDENTIFY_SYSTEM, igual que SUB_DIMENSIONS. Separado en su propia
 // constante para poder iterarlo sin tocar el resto de las reglas de identify.
-const RUBRIC_VERSION = 'rubrica-observaciones-v1-2026-07-04';
+const RUBRIC_VERSION = 'rubrica-observaciones-v5-2026-07-07';
 const RUBRICA_OBSERVACIONES = `RÚBRICA — ¿ES SUFICIENTE LA OBSERVACIÓN DE CADA SUB-DIMENSIÓN? (${RUBRIC_VERSION})
 Antes de responder, evalúa CADA sub-dimensión candidata por separado (no el dump completo) contra esta anatomía de una observación bien formada:
 1. Dimensión clara — qué parte del juego describe (ya la tienes si detectaste la sub-dimensión).
@@ -61,7 +61,24 @@ Antes de responder, evalúa CADA sub-dimensión candidata por separado (no el du
 REGLA DE SUFICIENCIA: marca "observacion_suficiente": true SOLO si la observación trae Dimensión (1) + Mecanismo (2) + al menos una condición (3 o 4). Si el coach solo da un juicio de resultado ("está bien", "le falta", "necesita mejorar", "es floja", "puede mejorar") sin describir la conducta o mecánica detrás, marca "observacion_suficiente": false — aunque la sub-dimensión siga siendo real y "candidata_a_foco" pueda seguir siendo true.
 Prueba rápida: ¿el coach describió algo que VIO (una acción, una decisión, un patrón de movimiento), o solo un juicio sobre el resultado? Si es solo juicio, es insuficiente.
 
-CONVENCIÓN DE TONO: si el coach frasea la observación como juicio directo a la persona o usa su nombre (ej. "Fulano no tiene término medio"), no la descalifiques solo por eso — para evaluar el mecanismo, busca si en algún punto de esa misma observación SÍ hay conducta observable (con frecuencia aparece un renglón después del juicio). El "read_corto" nunca debe repetir el nombre del atleta ni el juicio directo — tradúcelo a conducta observable.
+ADVERTENCIA — el error más común: identificar bien la sub-dimensión NO es lo mismo que tener mecanismo. Un coach puede nombrar 5 áreas reales y correctas (derecha, volea, físico...) sin describir NINGUNA a fondo. Que la etiqueta de la sub-dimensión sea clara y que "candidata_a_foco" sea true NO es evidencia de que haya mecanismo — evalúa cada una de forma independiente, con escepticismo, incluso si el dump completo se ve "sustancioso" por tocar varios temas.
+
+EJEMPLOS DE CALIBRACIÓN — estas frases son SOLO JUICIO (observacion_suficiente: false), aunque nombren la sub-dimensión con claridad:
+- "Su volea es muy floja." → sub_dimension "volea": false. No dice QUÉ hace floja la volea (¿le falta swing? ¿llega tarde? ¿le pega plano?) — "floja" es una etiqueta de resultado, no un mecanismo.
+- "La devolución también necesita mejorar bastante." → sub_dimension "devolucion": false. "Necesita mejorar" no describe ninguna conducta; podría ser cualquier cosa.
+- "Físicamente le falta fuerza en las piernas, se le nota." → sub_dimension "fuerza_inferior": false. "Se le nota" es una conclusión, no una descripción de qué se observó (¿en qué gesto? ¿en qué momento del partido?).
+- "El manejo de riesgo en general no está bien, a veces se pasa de arriesgado y a veces juega muy conservador, le falta consistencia ahí." → sub_dimension "manejo_riesgo": false. Nombra el patrón (oscila entre extremos) pero no dice EN QUÉ SITUACIÓN pasa cada cosa — sin ese contexto es una etiqueta de inconsistencia, no una conducta ubicable. OJO: esta categoría (manejo_riesgo, y en general las de táctica sobre "criterio" o "decisiones") es donde más se confunde patrón general con mecanismo — exige la misma vara que a técnica o físico.
+- "En liderazgo le falta ser más líder con el grupo, ahorita es bastante callado." → sub_dimension "liderazgo": false. "Es callado" es un rasgo/etiqueta de personalidad, no una conducta observable con una condición asociada. OJO: las sub-dimensiones de character (etica_trabajo, coachabilidad, liderazgo) son donde el modelo con más frecuencia acepta un juicio de personalidad como si fuera suficiente — aplica la misma exigencia de mecanismo + condición que en técnica.
+CONTRASTE — estas SÍ tienen mecanismo (observacion_suficiente: true):
+- "Se le abre demasiado la preparación y termina golpeando con el brazo suelto, sin transferencia de peso, cuando la pelota le llega con mucha altura." → sub_dimension "forehand": true. Describe el QUÉ (se abre la preparación, brazo suelto, sin transferencia de peso) y el CUÁNDO (pelota con altura).
+- "En puntos clave, en vez de jugar su patrón normal, se pone conservadora justo cuando más necesita ejecutar, y termina regalando el punto con un error no forzado por jugar demasiado seguro." → sub_dimension "puntos_clave": true. Describe el QUÉ (se pone conservadora, no juega su patrón, error no forzado por exceso de seguridad) y el CUÁNDO (puntos clave).
+- "Aguanta bien los primeros dos sets pero para el tercero baja el ritmo de piernas y empieza a llegar tarde a bolas que en el primer set sí llegaba." → sub_dimension "beep_test": true. Describe el QUÉ (baja el ritmo de piernas, llega tarde a bolas) y el CUÁNDO (a partir del tercer set, en contraste con el primero).
+- "Le doy una corrección puntual en la sesión, la aplica ese mismo día, pero a la sesión siguiente regresa al patrón viejo." → sub_dimension "coachabilidad": true. Describe el QUÉ (aplica la corrección y luego regresa al patrón viejo) y el CUÁNDO (se sostiene el día de la sesión pero no en la siguiente).
+
+CONVENCIÓN DE TONO (ESTRICTA — PROHIBICIÓN ABSOLUTA DE NOMBRE PROPIO): el "read_corto" NUNCA contiene el nombre del atleta, en ninguna posición de la oración, bajo ninguna circunstancia. Ni siquiera cuando el dump del coach usa el nombre como sujeto ("Fulano no tiene término medio", "Fulano se pone mal"). Esta prohibición es mecánica, no depende de si hay o no juicio directo: aplica siempre, en las 21 sub-dimensiones.
+Cuando el coach frasea la observación como juicio directo a la persona (con o sin nombre), eso no descalifica la observación para la regla de suficiencia — solo exige traducir el juicio a conducta observable: busca si en algún punto de esa misma observación SÍ hay conducta observable (con frecuencia aparece un renglón después del juicio) y redacta el "read_corto" completo con esa conducta como sujeto de la oración ("la toma de decisiones...", "el manejo de...", "el patrón de..."), nunca con el nombre del atleta como sujeto.
+Así se ve un "read_corto" correcto para la observación "Fulano no tiene término medio — o juega clavado atrás de la línea de fondo sin arriesgar nada, o de repente decide ir por el ganador imposible": "La toma de decisiones alterna entre jugar clavado atrás de la línea de fondo sin arriesgar nada, y buscar el ganador imposible en el peor momento, sin una selección intermedia." Nota que ese "read_corto" no contiene "Fulano" en ningún punto — el sujeto de la oración es "la toma de decisiones", no la persona.
+AUTOCHEQUEO OBLIGATORIO antes de responder: relee cada "read_corto" que hayas escrito. Si el nombre del atleta aparece en cualquiera de ellos, bórralo y reescribe esa oración completa con sujeto impersonal antes de incluirla en tu respuesta final.
 
 FUSIÓN DE MENCIONES REPETIDAS: si el dump menciona la misma sub-dimensión en dos puntos distintos del texto, NUNCA la devuelvas como dos entradas separadas — fusiona el contenido de ambas menciones en una sola entrada antes de responder.
 
