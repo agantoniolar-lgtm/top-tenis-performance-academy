@@ -25,7 +25,7 @@
 
 | # | Skill | Prioridad | Estado | Notas |
 |---|---|---|---|---|
-| 1 | Rebanada de feature (build flow) | Alta | diseñado | El loop más repetido; incluye definir dónde vive el doc de scoping |
+| 1 | Rebanada de feature (build flow) | Alta | **construido** (9 Jul 2026) | El loop más repetido; incluye definir dónde vive el doc de scoping |
 | 2 | Schema + RLS (diseño + verificación) | Alta | **construido** (9 Jul 2026) | Companion de #1, no duplica |
 | 3 | QA end-to-end pre-presentación | — | **descartado** (9 Jul 2026) | Marco: no es necesaria |
 | 4 | Design polish / mobile-first | Media | idea, pendiente explicar a Marco | Apoyarse en plugin `design` existente |
@@ -66,6 +66,8 @@
   - El skill #1 debe ramificar: si la feature es código programático → Tier A. Si la feature es LLM/agent → además registrar casos de eval y correr Tier B antes del gate de buy-in. (`skill-creator` ya trae capacidad de evals; se puede reutilizar el patrón.)
 
 **Pendiente de definir antes de construir:** dónde viven los evals (carpeta `evals/`?), formato del dataset de casos, y quién/qué es el grader inicial.
+
+**Decisión (9 Jul 2026):** construido con `skill-creator`, proceso completo de evals. 3 casos de prueba (cambio de schema menor, vista sin datos nuevos, feature con LLM) corridos con subagentes con/sin skill en paralelo: 100% pass rate con skill vs. 87% sin skill. En los casos simples no hubo diferencia — ambos agentes, con buen criterio propio, llegan al mismo resultado. La diferencia real apareció en el caso LLM: sin skill, el baseline diseñó por su cuenta una convención de evals (carpeta, rúbrica, grader) nunca antes fijada en el proyecto; con skill, el agente se negó explícitamente a inventarla y marcó que hay que pausar y escoparla con Marco — citando la instrucción del propio SKILL.md. Marco aprobó el resultado explícitamente por ese guardrail. Fuente: `.claude/skills/feature-build-flow/SKILL.md`.
 
 ---
 
@@ -138,9 +140,9 @@ Fue un back-and-forth (S6 "fix escala -2/+2 en todo el sistema", S8, S9) pero ya
 
 ## Orden sugerido de construcción
 
-_Actualizado 9 Jul 2026 tras decisión de Marco: #3, #5 y #6 descartados; #7 y #2 construidos._
+_Actualizado 9 Jul 2026 tras decisión de Marco: #3, #5 y #6 descartados; #7, #2 y #1 construidos._
 
 1. ~~**#7 (apertura/cierre de sesión)**~~ — construido.
 2. ~~**#2 (schema + RLS)**~~ — construido.
-3. **#1 (rebanada de feature)** — el de mayor impacto en context rot; incluye el paso de doc de scoping. Siguiente en la cola.
-4. **#4 (design)** — en discusión: Marco preguntó qué tanto se usaría dado que el design system ya está documentado en `Top Tennis Performance Academy/design-review-prompt.md` + tokens CSS en `src/index.css`. Pendiente de decisión final.
+3. ~~**#1 (rebanada de feature)**~~ — construido, con evals completos. Ver detalle arriba.
+4. **#4 (design)** — en discusión: Marco preguntó qué tanto se usaría dado que el design system ya está documentado en `Top Tennis Performance Academy/design-review-prompt.md` + tokens CSS en `src/index.css`. Pendiente de decisión final. Único skill del backlog original sin resolver.
