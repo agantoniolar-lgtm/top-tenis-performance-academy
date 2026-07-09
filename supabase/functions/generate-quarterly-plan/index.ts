@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-const PROMPT_VERSION = 'pm-v2.9-2026-07-07';
+const PROMPT_VERSION = 'pm-v3.1-2026-07-08';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -115,6 +115,30 @@ FORMATO:
   "dump_quality": { "level": "detallado|vago", "motivo": "<line o cadena vacía>" }
 }`;
 
+// Rúbrica de objetivos — módulo propio y versionado (docs/scope-rubrica-objetivos.md).
+// Se concatena dentro de GENERATE_SYSTEM, igual patrón que RUBRICA_OBSERVACIONES dentro de
+// IDENTIFY_SYSTEM. El switch no mezcla prompts entre modos: esta rúbrica nunca la ve `identify`.
+const RUBRIC_VERSION_OBJETIVOS = 'rubrica-objetivos-v2-2026-07-08';
+const RUBRICA_OBJETIVOS = `RÚBRICA — ¿ES EL OBJETIVO UNA PRESCRIPCIÓN SUSTANCIAL Y FIEL? (ESTRICTA — AUTOCHEQUEO OBLIGATORIO) (${RUBRIC_VERSION_OBJETIVOS})
+Cada objetivo que escribas debe cumplir estos 5 componentes, comparado contra el "read_corto"/diagnóstico que lo originó:
+1. Prescripción sustancial (no calco) — agrega algo más allá de negar el síntoma. No basta con "mantener/mejorar X" cuando la observación dice "falta X".
+2. Fidelidad anti-invención — todo detalle debe rastrearse al read_corto/diagnóstico, sin agregar mecanismo no mencionado.
+3. Vínculo causal fiel — si nombras una causa o mecanismo, esa causa debe estar explícita en el diagnóstico. Si el coach no dijo cuál es la causa, no la inventes: mantente en el nivel de generalidad que el diagnóstico permite en vez de asumir una causa específica.
+4. Sujeto = el atleta, no la academia/coach — la conducta prescrita la hace EL ATLETA, nunca algo que el coach/la academia hace "para" o "con" el grupo.
+5. Objetivo, no acción — describe un estado o conducta medible a alcanzar, nunca un método, rutina o lista de ejercicios para llegar ahí.
+
+AUTOCHEQUEO OBLIGATORIO antes de responder: relee cada objetivo que hayas escrito contra los 5 componentes de arriba, uno por uno. Si detectas que falla alguno, NO te limites a marcar "objetivo_suficiente": false — reescribe el objetivo aplicando la corrección estructural correspondiente antes de incluirlo en tu respuesta final. Solo marca "objetivo_suficiente": false si, después de intentar reescribirlo, el diagnóstico sigue sin traer material suficiente para prescribir sin inventar — en ese caso el objetivo debe quedarse deliberadamente general (nunca inventar detalle para "rellenar" el hueco). "objetivo_motivo" indica cuál(es) de los 5 componentes seguían en riesgo tras el autochequeo, cadena vacía si no hizo falta ajuste.
+
+SEÑALES DE ALERTA — si tu borrador de objetivo se parece a alguno de estos patrones, revísalo con cuidado antes de finalizar:
+- Es la negación literal del síntoma sin agregar nada nuevo (ej. la observación dice "baja el nivel en X" y tu objetivo es "mantener el nivel en X").
+- Asume UNA causa mecánica específica (preparación, transferencia de peso, tal articulación) que el diagnóstico no mencionó explícitamente — si el diagnóstico no da el mecanismo, tu objetivo tampoco debe inventarlo.
+- Empieza con "Fomentar", "Promover" o "Desarrollar/Trabajar... en el grupo/equipo" — casi siempre delata que el sujeto real es el coach, no el atleta.
+- Incluye frases tipo "mediante ejercicios de...", "a través de rutinas de...", "con ejercicios específicos de..." — es un plan de entrenamiento (acción), no un objetivo medible.
+
+CONTRASTE — patrones que SÍ cumplen los 5 componentes (úsalos como plantilla de FORMA, no copies el contenido literal):
+- "Reducir el tiempo de preparación de la volea para llegar atacando de frente, en situaciones de punto" — prescripción concreta derivada del mecanismo ya descrito, sujeto es el atleta, conducta medible.
+- "Tomar la iniciativa de comunicarse con el equipo durante los entrenamientos" — sujeto es el atleta, conducta medible, no un programa de intervenciones del coach.`;
+
 const GENERATE_SYSTEM = `Eres un asistente especializado en tenis de alto rendimiento.
 Transformas las observaciones de un coach en objetivos trimestrales MEDIBLES. Cada objetivo es, en sí mismo, el instrumento de medición: debe estar escrito con precisión suficiente para que el coach coloque al atleta en una escala -2..+2 sin adivinar.
 
@@ -153,6 +177,8 @@ No reformules el síntoma como instrucción ("pega de brazo → que cargue la pi
 - Síntoma: "pega de puro brazo en el saque, no carga la pierna de atrás" → "Mejorar la preparación de piernas para lograr mayor potencia al despegar del piso en el saque"
 - Síntoma: "espera la devolución parado atrás, no da un paso adelante" → "Solidificar el movimiento de la devolución para conseguir mayor aceleración y contacto hacia adelante con la bola"
 
+${RUBRICA_OBJETIVOS}
+
 TONO Y REFERENCIA AL ATLETA (estricta)
 Nunca uses el nombre del atleta en el diagnóstico ni en el objetivo — el plan ya está scopeado a un solo atleta, repetir el nombre no aporta y puede sonar a señalamiento personal. Redacta ambos en tono constructivo y CONDUCTUAL: describe qué pasa y cuándo, no un juicio de carácter sobre la persona.
 Si la observación del coach viene fraseada como crítica directa a la persona (ej. "Fulano no tiene término medio", "le falta compromiso"), TRADÚCELA a la conducta observable sin perder el contenido ni inventar (ej. "la toma de decisiones alterna entre extremos, sin una selección intermedia" en vez de repetir el juicio sobre la persona).
@@ -180,7 +206,9 @@ FORMATO:
       "diagnostico": "<qué se observó, fiel al coach, sin prescribir la solución>",
       "objetivo": "<prescripción + dirección + estándar, sin punto final>",
       "estandar_usado": "de forma consistente|bajo presión|sin recordatorio",
-      "anchors": { "-2": "<...>", "-1": "<...>", "0": "<...>", "+1": "<...>", "+2": "<...>" }
+      "anchors": { "-2": "<...>", "-1": "<...>", "0": "<...>", "+1": "<...>", "+2": "<...>" },
+      "objetivo_suficiente": true,
+      "objetivo_motivo": "<qué componente(s) de la rúbrica falla(n), cadena vacía si pasa>"
     }
   ]
 }`;
@@ -299,6 +327,10 @@ Deno.serve(async (req) => {
       ).map((f) => ({
         ...f,
         estandar_usado: ESTANDARES.includes(f.estandar_usado ?? '') ? f.estandar_usado : 'de forma consistente',
+        // Default conservador: si el modelo no lo incluyó, no generar warnings espurios
+        // (mismo criterio ya usado para observacion_suficiente en identify).
+        objetivo_suficiente: typeof f.objetivo_suficiente === 'boolean' ? f.objetivo_suficiente : true,
+        objetivo_motivo: typeof f.objetivo_motivo === 'string' ? f.objetivo_motivo : '',
       }));
 
       return jsonResponse({ mode, prompt_version: PROMPT_VERSION, focos: focosOut });
