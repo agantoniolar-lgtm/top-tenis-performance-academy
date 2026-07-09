@@ -23,11 +23,21 @@ Antes de empezar a trabajar en cualquier feature, bug, investigación o tarea, d
 
 El kanban tiene dos vistas: **Board** (todos los tasks) y **Team Tasks** (filtrada por Category = Team). Al crear un task, siempre asignar la categoría correcta.
 
-### 2. Actualizar el kanban cuando hay progreso
+### 2. Al abrir sesión
+
+Antes de empezar a trabajar, orientarse con el estado real del proyecto:
+
+1. Leer **Last Session** y **Next Session** en la página principal de Notion — qué se hizo, **dónde** (archivos/carpetas/módulos concretos) y cuál es el foco acordado para esta sesión.
+2. Revisar el kanban de Tasks — ¿hay tasks en "In Progress" que quedaron abiertos? ¿el foco de Next Session ya tiene su task correspondiente? Si no, crearlo antes de empezar (regla 1).
+3. Si el foco de la sesión se desvía de lo que dice Next Session, está bien — pero decirlo explícitamente, para que quede reflejado al cerrar.
+
+**Why:** sin este paso cada sesión arranca sin memoria del estado real del proyecto, y se re-deriva contexto que ya existe en Notion.
+
+### 3. Actualizar el kanban cuando hay progreso
 
 Cuando una tarea esté en progreso o se complete, actualizar su estado en el kanban de Notion en ese momento, no al final.
 
-### 3. Hacer commit antes de cerrar la sesión
+### 4. Hacer commit antes de cerrar la sesión
 
 Antes de cerrar cualquier sesión, hacer commit de todos los cambios realizados durante ella:
 
@@ -43,7 +53,7 @@ El push lo hace Marco desde su terminal local (`git push`). El sandbox de Cowork
 
 > **Nota sobre el index.lock:** si `git add -A` deja un `.git/index.lock` que bloquea el commit, Marco debe borrarlo manualmente: `rm .git/index.lock`
 
-### 4. Cerrar sesión con el comando de fin de sesión
+### 5. Cerrar sesión con el comando de fin de sesión
 
 Cuando Marco dé la instrucción **"let's end the session and log progress for today"** (o equivalente), hacer lo siguiente:
 
@@ -51,13 +61,14 @@ Cuando Marco dé la instrucción **"let's end the session and log progress for t
    - **Session** (title): nombre descriptivo de la sesión, ej. "Session N — Tema principal"
    - **Date**: fecha del día en ISO-8601
    - **Status**: "Complete"
+   - **Dónde**: archivos, carpetas o módulos concretos que se tocaron esta sesión — paths reales, no solo el nombre de la feature. Ej. `docs/scope-rubrica-objetivos.md`, `src/pages/portal/PlanesCoach.jsx`, Edge Function `generate-quarterly-plan`. Este campo es lo que permite retomar sin releer todo el resumen narrativo.
    - **What we did**: resumen narrativo (no lista) de todo lo trabajado — qué se construyó, qué se decidió, qué se descartó. Mencionar items de Notion completados con contexto, no solo sus nombres.
    - **Key decisions**: decisiones importantes tomadas en la sesión que afectan el rumbo del proyecto.
    - **Open items / follow-ups**: pendientes que quedan abiertos para la próxima sesión.
 
 2. **Actualizar la página principal** — en [🎾 Top Tennis Performance Academy](https://www.notion.so/3685a7ea466081f1b19ff96798d6497a):
-   - **Last Session:** **siempre se reemplaza por completo** con la fecha y el resumen de la sesión que se acaba de cerrar — nunca acumula sesiones anteriores. El historial completo de todas las sesiones vive en Session Logs, no en esta página; Last Session es solo un snapshot de la más reciente.
-   - **Next Session:** foco de la próxima sesión y deadline si aplica — se actualiza siempre para reflejar la prioridad correcta de cara a lo que sigue.
+   - **Last Session:** **siempre se reemplaza por completo** con la fecha, el **dónde** (mismos paths que el campo Dónde de Session Logs) y el resumen de la sesión que se acaba de cerrar — nunca acumula sesiones anteriores. El historial completo de todas las sesiones vive en Session Logs, no en esta página; Last Session es solo un snapshot de la más reciente.
+   - **Next Session:** foco de la próxima sesión, **dónde retomar** (los mismos paths de Last Session si se continúa el mismo trabajo, o los paths nuevos si el foco cambia de área) y deadline si aplica — se actualiza siempre para reflejar la prioridad correcta de cara a lo que sigue.
 
 No hacer esto de manera automática — esperar el comando explícito de Marco.
 

@@ -194,3 +194,46 @@ Antes de escalar a la opción 2, se intentó un ajuste barato a la opción 1, mi
 4. Actualizar UI (`PlanesCoach.jsx`) para el aviso condicional por `FocoCard` y retirar/ajustar `RubricaBox`.
 5. `npm run lint && npm test` antes de commit — commit con mensaje descriptivo, push lo hace Marco.
 6. Mover task de Notion a Done cuando la regresión reproduzca lo esperado, igual criterio que la rúbrica de observaciones.
+
+## 11. Opción 2 implementada: modo `validate` aparte (`pm-v4.0-2026-07-09`, v16, deployado) — 9 Jul 2026
+
+Se implementó la opción 2 descartada en §5 y confirmada como necesaria en §8/§9: un nuevo modo `validate` en `generate-quarterly-plan`, con su propio prompt (`VALIDATE_SYSTEM` + `RUBRICA_OBJETIVOS_JUDGE`), que recibe pares `{dimension, sub_dimension, diagnostico, objetivo}` ya generados y devuelve `veredictos[]` con `objetivo_suficiente`/`objetivo_motivo` — sin reescribir nada, solo juzga. `GENERATE_SYSTEM` no se tocó (sigue produciendo su propio self-eval de opción 1, que ya no se usa como autoridad; el campo queda como legado hasta que se limpie en la actualización de UI del punto 4).
+
+**Metodología:** misma que §8 — `identify` + `generate` sobre los 5 casos de `docs/dumps-test-planning-edge-cases.md` vía la extensión Postgres `http` (instalada y removida solo para la corrida), y ahora un tercer paso `validate` sobre los focos generados. Para Sofía y Diego (observaciones ya `observacion_suficiente: false`) se generó objetivo de todas formas, igual criterio que §8.
+
+| Caso | Foco | Objetivo generado (fresco, pm-v4.0) | Veredicto real (anatomía §3/§6) | `validate` (modo nuevo) |
+|---|---|---|---|---|
+| Mariana | serve | "Aumentar la velocidad y el efecto del segundo saque..." | Pasa | **true (correcto)** |
+| Mariana | puntos_clave | "Ejecutar el patrón de juego habitual en puntos clave..." | Pasa | **true (correcto)** |
+| Mariana | transferencia_partido | "Mantener el nivel de ejecución de entrenamiento controlado durante sets de práctica y torneo..." | **FALLA (1) — mismo calco de siempre (§1a)** | **false (correcto — CAPTURADO)** |
+| Mariana | beep_test | "Incrementar la resistencia física para mantener el ritmo de piernas..." | Pasa | **true (correcto)** |
+| Mariana | coachabilidad | "Consolidar las correcciones recibidas en cada sesión para asegurar la transferencia de aprendizaje entre sesiones" | Pasa (mismo patrón ya aceptado en §8) | **false (sobre-marcado — conservador, no peligroso)** |
+| Emilio | forehand | "Reducir la apertura en la preparación de la derecha..." | Pasa | **true (correcto)** |
+| Emilio | manejo_riesgo | "Establecer una selección intermedia de riesgo..." | Pasa | **true (correcto)** |
+| Sofía | forehand | "Aumentar la precisión y profundidad de la derecha..." (diagnóstico: "está bien, aunque puede mejorar") | **FALLA (2)+(3) — invención total, mismo patrón que "ángulo de golpeo"** | **false (correcto — CAPTURADO)** |
+| Sofía | fuerza_inferior | "Incrementar la fuerza de las piernas para mejorar la explosividad y el desplazamiento..." (diagnóstico: "podría estar mejor, más completa") | **FALLA (2) — invención total, el diagnóstico no menciona piernas ni mecanismo** | **false (correcto — CAPTURADO)** |
+| Sofía | etica_trabajo | "Mantener la concentración durante los puntos..." (diagnóstico: "se desconcentra... necesita ser más constante") | **FALLA (1) — calco/reformulación del síntoma** | **false (correcto — CAPTURADO)** |
+| Diego | volea | "Aumentar la potencia en la volea..." | **FALLA (2)+(3) — invención, "potencia" no está en el diagnóstico** | **false (correcto — CAPTURADO)** |
+| Diego | devolucion | "Aumentar la efectividad en la devolución..." | **FALLA (1) — calco de "necesita mejorar"** | **false (correcto — CAPTURADO)** |
+| Diego | manejo_riesgo | "Establecer un enfoque consistente en la toma de decisiones para equilibrar el riesgo..." | Pasa (se deriva razonablemente del patrón descrito) | **true (correcto)** |
+| Diego | fuerza_inferior | "Incrementar la fuerza en las piernas para mejorar la estabilidad y potencia en los golpes..." | **FALLA (2) — invención, el diagnóstico solo dice "le falta fuerza, se le nota"** | **false (correcto — CAPTURADO)** |
+| Diego | liderazgo | "Tomar la iniciativa de comunicarse más con el grupo... para fomentar un ambiente colaborativo" | Pasa (sujeto sigue siendo el atleta: "tomar la iniciativa") | **false (sobre-marcado — el validador reacciona a "fomentar...grupo" aunque el sujeto real sea el atleta)** |
+| Kevin | serve | "Ajustar la técnica del segundo saque..." | Pasa | **true (correcto)** |
+| Kevin | devolucion | "Acelerar la ejecución de la devolución del segundo saque..." | Pasa | **true (correcto)** |
+| Kevin | seleccion_golpe | "Reducir la impulsividad en la selección de golpe..." | Pasa | **true (correcto)** |
+| Kevin | beep_test | "Incrementar la resistencia física para mantener el rendimiento en el tercer set..." | Pasa | **true (correcto)** |
+| Kevin | liderazgo | "Aumentar la comunicación y el liderazgo **en el grupo**, además de regular..." | **FALLA (4) — reproduce casi textual la señal de alerta "Fomentar/Desarrollar...en el grupo"** | **false (correcto — CAPTURADO, motivo "4")** |
+
+### Lectura de conjunto — la opción 2 sí pasa la regresión
+
+**20 objetivos evaluados, 0 objetivos inventados o calcados quedaron marcados `objetivo_suficiente: true` incorrectamente.** Comparado con la opción 1: 10/21 (pm-v3.0) y luego 8/9 de los mismos misses (pm-v3.1) seguían pasando como "suficiente". La opción 2 captura el 100% de los casos peligrosos (invención, calco, señal de alerta institucional) en esta corrida, incluyendo el caso más difícil ya documentado (Kevin/`liderazgo`, que reproduce casi textual la propia señal de alerta de la rúbrica).
+
+**Los únicos 2 desacuerdos son sobre-marcados (falsos negativos en el sentido seguro), no objetivos inventados que pasaron:**
+- Mariana/`coachabilidad` y Diego/`liderazgo` son objetivos que sí cumplen los 5 componentes bajo lectura razonable, pero el validador los marcó `false`. En ambos casos el motivo reportado apunta a componentes (1) y (4) — el validador parece sobre-reaccionar a patrones de forma ("consolidar X" cerca de "mantener X"; "para fomentar un ambiente colaborativo" cerca de la señal de alerta de "fomentar...en el grupo") sin terminar de verificar que el sujeto real de la oración sigue siendo el atleta.
+- Esto es aceptable para un guardrail **advisory** (el coach decide, no bloquea) — el costo de un falso positivo conservador (avisar de más) es mucho menor que el costo ya medido de un falso negativo (dejar pasar un objetivo inventado). No amerita otra vuelta de ajuste antes de exponerlo a coaches; se revisita si en producción se ve que el aviso sale con demasiada frecuencia en objetivos que sí están bien.
+
+**Decisión:** la opción 2 queda como la señal autoritativa de `objetivo_suficiente`/`objetivo_motivo`. El campo que `generate`/`regenerate` sigue devolviendo (self-eval de opción 1) queda como legado no confiable — no usarlo en UI.
+
+## 12. UI conectada a `validate` (`PlanesCoach.jsx`) — 9 Jul 2026
+
+Implementado el punto 4 de §10: tras `handleGenerate`/`handleRegenerate`, se llama `runValidate(out)` (best-effort, no bloquea la navegación ni el guardado si falla) contra el modo `validate`. El veredicto por foco se guarda en el estado `validacion` (keyed por `focoKey`) y se pasa a cada `FocoCard`, que muestra un aviso condicional (mismo estilo/color que el aviso de `observacion_suficiente` en paso 3) solo cuando `objetivo_suficiente === false`, con `objetivo_motivo` traducido de números de componente a texto legible (`formatObjetivoMotivo`). Se retiró la caja fija `RubricaBox` (texto estático que vivía arriba de todos los focos). `npm run lint && npm test` pasan limpio.

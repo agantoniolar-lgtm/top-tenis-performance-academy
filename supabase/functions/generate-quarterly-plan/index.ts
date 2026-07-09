@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-const PROMPT_VERSION = 'pm-v3.1-2026-07-08';
+const PROMPT_VERSION = 'pm-v4.0-2026-07-09';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -213,6 +213,52 @@ FORMATO:
   ]
 }`;
 
+// Validación aparte del objetivo — "opción 2" de docs/scope-rubrica-objetivos.md §5/§10.
+// La opción 1 (self-eval dentro de GENERATE_SYSTEM, pm-v3.0/pm-v3.1) no pasó la regresión de los
+// 5 casos sintéticos (10/21 y luego 8/9 objetivos incorrectos siguieron marcados "suficiente"):
+// el modelo compite por atención entre ESCRIBIR el objetivo y JUZGARLO en la misma llamada.
+// Esta rúbrica es una copia adaptada de RUBRICA_OBJETIVOS con encuadre de juez puro (no reescribe,
+// solo evalúa) y ejemplos reforzados con la lectura "sé escéptico por defecto" que faltaba en la v1/v2.
+// Se usa SOLO dentro de VALIDATE_SYSTEM — nunca se mezcla con GENERATE_SYSTEM (mismo principio de
+// no-contaminación entre prompts del switch, confirmado en §4.4 del scope doc).
+const RUBRIC_VERSION_OBJETIVOS_JUDGE = 'rubrica-objetivos-judge-v1-2026-07-09';
+const RUBRICA_OBJETIVOS_JUDGE = `ANATOMÍA — LOS 5 COMPONENTES DE UN OBJETIVO SUSTANCIAL Y FIEL (${RUBRIC_VERSION_OBJETIVOS_JUDGE})
+Compara el objetivo contra el diagnóstico que lo originó. Marca "objetivo_suficiente": true SOLO si el objetivo cumple los 5 componentes:
+1. Prescripción sustancial (no calco) — agrega algo más allá de negar el síntoma. No basta con "mantener/mejorar X" cuando el diagnóstico dice "falta X" o "baja X" en espejo.
+2. Fidelidad anti-invención — todo detalle del objetivo debe rastrearse al diagnóstico. Si el objetivo menciona mecánica, matiz o intensidad que el diagnóstico NO menciona, falla.
+3. Vínculo causal fiel — si el objetivo nombra una causa o mecanismo (ej. "mediante una correcta preparación", "por mejor transferencia de peso"), esa causa debe estar EXPLÍCITA en el diagnóstico. Si el diagnóstico no dice cuál es la causa, cualquier causa que el objetivo asuma es inventada.
+4. Sujeto = el atleta, no la academia/coach — la conducta prescrita la hace el atleta. Señal de alerta: verbos como "Fomentar", "Promover", "Desarrollar... en el grupo/equipo", o frases "mediante intervenciones de..." casi siempre delatan que el sujeto real es el coach.
+5. Objetivo, no acción — describe un estado o conducta medible, no un método/rutina/lista de ejercicios. Señal de alerta: frases tipo "mediante ejercicios de...", "a través de rutinas de...", "con ejercicios específicos de...".
+
+SÉ ESCÉPTICO POR DEFECTO: tu sesgo por defecto es buscar por qué el objetivo FALLA, no confirmar que pasa. Un objetivo puede sonar bien redactado y usar vocabulario técnico plausible de tenis y aun así inventar mecanismo que el coach nunca dijo — revisa palabra por palabra contra el diagnóstico que tienes enfrente, no contra tu propio conocimiento general de tenis. Si el diagnóstico es vago o breve, sospecha más, no menos: ahí es donde más se inventa.
+
+EJEMPLOS DE CALIBRACIÓN — estos casos reales DEBEN marcarse false (ya se vieron en producción marcados incorrectamente como true):
+- Diagnóstico: "en set de práctica o torneo el nivel de ejecución baja notoriamente comparado con el entrenamiento controlado" → Objetivo: "Mantener el nivel de ejecución del entrenamiento controlado durante sets de práctica y torneo" → false, falla (1): es la negación literal del síntoma, no prescribe nada nuevo.
+- Diagnóstico: "la volea es muy floja, sin potencia" (el coach no dijo qué falla en el mecanismo) → Objetivo: "Aumentar la potencia de la volea mediante una correcta preparación y ejecución del golpeo" → false, falla (3): asume que la causa es la preparación, dato que el diagnóstico no trae.
+- Diagnóstico: "está callado y le falta liderazgo y comunicación" → Objetivo: "Fomentar la comunicación y el liderazgo en el grupo mediante intervenciones activas durante los entrenamientos" → false, falla (4): el sujeto implícito es el coach/la academia, no el atleta.
+- Diagnóstico: "le falta fuerza en las piernas, se le nota" → Objetivo: "Desarrollar la fuerza en las piernas mediante ejercicios específicos de resistencia y potencia" → false, falla (5): es un plan de entrenamiento (qué ejercicios), no un objetivo medible.
+- Diagnóstico: "está bien, aunque puede mejorar" (sin mecanismo) → Objetivo: "Ajustar el ángulo de golpeo en la derecha para mayor consistencia" → false, falla (2)+(3): "ángulo de golpeo" no aparece en el diagnóstico, es invención total.
+- Diagnóstico: "le falta ser más regular en general" → Objetivo: "Aumentar la regularidad en la ejecución de golpes técnicos bajo presión" → false, falla (2): "ejecución de golpes técnicos" no está en el diagnóstico.
+
+CONTRASTE — estos SÍ pasan los 5 (calibración de exigencia, no copies el contenido literal):
+- Diagnóstico: "en la red está incómodo, arma las voleas tarde" → Objetivo: "Reducir el tiempo de preparación de la volea para llegar atacando de frente, en situaciones de punto" → true.
+- Diagnóstico: "está callado con el grupo" → Objetivo: "Tomar la iniciativa de comunicarse con el equipo durante los entrenamientos" → true.`;
+
+const VALIDATE_SYSTEM = `Eres un validador estricto de objetivos trimestrales de tenis de alto rendimiento. NO escribes ni reescribes objetivos — tu única tarea es JUZGAR si un objetivo YA ESCRITO por otro proceso cumple la anatomía de una prescripción sustancial y fiel al diagnóstico que lo originó.
+
+Te llegan pares (diagnóstico, objetivo) ya generados. Evalúa cada par de forma independiente y con escepticismo — no asumas que un objetivo es correcto solo porque su redacción suena natural o profesional.
+
+${RUBRICA_OBJETIVOS_JUDGE}
+
+Responde ÚNICAMENTE con JSON válido, sin markdown ni texto extra. Devuelve un veredicto por cada foco recibido, EN EL MISMO ORDEN y con el mismo "dimension"/"sub_dimension" que te dieron, para poder emparejarlos de vuelta.
+
+FORMATO:
+{
+  "veredictos": [
+    { "dimension": "tecnica|tactica|physical|character", "sub_dimension": "<key exacto>", "objetivo_suficiente": true, "objetivo_motivo": "<qué componente(s) de la anatomía falla(n), cadena vacía si pasa>" }
+  ]
+}`;
+
 function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -334,6 +380,54 @@ Deno.serve(async (req) => {
       }));
 
       return jsonResponse({ mode, prompt_version: PROMPT_VERSION, focos: focosOut });
+    }
+
+    if (mode === 'validate') {
+      const focos = (body.focos ?? [])
+        .filter((f) =>
+          ALL_DIMS.has(f.dimension) &&
+          ALL_KEYS.has(f.sub_dimension) &&
+          typeof f.diagnostico === 'string' && f.diagnostico.trim().length > 0 &&
+          typeof f.objetivo === 'string' && f.objetivo.trim().length > 0,
+        );
+      if (focos.length === 0) {
+        return jsonResponse({ error: 'focos (con dimension, sub_dimension, diagnostico y objetivo) es requerido para validate' }, 400);
+      }
+      if (focos.length > 5) return jsonResponse({ error: 'máximo 5 focos' }, 400);
+
+      const userMsg = `Evalúa cada uno de estos pares diagnóstico/objetivo, en el mismo orden en que aparecen:\n${
+        JSON.stringify(
+          focos.map((f) => ({
+            dimension: f.dimension,
+            sub_dimension: f.sub_dimension,
+            diagnostico: f.diagnostico,
+            objetivo: f.objetivo,
+          })),
+          null,
+          2,
+        )
+      }`;
+
+      const parsed = await callOpenAI(VALIDATE_SYSTEM, userMsg, 1200);
+      const veredictosRaw = Array.isArray(parsed.veredictos) ? parsed.veredictos : [];
+
+      // Empareja por dimension+sub_dimension primero (robusto a que el modelo reordene);
+      // si no encuentra match, cae al mismo índice como respaldo defensivo.
+      const veredictos = focos.map((f, i) => {
+        const match = veredictosRaw.find(
+          (v) => v.dimension === f.dimension && v.sub_dimension === f.sub_dimension,
+        ) ?? veredictosRaw[i] ?? {};
+        return {
+          dimension: f.dimension,
+          sub_dimension: f.sub_dimension,
+          // Default conservador: si el modelo no devuelve el campo, no generar warnings espurios
+          // (mismo criterio ya usado para observacion_suficiente/objetivo_suficiente en identify/generate).
+          objetivo_suficiente: typeof match.objetivo_suficiente === 'boolean' ? match.objetivo_suficiente : true,
+          objetivo_motivo: typeof match.objetivo_motivo === 'string' ? match.objetivo_motivo : '',
+        };
+      });
+
+      return jsonResponse({ mode, prompt_version: PROMPT_VERSION, veredictos });
     }
 
     const LEGACY_SYSTEM = `Eres un asistente especializado en tenis de alto rendimiento.

@@ -74,6 +74,24 @@ function athleteName(plan) {
 const focoKey = (dim, sub) => `${dim}_${sub}`;
 const uuid = () => (crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 
+// Rúbrica de objetivos — traducción de los 5 componentes de la anatomía (docs/scope-rubrica-objetivos.md
+// §3/§6) a texto legible para el coach. `objetivo_motivo` que devuelve el modo `validate` es una lista
+// de números separados por coma (ej. "1, 3"), nunca prosa — esto la vuelve UI-legible sin depender del
+// prompt para redactar bien la explicación.
+const RUBRICA_OBJETIVOS_LABELS = {
+  1: 'no agrega una prescripción sustancial (parece calco del diagnóstico)',
+  2: 'puede estar inventando detalle que el diagnóstico no menciona',
+  3: 'asume una causa que el diagnóstico no especificó',
+  4: 'el sujeto parece ser el coach/la academia, no el atleta',
+  5: 'se lee más como un plan de entrenamiento que como un objetivo medible',
+};
+function formatObjetivoMotivo(motivo) {
+  if (!motivo) return '';
+  const partes = motivo.split(',').map(s => s.trim()).filter(Boolean)
+    .map(n => RUBRICA_OBJETIVOS_LABELS[n] ?? n);
+  return partes.join('; ');
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function PlanesCoach() {
@@ -115,6 +133,10 @@ export default function PlanesCoach() {
   const [feedback,    setFeedback]= useState('');
   const [promptVer,   setPromptVer]= useState(null);
   const [genLog,      setGenLog]  = useState([]);      // filas de objective_generation_log (lineaje), se insertan al guardar
+  // Veredicto de la pasada de validación aparte (mode: 'validate', docs/scope-rubrica-objetivos.md §11).
+  // Autoridad sobre `objetivo_suficiente`/`objetivo_motivo` — el campo que trae genFocos de la propia
+  // llamada de generate/regenerate es self-eval (opción 1, no confiable) y no se usa en UI.
+  const [validacion,  setValidacion] = useState({});   // focoKey → { objetivo_suficiente, objetivo_motivo }
 
   const [saving,    setSav]  = useState(false);
   const [saveError, setSErr] = useState(null);
@@ -158,7 +180,7 @@ export default function PlanesCoach() {
   const resetCreate = () => {
     setStep(1); setSel(''); setObs('');
     setIdList([]); setSelFocos(new Set()); setDumpQuality(null); setLastIdentifiedObs(null);
-    setGenFocos([]); setFeedback(''); setGenLog([]); setPromptVer(null);
+    setGenFocos([]); setFeedback(''); setGenLog([]); setPromptVer(null); setValidacion({});
     setGErr(null); setSErr(null);
     setDraftPlanId(null); setExistingBlock(null); setCheckingExisting(false);
   };
@@ -188,8 +210,11 @@ export default function PlanesCoach() {
     setPromptVer(ds.promptVer ?? null);
     setLastIdentifiedObs((ds.identified?.length ?? 0) > 0 ? (plan.raw_input ?? '').trim() : null);
     setFeedback('');
+    setValidacion({});
     setGErr(null); setSErr(null);
     setStep(ds.step ?? 2);
+    // Retomar un borrador con focos ya generados: re-corre la validación aparte, no se persiste.
+    if ((ds.genFocos ?? []).length > 0) runValidate(ds.genFocos);
   };
 
   // ── Paso 1 → 2: valida que no exista ya un plan para atleta+periodo ─
@@ -318,6 +343,31 @@ export default function PlanesCoach() {
       // completo desde cero (docs/scope-rubrica-observaciones.md §7).
       .map(it => ({ dimension: it.dimension, sub_dimension: it.sub_dimension, read_corto: it.read_corto }));
 
+  // ── Validación aparte de los objetivos generados (opción 2, docs/scope-rubrica-objetivos.md §11) ──
+  // Best-effort: si falla, simplemente no se muestra aviso — nunca bloquea el flujo de guardar el plan.
+  const runValidate = async (focos) => {
+    if (!focos.length) return;
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-quarterly-plan', {
+        body: {
+          mode: 'validate',
+          observations: 'n/a', // el endpoint lo exige pero validate no lo usa (compara diagnostico vs objetivo)
+          focos: focos.map(f => ({
+            dimension: f.dimension, sub_dimension: f.sub_dimension,
+            diagnostico: f.diagnostico ?? '', objetivo: f.objetivo,
+          })),
+        },
+      });
+      if (error) throw error;
+      const veredictos = data?.veredictos ?? [];
+      const next = {};
+      veredictos.forEach(v => { next[focoKey(v.dimension, v.sub_dimension)] = v; });
+      setValidacion(next);
+    } catch (e) {
+      console.warn('No se pudo validar los objetivos generados:', e);
+    }
+  };
+
   // ── Paso 3 → 4: generar focos completos ───────────────────────────
   const handleGenerate = async () => {
     const focos = selectedFocoList();
@@ -338,11 +388,13 @@ export default function PlanesCoach() {
       setPromptVer(promptVersion);
       setGenLog(log);
       setFeedback('');
+      setValidacion({}); // limpia veredictos de una posible generación anterior
       setStep(4);
       persistDraft({
         draft_state: { step: 4, identified, selFocos: [...selFocos], dumpQuality,
                         genFocos: out, genLog: log, promptVer: promptVersion },
       });
+      runValidate(out); // best-effort, no bloquea la navegación a paso 4
     } catch (e) {
       setGErr(e.message ?? 'Error al generar');
     } finally {
@@ -371,10 +423,12 @@ export default function PlanesCoach() {
       setGenLog(log);
       setGenFocos(out);
       setFeedback('');
+      setValidacion({}); // limpia veredictos de la versión anterior de los focos
       persistDraft({
         draft_state: { step: 4, identified, selFocos: [...selFocos], dumpQuality,
                         genFocos: out, genLog: log, promptVer: newVer },
       });
+      runValidate(out); // best-effort, no bloquea la revisión del coach
     } catch (e) {
       setGErr(e.message ?? 'Error al regenerar');
     } finally {
@@ -724,8 +778,6 @@ export default function PlanesCoach() {
           {/* ── Step 4: Revisión por feedback ─────────────────────── */}
           {step === 4 && (
             <div className="space-y-6 mt-6">
-              <RubricaBox />
-
               {DIM_ORDER.filter(d => genFocos.some(f => f.dimension === d)).map(dim => (
                 <div key={dim}>
                   <p className="eyebrow !text-[10px] mb-2" style={{ color: 'var(--ink-mute)' }}>
@@ -733,7 +785,8 @@ export default function PlanesCoach() {
                   </p>
                   <div className="space-y-3">
                     {genFocos.filter(f => f.dimension === dim).map(f => (
-                      <FocoCard key={focoKey(f.dimension, f.sub_dimension)} foco={f} />
+                      <FocoCard key={focoKey(f.dimension, f.sub_dimension)} foco={f}
+                                veredicto={validacion[focoKey(f.dimension, f.sub_dimension)]} />
                     ))}
                   </div>
                 </div>
@@ -994,7 +1047,11 @@ function UrgenciaChip({ urgencia }) {
   );
 }
 
-function FocoCard({ foco }) {
+function FocoCard({ foco, veredicto }) {
+  // Aviso condicional por foco (docs/scope-rubrica-objetivos.md §11) — sustituye la caja fija de
+  // "Qué revisar" que antes vivía arriba de todos los focos. `veredicto` viene del modo `validate`
+  // (pasada de validación aparte); mientras no llega, no se muestra nada (silencioso, no bloquea).
+  const insuficiente = veredicto && veredicto.objetivo_suficiente === false;
   return (
     <div className="hairline px-4 py-3" style={{ background: 'var(--paper)' }}>
       <div className="flex items-center gap-2 mb-1.5">
@@ -1015,6 +1072,11 @@ function FocoCard({ foco }) {
       )}
       <p className="text-[13px] font-medium leading-relaxed mb-2">{foco.objetivo}</p>
       {foco.anchors && <AnchorList anchors={foco.anchors} />}
+      {insuficiente && (
+        <p className="text-[10.5px] mt-2 font-medium" style={{ color: '#a16207' }}>
+          Revisa este objetivo antes de guardar: {formatObjetivoMotivo(veredicto.objetivo_motivo)}.
+        </p>
+      )}
     </div>
   );
 }
@@ -1034,22 +1096,6 @@ function AnchorList({ anchors }) {
           <span className="flex-1" style={{ color: 'var(--ink)' }}>{anchors[k]}</span>
         </div>
       ))}
-    </div>
-  );
-}
-
-function RubricaBox() {
-  return (
-    <div className="hairline p-4" style={{ background: 'rgba(22,163,74,.05)' }}>
-      <p className="text-[11px] font-bold uppercase tracking-wide mb-1.5" style={{ color: '#15803d' }}>
-        Qué revisar
-      </p>
-      <p className="text-[11px]" style={{ color: 'var(--ink)', lineHeight: 1.6 }}>
-        Que cada objetivo represente lo que quieres trabajar este trimestre, que sea
-        <strong> alcanzable en 3 meses</strong> (no una meta de carrera), y que las 5 anclas describan
-        avances claros de <strong>rezagado a superado</strong>. El nivel <strong>0 = por buen camino</strong> es
-        el punto de partida esperado. Si algo no cuadra, comenta y regenera.
-      </p>
     </div>
   );
 }
