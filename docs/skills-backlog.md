@@ -6,6 +6,11 @@
 >
 > **Origen:** análisis de los ~20 Session Logs (28 Jun 2026). Más allá de abrir/cerrar
 > sesión, estos son los flujos que se repiten.
+>
+> **Actualización 9 Jul 2026:** revisión con Marco. Se descartan #3, #5 y #6. Se agrega
+> #7 (apertura/cierre de sesión) — confirmado que sí vale la pena construirlo. #1 se
+> actualiza con un paso de doc de scoping. #2 y #4 quedan pendientes de explicar a Marco
+> antes de decidir si se construyen.
 
 ## Leyenda de estado
 
@@ -20,12 +25,13 @@
 
 | # | Skill | Prioridad | Estado | Notas |
 |---|---|---|---|---|
-| 1 | Rebanada de feature (build flow) | Alta | diseñado | El loop más repetido |
-| 2 | Schema + RLS (diseño + verificación) | Alta | diseñado | Companion de #1, no duplica |
-| 3 | QA end-to-end pre-presentación | Media | idea | Ya existe `qa-guia-flujos-end-to-end.md` como base |
-| 4 | Design polish / mobile-first | Media | idea | Apoyarse en plugin `design` existente |
-| 5 | Escalas de medición (-2/+2) | Baja | documentar, no skill | Ya resuelto; solo dejar referencia |
-| 6 | Scraper de rankings AMTP | Alta (fácil) | diseñado | Skill + scheduled task |
+| 1 | Rebanada de feature (build flow) | Alta | diseñado | El loop más repetido; incluye definir dónde vive el doc de scoping |
+| 2 | Schema + RLS (diseño + verificación) | Alta | **construido** (9 Jul 2026) | Companion de #1, no duplica |
+| 3 | QA end-to-end pre-presentación | — | **descartado** (9 Jul 2026) | Marco: no es necesaria |
+| 4 | Design polish / mobile-first | Media | idea, pendiente explicar a Marco | Apoyarse en plugin `design` existente |
+| 5 | Escalas de medición (-2/+2) | — | **descartado** (9 Jul 2026) | Ya resuelto; no vale ni documentar aparte |
+| 6 | Scraper de rankings AMTP | — | **descartado** (9 Jul 2026) | Marco: no es necesario |
+| 7 | Apertura/cierre de sesión | Alta | diseñado, en construcción | Nuevo — encapsula CLAUDE.md reglas 2 y 5 |
 
 ---
 
@@ -36,12 +42,13 @@
 **Pasos del flujo:**
 
 1. **Task en kanban** (Notion) con `Category` (Dev/Team) y `Type`. Obligatorio antes de empezar.
-2. **Schema en Supabase** — *condicional*. Solo si la feature necesita datos nuevos: tabla nueva o columnas nuevas. Una feature que solo es una vista/pantalla sobre datos existentes **no** crea schema. → ver Skill #2.
-3. **RLS por rol** — políticas según quién puede ver/editar (todos / coach / atleta / admin). Solo aplica si hubo cambio de schema en el paso 2. → ver Skill #2.
-4. **Componente React** — el front end de la feature.
-5. **Función pura en `src/lib` + test** — *condicional* (ver decisión abajo).
-6. **`npm run lint && npm test`** — debe pasar antes del commit.
-7. **Commit** con mensaje descriptivo (`feat:` / `fix:` / `chore:` / `refactor:`).
+2. **Doc de scoping** — *condicional*, para features no triviales. Un doc corto en `docs/scope-<nombre-feature>.md`: qué es, por qué, variantes de falla/edge cases ya conocidos, arquitectura elegida y por qué. Sigue el patrón ya usado (`docs/scope-planning-measurement.md`, `docs/scope-rubrica-objetivos.md`, `docs/scope-rubrica-observaciones.md`). El skill pregunta explícitamente dónde vive este doc antes de escribir código — por default `docs/`, salvo que sea contenido no técnico (→ `Top Tennis Performance Academy/`, por la regla de estructura de archivos en CLAUDE.md).
+3. **Schema en Supabase** — *condicional*. Solo si la feature necesita datos nuevos: tabla nueva o columnas nuevas. Una feature que solo es una vista/pantalla sobre datos existentes **no** crea schema. → ver Skill #2.
+4. **RLS por rol** — políticas según quién puede ver/editar (todos / coach / atleta / admin). Solo aplica si hubo cambio de schema en el paso 3. → ver Skill #2.
+5. **Componente React** — el front end de la feature.
+6. **Función pura en `src/lib` + test** — *condicional* (ver decisión abajo).
+7. **`npm run lint && npm test`** — debe pasar antes del commit.
+8. **Commit** con mensaje descriptivo (`feat:` / `fix:` / `chore:` / `refactor:`).
 
 ### Decisiones (respuestas a las preguntas de Marco)
 
@@ -68,8 +75,8 @@
 
 ### Diferencia con el Skill #1
 
-- **#1 es la orquestación end-to-end** ("construir una rebanada completa"): toca kanban, schema, RLS, React, lib, test, commit.
-- **#2 es el módulo profundo de la capa de datos**: el modelo de roles (coach/atleta/admin), los patrones de RLS, y **la verificación de que las policies se comportan**. El Skill #1 *invoca/referencia* al #2 en sus pasos 2–3. No se duplican: #1 es el flujo, #2 es la profundidad de un sub-paso.
+- **#1 es la orquestación end-to-end** ("construir una rebanada completa"): toca kanban, doc de scoping, schema, RLS, React, lib, test, commit.
+- **#2 es el módulo profundo de la capa de datos**: el modelo de roles (coach/atleta/admin), los patrones de RLS, y **la verificación de que las policies se comportan**. El Skill #1 *invoca/referencia* al #2 en sus pasos 3–4. No se duplican: #1 es el flujo, #2 es la profundidad de un sub-paso.
 
 ### ¿Tiene sentido un skill de verificación? — Sí
 
@@ -77,20 +84,15 @@ Los bugs de RLS son **silenciosos y peligrosos**: un atleta viendo datos de otro
 
 **Forma del skill:** referencia el modelo de roles + patrones de RLS de `docs/db-schema.md`, y al crear/cambiar una tabla corre una verificación por rol (¿el atleta ve solo lo suyo? ¿el coach ve a su equipo? ¿admin ve todo? ¿algún rol está bloqueado de más?). Incluye la trampa de **timezone** que ya nos mordió.
 
+**Decisión (9 Jul 2026):** construido. Marco confirmó después de que se le explicó. Fuente: `.claude/skills/schema-rls-verification/SKILL.md`, empaquetado y presentado.
+
 ---
 
-## 3. QA end-to-end pre-presentación
+## 3. QA end-to-end pre-presentación — descartado
 
-**Qué es:** S12 ("QA tour") y fixes pre-presentación dispersos. Probar el flujo crítico de cada rol antes de mostrarle a coaches/inversionistas.
+**Qué era:** S12 ("QA tour") y fixes pre-presentación dispersos. Probar el flujo crítico de cada rol antes de mostrarle a coaches/inversionistas. Base existente: `docs/qa-guia-flujos-end-to-end.md` + `docs/qa-hallazgos-2026-06-11.md`.
 
-### Respuesta a "¿no es por naturaleza front end UI?"
-
-Sí es UI, y por eso el skill tiene **dos mitades**:
-
-1. **Checklist** (lo que ya empezamos en `docs/qa-guia-flujos-end-to-end.md`): el flujo crítico por rol + la lista de trampas conocidas (RLS, timezone, overflow móvil, 404 de Vercel en rutas). Esta mitad es texto y se reutiliza tal cual.
-2. **Automatización opcional**: el skill *sí* puede manejar la UI usando el MCP de **Claude in Chrome** (o computer-use) para recorrer cada flujo, hacer login como cada rol, y reportar hallazgos — no se queda solo en checklist. Esa es la parte que convierte "QA manual cada vez" en "corre el QA tour".
-
-**Decisión:** vale la pena. Base ya existe (`qa-guia-flujos-end-to-end.md` + `qa-hallazgos-2026-06-11.md`). Falta envolverlo como skill que (a) cargue el checklist y (b) opcionalmente maneje Chrome para ejecutarlo.
+**Decisión (9 Jul 2026):** descartado. Marco: no es necesario.
 
 ---
 
@@ -102,31 +104,43 @@ Sí es UI, y por eso el skill tiene **dos mitades**:
 
 **Nota:** ya tenemos instalado el plugin `design` con skills (`design-critique`, `accessibility-review`, `design-system`). En vez de construir de cero, conviene **extender/configurar** esos con nuestros tokens y reglas. A evaluar antes de construir.
 
----
-
-## 5. Escalas de medición (-2/+2)  — documentar, no skill
-
-Fue un back-and-forth (S6 "fix escala -2/+2 en todo el sistema", S8, S9) pero **ya se resolvió y está fijo**. Marco considera que no volverá a ser problema.
-
-**Decisión:** no construir skill. Solo dejar la definición canónica documentada (dónde viven las escalas, qué significa cada valor) como referencia para que no se vuelva a desincronizar. Candidato a una sección en `docs/db-schema.md` o un `docs/escalas.md` corto.
+**Pendiente:** explicar esto a Marco (no lo entendió) antes de decidir si se construye (9 Jul 2026).
 
 ---
 
-## 6. Scraper de rankings AMTP  — construir
+## 5. Escalas de medición (-2/+2) — descartado
 
-**Qué es:** S17. Si los rankings se refrescan periódicamente, esto **no debe ser conversación** — es un script + un scheduled task que lo corre solo.
+Fue un back-and-forth (S6 "fix escala -2/+2 en todo el sistema", S8, S9) pero ya se resolvió y está fijo.
 
-**Decisión:** construir. Marco confirmó: es sencillo y se puede cargar periódicamente.
+**Decisión (9 Jul 2026):** descartado. Marco: no es necesario, ni siquiera como referencia aparte.
 
-**Forma:** skill que envuelve el scraper existente (de S17) + un *scheduled task* que lo dispara con la cadencia que definamos (¿semanal?). Pendiente: revisar cómo quedó el scraper de S17 (`scripts/`) para envolverlo, y definir cadencia.
+---
+
+## 6. Scraper de rankings AMTP — descartado
+
+**Qué era:** S17. Si los rankings se refrescan periódicamente, esto no debía ser conversación — un script + un scheduled task.
+
+**Decisión (9 Jul 2026):** descartado. Marco: no es necesario.
+
+---
+
+## 7. Apertura/cierre de sesión
+
+**Qué es:** el flujo que se repite en cada sesión sin excepción — hoy vive solo como texto en CLAUDE.md (reglas 2 y 5). Encapsularlo como skill reduce el riesgo de saltarse un paso cuando la sesión arranca directo a resolver algo, y estandariza cómo se llenan Session Logs y la página principal.
+
+**Al abrir:** lee Last Session + Next Session de la página principal de Notion (incluyendo el campo **Dónde**), revisa el kanban de Tasks por ítems en progreso, y confirma que el foco de la sesión tiene su task correspondiente (si no, lo crea).
+
+**Al cerrar:** llena una entrada en Session Logs (Session, Date, Status, **Dónde**, What we did, Key decisions, Open items/follow-ups), reemplaza Last Session y Next Session en la página principal (incluyendo Dónde / Dónde retomar), y recuerda el commit final si quedó pendiente.
+
+**Decisión (9 Jul 2026):** construir. Marco confirmó que le gusta la idea al proponerla.
 
 ---
 
 ## Orden sugerido de construcción
 
-1. **#6 (scraper)** — el más fácil y de valor inmediato; arranca el hábito.
-2. **#1 (rebanada de feature)** — el de mayor impacto en context rot.
-3. **#2 (schema + RLS)** — companion de #1; juntos cubren el grueso del trabajo dev.
-4. **#3 (QA e2e)** — cuando #1/#2 estén estables.
-5. **#4 (design)** — evaluar extender el plugin `design` antes de construir.
-6. **#5** — solo documentar.
+_Actualizado 9 Jul 2026 tras decisión de Marco: #3, #5 y #6 descartados; #7 y #2 construidos._
+
+1. ~~**#7 (apertura/cierre de sesión)**~~ — construido.
+2. ~~**#2 (schema + RLS)**~~ — construido.
+3. **#1 (rebanada de feature)** — el de mayor impacto en context rot; incluye el paso de doc de scoping. Siguiente en la cola.
+4. **#4 (design)** — en discusión: Marco preguntó qué tanto se usaría dado que el design system ya está documentado en `Top Tennis Performance Academy/design-review-prompt.md` + tokens CSS en `src/index.css`. Pendiente de decisión final.
