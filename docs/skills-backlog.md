@@ -69,6 +69,8 @@
 
 **Decisión (9 Jul 2026):** construido con `skill-creator`, proceso completo de evals. 3 casos de prueba (cambio de schema menor, vista sin datos nuevos, feature con LLM) corridos con subagentes con/sin skill en paralelo: 100% pass rate con skill vs. 87% sin skill. En los casos simples no hubo diferencia — ambos agentes, con buen criterio propio, llegan al mismo resultado. La diferencia real apareció en el caso LLM: sin skill, el baseline diseñó por su cuenta una convención de evals (carpeta, rúbrica, grader) nunca antes fijada en el proyecto; con skill, el agente se negó explícitamente a inventarla y marcó que hay que pausar y escoparla con Marco — citando la instrucción del propio SKILL.md. Marco aprobó el resultado explícitamente por ese guardrail. Fuente: `.claude/skills/feature-build-flow/SKILL.md`.
 
+**Corrección (9 Jul 2026, mismo día):** Marco notó que el paso 2 (doc de scoping) pedía confirmar *dónde* vive el doc, pero no pausaba a esperar su *autorización* antes de construir lo que el doc describía — "lo documenté" no es lo mismo que "está aprobado". Se agregó un alto obligatorio: si el paso 2 generó un doc de scoping, el skill debe presentárselo a Marco y esperar autorización explícita antes de seguir a los pasos de construcción (3 en adelante). No aplica al camino obvio sin doc de scoping — ahí el task del kanban ya es autorización suficiente. `.skill` reempaquetado y vuelto a presentar para reinstalar.
+
 ---
 
 ## 2. Schema + RLS (diseño + verificación)

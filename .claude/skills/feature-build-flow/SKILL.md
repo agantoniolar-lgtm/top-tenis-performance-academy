@@ -27,6 +27,8 @@ Pregúntate: **¿esta feature tiene ambigüedad real, o el camino es obvio?**
 
 Antes de escribir el doc, pregúntale a Marco (o decide con criterio si es obvio por la regla de estructura de archivos de CLAUDE.md) dónde vive: por default `docs/` si es spec técnica, o `Top Tennis Performance Academy/` si es contenido no técnico para compartir con coaches/atletas/clientes. No asumas la ubicación en silencio — es justo el tipo de cosa que se pierde entre sesiones si no queda explícito.
 
+**Alto obligatorio si escribiste el doc de scoping:** una vez terminado, preséntaselo a Marco y espera su autorización explícita antes de seguir a los pasos de construcción (3 en adelante) — no toques schema, no escribas RLS, no escribas código todavía. El doc de scoping es una propuesta para su revisión, no luz verde automática para construir lo que describe; "lo documenté" y "está aprobado" son dos cosas distintas, y este skill existe en parte para no confundirlas. Esto aplica solo cuando este paso sí generó un doc — si el camino era obvio y lo saltaste, el task del kanban más lo que Marco ya pidió es autorización suficiente para seguir sin pausa adicional.
+
 ### 3. Schema en Supabase — condicional
 
 Pregúntate primero: **¿esta feature genera datos nuevos?**
@@ -76,7 +78,7 @@ Mensaje descriptivo con prefijo (`feat:` / `fix:` / `chore:` / `refactor:`) que 
 | Paso | ¿Siempre aplica? |
 |---|---|
 | 1. Task en kanban | Sí, sin excepción |
-| 2. Doc de scoping | Solo si hay ambigüedad real |
+| 2. Doc de scoping | Solo si hay ambigüedad real — y si aplica, pausa obligatoria a esperar autorización de Marco antes de construir |
 | 3. Schema | Solo si hay datos nuevos |
 | 4. RLS | Solo si hubo paso 3 |
 | 5. Componente React | Sí (si la feature tiene UI) |
