@@ -7,6 +7,7 @@ import { Icon } from './ui';
 
 function crumbsFor(pathname) {
   if (pathname === '/portal')               return ['Dashboard'];
+  if (pathname.startsWith('/portal/equipo'))  return ['Equipo'];
   if (pathname.startsWith('/portal/alumnos')) return ['Atletas'];
   if (pathname.startsWith('/portal/reportes')) return ['Reportes'];
   if (pathname.startsWith('/portal/torneos'))  return ['Torneos'];

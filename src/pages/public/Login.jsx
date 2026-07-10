@@ -24,7 +24,7 @@ export default function Login() {
 
       // Redirect por rol: coach → /portal/alumnos, atleta → /portal/inicio
       const { data: coach } = await supabase.from('coaches').select('id').eq('user_id', uid).maybeSingle();
-      navigate(coach ? '/portal/alumnos' : '/portal/inicio');
+      navigate(coach ? '/portal/equipo' : '/portal/inicio');
     } catch (err) {
       setError(err.message || 'Error al iniciar sesión.');
     } finally {

@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
-import { useAuth } from '../../../hooks/useAuth';
 import {
-  calcCat, avg, ocAvgLabel, fmtPeriodLong,
+  calcCat, avg, ocAvgLabel, fmtPeriodLong, isRecruitmentRelevant,
   STROKE_KEYS, TACTIC_KEYS,
 } from '../../../lib/athletics.js';
 
@@ -11,7 +10,6 @@ const OC_KEYS = [...STROKE_KEYS, ...TACTIC_KEYS];
 const CH_KEYS = ['etica_trabajo', 'coachabilidad'];
 
 export default function Equipo() {
-  const { user }  = useAuth();
   const navigate  = useNavigate();
 
   const [athletes,  setAthletes]  = useState([]);
@@ -20,6 +18,7 @@ export default function Equipo() {
   const [repsByAth, setRepsByAth] = useState({});   // athleteId → [report, ...]
   const [ocByRep,   setOcByRep]   = useState({});   // reportId  → on_court row
   const [chByRep,   setChByRep]   = useState({});   // reportId  → character row
+  const [recruited, setRecruited] = useState(new Set()); // athleteIds con perfil de reclutamiento
   const [view,      setView]      = useState('cards');
   const [loading,   setLoad]      = useState(true);
   const [error,     setErr]       = useState(null);
@@ -38,8 +37,8 @@ export default function Equipo() {
       const aths   = athRes.data ?? [];
       const athIds = aths.map(a => a.id);
 
-      // 2. Coaches + AMTP ranking (período más reciente por atleta) en paralelo
-      const [cchRes, amtpRes] = await Promise.all([
+      // 2. Coaches + AMTP ranking (período más reciente por atleta) + perfiles de reclutamiento existentes, en paralelo
+      const [cchRes, amtpRes, recRes] = await Promise.all([
         supabase.from('coaches').select('id, nombre'),
         athIds.length > 0
           ? supabase.from('amtp_rankings')
@@ -47,9 +46,13 @@ export default function Equipo() {
               .in('athlete_id', athIds)
               .order('periodo', { ascending: false })
           : Promise.resolve({ data: [] }),
+        athIds.length > 0
+          ? supabase.from('athlete_recruitment_profile').select('athlete_id').in('athlete_id', athIds)
+          : Promise.resolve({ data: [] }),
       ]);
 
       const coachMap = Object.fromEntries((cchRes.data ?? []).map(c => [c.id, c]));
+      const recruitedSet = new Set((recRes.data ?? []).map(r => r.athlete_id));
 
       const amtpMap = {};
       for (const r of (amtpRes.data ?? [])) {
@@ -57,7 +60,7 @@ export default function Equipo() {
       }
 
       if (athIds.length === 0) {
-        if (!cancelled) { setAthletes([]); setCoaches(coachMap); setAmtpByAth(amtpMap); setLoad(false); }
+        if (!cancelled) { setAthletes([]); setCoaches(coachMap); setAmtpByAth(amtpMap); setRecruited(recruitedSet); setLoad(false); }
         return;
       }
 
@@ -79,7 +82,7 @@ export default function Equipo() {
       const lastRepIds = Object.values(byAth).map(rs => rs[0]?.id).filter(Boolean);
 
       if (allRepIds.length === 0) {
-        if (!cancelled) { setAthletes(aths); setCoaches(coachMap); setRepsByAth(byAth); setAmtpByAth(amtpMap); setLoad(false); }
+        if (!cancelled) { setAthletes(aths); setCoaches(coachMap); setRepsByAth(byAth); setAmtpByAth(amtpMap); setRecruited(recruitedSet); setLoad(false); }
         return;
       }
 
@@ -103,6 +106,7 @@ export default function Equipo() {
         setOcByRep(toMap(ocRes.data));
         setChByRep(toMap(chRes.data));
         setAmtpByAth(amtpMap);
+        setRecruited(recruitedSet);
         setLoad(false);
       }
     }
@@ -114,13 +118,11 @@ export default function Equipo() {
   if (loading) return <Shell><p className="text-[var(--ink-mute)] text-sm">Cargando equipo…</p></Shell>;
   if (error)   return <Shell><p className="text-red-500 text-sm">Error: {error}</p></Shell>;
 
-  const myCoachId = user?.coach_id;
+  const needsRecruitment = a => isRecruitmentRelevant(a.fecha_nacimiento) && !recruited.has(a.id);
 
   return (
     <Shell>
-      <TabBar active="equipo" />
-
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="font-display font-extrabold text-[28px] leading-none">Equipo</h1>
           <p className="text-[12px] font-mono text-[var(--ink-mute)] mt-1">
@@ -130,11 +132,6 @@ export default function Equipo() {
         <ViewToggle view={view} onChange={setView} />
       </div>
 
-      <p className="text-[11px] flex items-center gap-2 mb-5" style={{ color: 'var(--ink-mute)' }}>
-        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: 'var(--accent)' }} />
-        Borde cobre = tus atletas. Los demás son solo lectura.
-      </p>
-
       {athletes.length === 0 ? (
         <p className="text-[var(--ink-mute)] text-sm">Sin atletas en la academia.</p>
       ) : view === 'cards' ? (
@@ -143,12 +140,12 @@ export default function Equipo() {
             <AthleteCard
               key={a.id}
               athlete={a}
-              isOwn={a.coach_id === myCoachId}
               coachName={coaches[a.coach_id]?.nombre}
               amtp={amtpByAth[a.id]}
               reports={repsByAth[a.id] ?? []}
               ocByRep={ocByRep}
               chByRep={chByRep}
+              pendingRecruitment={needsRecruitment(a)}
               onClick={() => navigate(`/portal/alumnos/${a.id}`)}
             />
           ))}
@@ -161,7 +158,7 @@ export default function Equipo() {
           repsByAth={repsByAth}
           ocByRep={ocByRep}
           chByRep={chByRep}
-          myCoachId={myCoachId}
+          needsRecruitment={needsRecruitment}
           onRowClick={a => navigate(`/portal/alumnos/${a.id}`)}
         />
       )}
@@ -171,7 +168,7 @@ export default function Equipo() {
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
-function AthleteCard({ athlete: a, isOwn, coachName, amtp, reports, ocByRep, chByRep, onClick }) {
+function AthleteCard({ athlete: a, coachName, amtp, reports, ocByRep, chByRep, pendingRecruitment, onClick }) {
   const lastOC  = reports[0] ? ocByRep[reports[0].id] : null;
   const lastCH  = reports[0] ? chByRep[reports[0].id] : null;
   const ocLabel = ocAvgLabel(avg(lastOC, OC_KEYS));
@@ -181,7 +178,6 @@ function AthleteCard({ athlete: a, isOwn, coachName, amtp, reports, ocByRep, chB
     <div
       onClick={onClick}
       className="bg-[var(--paper)] cursor-pointer transition hover:bg-[var(--cream)] hairline"
-      style={isOwn ? { borderLeft: '3px solid var(--accent)' } : {}}
     >
       <div className="p-4">
         {/* Header */}
@@ -192,10 +188,11 @@ function AthleteCard({ athlete: a, isOwn, coachName, amtp, reports, ocByRep, chB
               <span className="font-display font-bold text-[14px] leading-tight">
                 {a.nombre} {a.apellido}
               </span>
-              {isOwn
-                ? <span className="tag text-[9px]" style={{ background: '#E8F5EE', color: '#15602E' }}>Tuyo</span>
-                : <span className="tag text-[9px]" style={{ background: 'var(--cream)', color: 'var(--ink-mute)' }}>Ver</span>
-              }
+              {pendingRecruitment && (
+                <span className="tag text-[9px]" style={{ background: '#FFF6D6', color: '#8A6D00' }}>
+                  Reclutamiento pendiente
+                </span>
+              )}
             </div>
             <div className="text-[10px] font-mono mt-0.5" style={{ color: 'var(--ink-mute)' }}>
               {coachName ?? '—'} · {calcCat(a.fecha_nacimiento)}
@@ -257,7 +254,7 @@ function CardMetric({ label, value, big = false }) {
 
 // ─── Table ────────────────────────────────────────────────────────────────────
 
-function TeamTable({ athletes, coaches, amtpByAth, repsByAth, ocByRep, chByRep, myCoachId, onRowClick }) {
+function TeamTable({ athletes, coaches, amtpByAth, repsByAth, ocByRep, chByRep, needsRecruitment, onRowClick }) {
   return (
     <div className="hairline bg-[var(--paper)] overflow-x-auto">
       <table className="w-full text-[12px] min-w-[640px]">
@@ -274,27 +271,33 @@ function TeamTable({ athletes, coaches, amtpByAth, repsByAth, ocByRep, chByRep, 
         </thead>
         <tbody>
           {athletes.map(a => {
-            const isOwn   = a.coach_id === myCoachId;
             const amtp    = amtpByAth[a.id];
             const reports = repsByAth[a.id] ?? [];
             const lastOC  = reports[0] ? ocByRep[reports[0].id] : null;
             const lastCH  = reports[0] ? chByRep[reports[0].id] : null;
             const ocLabel = ocAvgLabel(avg(lastOC, OC_KEYS));
             const chLabel = ocAvgLabel(avg(lastCH, CH_KEYS));
+            const pending = needsRecruitment(a);
 
             return (
               <tr
                 key={a.id}
                 className="hairline-t hover:bg-[var(--cream)] cursor-pointer transition"
                 onClick={() => onRowClick(a)}
-                style={isOwn ? { borderLeft: '3px solid var(--accent)' } : {}}
               >
                 <td className="px-5 py-3">
                   <div className="flex items-center gap-3">
                     <div className="w-7 h-9 court-bg shrink-0" />
                     <div>
-                      <div className="font-display font-bold text-[13px]">
-                        {a.nombre} {a.apellido}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <div className="font-display font-bold text-[13px]">
+                          {a.nombre} {a.apellido}
+                        </div>
+                        {pending && (
+                          <span className="tag text-[9px]" style={{ background: '#FFF6D6', color: '#8A6D00' }}>
+                            Reclutamiento pendiente
+                          </span>
+                        )}
                       </div>
                       <div className="text-[10px] font-mono" style={{ color: 'var(--ink-mute)' }}>
                         {coaches[a.coach_id]?.nombre ?? '—'}
@@ -355,32 +358,6 @@ function TeamTable({ athletes, coaches, amtpByAth, repsByAth, ocByRep, chByRep, 
 }
 
 // ─── Shared ───────────────────────────────────────────────────────────────────
-
-export function TabBar({ active }) {
-  const navigate = useNavigate();
-  return (
-    <div className="flex mb-6" style={{ borderBottom: '1px solid var(--line-strong)' }}>
-      {[
-        { id: 'mis',    label: 'Mis atletas', path: '/portal/alumnos' },
-        { id: 'equipo', label: 'Equipo',      path: '/portal/equipo'  },
-      ].map(t => (
-        <button
-          key={t.id}
-          onClick={() => navigate(t.path)}
-          className="px-4 py-2.5 text-[13px] font-medium transition"
-          style={{
-            background: 'transparent',
-            color: active === t.id ? 'var(--ink)' : 'var(--ink-mute)',
-            borderBottom: active === t.id ? '2px solid var(--ink)' : '2px solid transparent',
-            marginBottom: '-1px',
-          }}
-        >
-          {t.label}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 function ViewToggle({ view, onChange }) {
   return (

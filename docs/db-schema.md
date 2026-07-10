@@ -71,7 +71,7 @@ Gestionada por Supabase Auth. No se crea manualmente. Sirve de base para `athlet
 |---|---|---|
 | id | uuid | PK |
 | user_id | uuid | FK → auth.users — nullable (el atleta puede no tener cuenta aún; requerido cuando se active Athlete Voice) |
-| coach_id | uuid | FK → coaches — coach principal |
+| coach_id | uuid | FK → coaches, nullable (9 Jul 2026) — ya no es "dueño"/gate de acceso, solo metadata histórica (quién dio de alta, si aplica). Ver docs/scope-coach-atleta-libre.md. |
 | nombre | text | |
 | apellido | text | |
 | fecha_nacimiento | date | |
@@ -250,14 +250,18 @@ Solo se puede crear si `reports.athlete_voice_unlocked_at IS NOT NULL` — enfor
 
 ## RLS — Row Level Security (resumen)
 
+**Actualizado 9 Jul 2026** (docs/scope-coach-atleta-libre.md): la relación coach↔atleta dejó de ser un gate de acceso. Cualquier coach ve y edita a cualquier atleta — nadie tiene `DELETE` sobre `athletes` (baja = `activo = false`; borrar de verdad es manual, fuera de la app).
+
 | Tabla | Coach | Atleta | Notas |
 |---|---|---|---|
-| `athletes` | Lee y edita los suyos | Lee su propio perfil | |
-| `reports` | Lee y crea los de sus atletas | Lee el suyo | |
-| `report_on_court` | Lee y edita los de sus atletas | Lee el suyo | Solo si `completed_at IS NOT NULL` para el atleta |
-| `report_physical` | Lee y edita los de sus atletas | Lee el suyo | |
-| `report_character` | Lee y edita los de sus atletas | **Sin acceso** | Solo coaches |
-| `report_athlete_voice` | Lee los de sus atletas | Lee y edita el suyo | Solo si `athlete_voice_unlocked_at IS NOT NULL` |
+| `athletes` | Lee, crea (autoregistro del atleta) y edita a cualquiera. **Sin DELETE.** | Lee y edita su propio perfil | |
+| `athlete_utr_history` / `athlete_profile_snapshots` / `athlete_recruitment_profile` | Lee de cualquier atleta | Lee/edita el suyo | Antes solo el coach "asignado" — abierto 9 Jul 2026 |
+| `reports` | Lee de cualquiera, crea/edita los que él mismo abrió | Lee el suyo | `reports.coach_id` = quien lo abrió, no depende de `athletes.coach_id` |
+| `report_on_court` | Lee de cualquiera, edita los de sus propios reportes | Lee el suyo | Solo si `completed_at IS NOT NULL` para el atleta |
+| `report_physical` | Lee de cualquiera, edita los de sus propios reportes | Lee el suyo | |
+| `report_character` | Lee de cualquiera, edita los de sus propios reportes | **Sin acceso** | Solo coaches |
+| `report_athlete_voice` | Lee de cualquiera | Lee y edita el suyo | Solo si `athlete_voice_unlocked_at IS NOT NULL` |
+| `quarterly_plans` / `quarterly_plan_objectives` | Lee, crea y edita cualquier plan de cualquier atleta. **Sin DELETE.** | Lee el suyo | Solo si `status = 'active'`. Antes solo el coach que lo creó — abierto 9 Jul 2026 |
 
 ---
 

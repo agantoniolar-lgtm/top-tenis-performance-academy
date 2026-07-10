@@ -191,7 +191,6 @@ export default function ReportesPorPeriodo() {
       const { data: athletes, error: aErr } = await supabase
         .from('athletes')
         .select('id, nombre, apellido, fecha_nacimiento')
-        .eq('coach_id', user.coach_id)
         .eq('activo', true)
         .order('apellido');
 

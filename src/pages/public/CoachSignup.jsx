@@ -70,7 +70,7 @@ export default function CoachSignup() {
       }
 
       await refreshUser();
-      navigate('/portal/alumnos');
+      navigate('/portal/equipo');
     } catch (err) {
       setError(err.message || 'Error al crear la cuenta.');
     } finally {

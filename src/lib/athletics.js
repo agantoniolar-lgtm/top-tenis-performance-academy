@@ -69,6 +69,22 @@ export function calcEdad(fechaNac) {
   return new Date().getFullYear() - new Date(fechaNac).getFullYear();
 }
 
+/**
+ * Categorías de edad donde el perfil de reclutamiento universitario ya es
+ * relevante. Atletas más chicos (12U/14U) no necesitan llenarlo — no debe
+ * bloquearlos ni pedírselo como requisito.
+ */
+export const RECRUITMENT_CATEGORIES = ['16U', '18U'];
+
+/**
+ * Indica si el perfil de reclutamiento aplica para este atleta según su edad.
+ * Sin fecha de nacimiento, se asume que no aplica (mejor no pedir de más).
+ * @param {string|null} fechaNac
+ */
+export function isRecruitmentRelevant(fechaNac) {
+  return RECRUITMENT_CATEGORIES.includes(calcCat(fechaNac));
+}
+
 // ─── Funciones de score ───────────────────────────────────────────────────────
 
 /**

@@ -151,7 +151,6 @@ export default function PlanesCoach() {
     const { data } = await supabase
       .from('quarterly_plans')
       .select('id, athlete_id, period_start, period_end, status, athletes(nombre, apellido), quarterly_plan_objectives(id)')
-      .eq('coach_id', user.coach_id)
       .order('period_start', { ascending: false });
     setPlans(data ?? []);
     setLL(false);
@@ -165,7 +164,6 @@ export default function PlanesCoach() {
     supabase
       .from('athletes')
       .select('id, nombre, apellido')
-      .eq('coach_id', user.coach_id)
       .eq('activo', true)
       .order('nombre')
       .then(({ data }) => setAth(data ?? []));

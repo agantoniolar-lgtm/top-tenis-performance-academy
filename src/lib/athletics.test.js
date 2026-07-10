@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  calcCat, calcEdad,
+  calcCat, calcEdad, isRecruitmentRelevant,
   avg, ocTo5, ocAvgLabel, score5Color, fmtSign, fmtPeriod,
   SCORE5_LABEL, CHAR_LABEL,
 } from './athletics.js';
@@ -31,6 +31,27 @@ describe('calcCat', () => {
     expect(calcCat(null)).toBe('—');
     expect(calcCat(undefined)).toBe('—');
     expect(calcCat('')).toBe('—');
+  });
+});
+
+// ─── isRecruitmentRelevant ───────────────────────────────────────────────────
+
+describe('isRecruitmentRelevant', () => {
+  const year = new Date().getFullYear();
+  const dob  = (edad) => `${year - edad}-06-01`;
+
+  it('false para atletas 12U/14U (muy chicos para reclutamiento)', () => {
+    expect(isRecruitmentRelevant(dob(10))).toBe(false);
+    expect(isRecruitmentRelevant(dob(14))).toBe(false);
+  });
+  it('true para atletas 16U/18U', () => {
+    expect(isRecruitmentRelevant(dob(15))).toBe(true);
+    expect(isRecruitmentRelevant(dob(18))).toBe(true);
+  });
+  it('false si no hay fecha de nacimiento', () => {
+    expect(isRecruitmentRelevant(null)).toBe(false);
+    expect(isRecruitmentRelevant(undefined)).toBe(false);
+    expect(isRecruitmentRelevant('')).toBe(false);
   });
 });
 

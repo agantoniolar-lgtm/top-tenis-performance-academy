@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
-import { calcCat, calcEdad, fmtPeriodLong } from '../../../lib/athletics.js';
+import { calcCat, calcEdad, isRecruitmentRelevant, fmtPeriodLong } from '../../../lib/athletics.js';
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -137,16 +137,20 @@ export default function AtletaInicio() {
   const profileComplete    = !!(athlete?.altura_cm && athlete?.peso_kg && athlete?.escuela);
   const edad = calcEdad(athlete?.fecha_nacimiento);
   const showAdvancedRec = edad == null || edad >= 17;
+  // El reclutamiento solo aplica para atletas de cierta edad (16U/18U) y nunca
+  // bloquea el acceso al dashboard — se muestra como aviso, no como gate.
+  const recruitmentApplies  = isRecruitmentRelevant(athlete?.fecha_nacimiento);
   const recruitmentComplete = !!(recruitment?.division_objetivo && recruitment?.grad_year &&
     (!showAdvancedRec || recruitment?.english_level));
-  const bothComplete        = profileComplete && recruitmentComplete;
+  const recruitmentPending  = recruitmentApplies && !recruitmentComplete;
 
   const cat  = calcCat(athlete?.fecha_nacimiento);
 
-  // ── Vista: onboarding (falta al menos uno) ────────────────────────────────
+  // ── Vista: onboarding (falta el perfil físico) ─────────────────────────────
+  // El único paso que bloquea el dashboard es el perfil físico — el coach lo
+  // necesita desde el día uno. El reclutamiento nunca bloquea (ver banner abajo).
 
-  if (!bothComplete) {
-    const completedCount = [profileComplete, recruitmentComplete].filter(Boolean).length;
+  if (!profileComplete) {
     return (
       <Shell>
         {/* Header con proposición de valor */}
@@ -155,18 +159,8 @@ export default function AtletaInicio() {
             Hola, {athlete?.nombre}.
           </h1>
           <p className="text-[14px] mb-4" style={{ color: 'var(--ink-soft)', lineHeight: 1.65 }}>
-            Antes de que tu coach pueda darte seguimiento personalizado y construir tu expediente universitario, necesitamos un poco de información tuya.
+            Antes de que tu coach pueda darte seguimiento personalizado, necesitamos un poco de información tuya.
           </p>
-          <div className="flex items-center gap-3">
-            <div className="h-1.5 overflow-hidden flex-1 max-w-[180px]"
-                 style={{ background: 'var(--line)' }}>
-              <div className="h-full transition-all"
-                   style={{ width: `${(completedCount / 2) * 100}%`, background: 'var(--accent)' }} />
-            </div>
-            <p className="text-[12px] font-mono" style={{ color: 'var(--ink-mute)' }}>
-              {completedCount} de 2 pasos completados
-            </p>
-          </div>
         </div>
 
         <div className="space-y-4 max-w-xl">
@@ -180,20 +174,10 @@ export default function AtletaInicio() {
             cta="Completar →"
             onClick={() => navigate('/portal/mi-perfil')}
           />
-          <OnboardingCard
-            number="2"
-            title="Reclutamiento universitario"
-            subtitle="División · GPA · Año de graduación · Área de estudio"
-            context="Construye tu expediente para universidades en EE.UU. Si buscas una beca NCAA, NAIA o D3, tu coach necesita estos datos para ayudarte."
-            done={recruitmentComplete}
-            locked={!profileComplete}
-            cta="Completar →"
-            onClick={() => navigate('/portal/mi-reclutamiento')}
-          />
         </div>
 
         <p className="text-[11px] mt-6 max-w-xl" style={{ color: 'var(--ink-mute)', lineHeight: 1.6 }}>
-          Puedes editar esta información en cualquier momento desde tu perfil. Ambas secciones son necesarias para acceder a tu dashboard de rendimiento.
+          Puedes editar esta información en cualquier momento desde tu perfil.
         </p>
       </Shell>
     );
@@ -218,6 +202,25 @@ export default function AtletaInicio() {
       </div>
 
       <div className="space-y-4 max-w-2xl">
+
+        {/* Aviso no-bloqueante: reclutamiento pendiente (solo si aplica por edad) */}
+        {recruitmentPending && (
+          <div className="hairline p-4 flex items-center justify-between gap-4 flex-wrap" style={{ background: '#FFF6D6' }}>
+            <div>
+              <p className="text-[13px] font-semibold" style={{ color: '#8A6D00' }}>
+                Reclutamiento universitario pendiente
+              </p>
+              <p className="text-[12px] mt-0.5" style={{ color: '#8A6D00' }}>
+                Cuando tengas oportunidad, complétalo — ayuda a tu coach a construir tu expediente para universidades en EE.UU.
+              </p>
+            </div>
+            <button onClick={() => navigate('/portal/mi-reclutamiento')}
+                    className="px-4 py-2 text-[11px] font-semibold uppercase tracking-wide shrink-0 hover:opacity-80 transition"
+                    style={{ background: '#8A6D00', color: '#FFF6D6' }}>
+              Completar →
+            </button>
+          </div>
+        )}
 
         {/* Card: Información del atleta */}
         <div className="hairline" style={{ background: 'var(--paper)' }}>

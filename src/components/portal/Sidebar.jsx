@@ -3,7 +3,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { Icon, Logo } from './ui';
 
 const COACH_NAV = [
-  { id: 'atletas',      label: 'Atletas',     icon: 'users',  path: '/portal/alumnos' },
+  { id: 'atletas',      label: 'Atletas',     icon: 'users',  path: '/portal/equipo' },
   { id: 'seguimiento',  label: 'Seguimiento', icon: 'check',  path: '/portal/reportes' },
   { id: 'planes',       label: 'Planes',      icon: 'target', path: '/portal/planes' },
   { id: 'torneos',      label: 'Torneos',     icon: 'trophy', path: '/portal/torneos' },
@@ -33,7 +33,7 @@ export default function Sidebar({ open, onClose }) {
   const NAV = getNav(user?.rol);
 
   const isActive = (path) => {
-    if (path === '/portal/alumnos')   return location.pathname.startsWith('/portal/alumnos') || location.pathname === '/portal/equipo';
+    if (path === '/portal/equipo')    return location.pathname.startsWith('/portal/equipo') || location.pathname.startsWith('/portal/alumnos');
     if (path === '/portal/reportes')  return location.pathname === '/portal/reportes';
     return location.pathname.startsWith(path);
   };

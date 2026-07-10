@@ -90,9 +90,9 @@ export default function NuevoReporte() {
   const [planObjectives, setPlanObj] = useState({}); // { sub_dimension: objective_text }
 
   useEffect(() => {
-    if (!user?.coach_id) return;
+    if (!user?.coach_id) return; // guard de auth, no de asignación
     supabase.from('athletes').select('id, nombre, apellido, fecha_ingreso')
-      .eq('coach_id', user.coach_id).eq('activo', true).order('nombre')
+      .eq('activo', true).order('nombre')
       .then(({ data }) => setAth(data ?? []));
   }, [user?.coach_id]);
 
@@ -258,7 +258,7 @@ export default function NuevoReporte() {
           Secciones guardadas: {Object.entries(saved).filter(([,v]) => v).map(([k]) => k).join(', ')}.
         </p>
         <div className="flex justify-center gap-3">
-          <button onClick={() => navigate('/portal/alumnos')}
+          <button onClick={() => navigate('/portal/equipo')}
                   className="px-4 py-2 text-[12px] font-semibold uppercase tracking-wide hairline hover:bg-[var(--cream)] transition">
             Ver atletas
           </button>

@@ -1,14 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
+import { calcEdad } from '../../lib/athletics.js';
 import { CircleDot, UserPlus, AlertCircle } from 'lucide-react';
 
 export default function Signup() {
   const navigate = useNavigate();
   const { refreshUser } = useAuth();
 
-  const [coaches,  setCoaches]  = useState([]);
   const [step,     setStep]     = useState(1); // 1 = datos personales, 2 = cuenta
   const [saving,   setSaving]   = useState(false);
   const [error,    setError]    = useState('');
@@ -19,22 +19,24 @@ export default function Signup() {
   const [segundoApellido, setSegApell] = useState('');
   const [fechaNac,        setFechaNac] = useState('');
   const [mano,            setMano]     = useState('');
-  const [coachId,         setCoachId]  = useState('');
+
+  // Padre/tutor — solo aplica si el atleta es menor de edad
+  const [nombrePadre,    setNombrePadre]    = useState('');
+  const [telefonoPadre,  setTelefonoPadre]  = useState('');
+  const [emailPadre,     setEmailPadre]     = useState('');
 
   // Paso 2
   const [email,      setEmail]    = useState('');
   const [password,   setPass]     = useState('');
   const [passConf,   setPassConf] = useState('');
 
-  useEffect(() => {
-    supabase.from('coaches').select('id, nombre, apellido').order('nombre')
-      .then(({ data }) => setCoaches(data ?? []));
-  }, []);
+  const edad    = calcEdad(fechaNac);
+  const esMenor = edad !== null && edad < 18;
 
   const handleStep1 = (e) => {
     e.preventDefault();
-    if (!nombre || !apellido || !fechaNac || !coachId) {
-      setError('Todos los campos son obligatorios.');
+    if (!nombre || !apellido || !fechaNac) {
+      setError('Nombre, apellido y fecha de nacimiento son obligatorios.');
       return;
     }
     setError('');
@@ -65,15 +67,19 @@ export default function Signup() {
       }
 
       // 2. Crear el perfil del atleta vinculado al auth user
+      //    Ya no se asigna coach_id al alta — coach_id es nullable, ningún coach
+      //    "dueño" del atleta desde el registro (ver docs/scope-coach-atleta-libre.md).
       const { error: dbErr } = await supabase.from('athletes').insert({
         user_id:          uid,
-        coach_id:         coachId,
         nombre:           nombre.trim(),
         apellido:         apellido.trim(),
         segundo_apellido: segundoApellido.trim() || null,
         fecha_nacimiento: fechaNac,
         mano_dominante:   mano || null,
         fecha_ingreso:    new Date().toISOString().slice(0, 10),
+        nombre_padre:     nombrePadre.trim() || null,
+        telefono_padre:   telefonoPadre.trim() || null,
+        email_padre:      emailPadre.trim() || null,
         activo:           true,
       });
 
@@ -165,23 +171,35 @@ export default function Signup() {
                 </select>
               </div>
 
-              <div>
-                <label className={labelCls}>Tu coach en Top Tenis *</label>
-                <select value={coachId} onChange={e => setCoachId(e.target.value)}
-                        required className={inputCls}>
-                  <option value="">— Selecciona tu coach —</option>
-                  {coaches.map(c => (
-                    <option key={c.id} value={c.id}>{c.nombre} {c.apellido}</option>
-                  ))}
-                </select>
-                <p className="mt-1.5 text-[11px] text-[#8A8780]">
-                  Selecciona el coach que te asignó la academia. Si no sabes quién es, escríbenos a{' '}
-                  <a href="mailto:contacto@toptenispa.mx" className="hover:underline" style={{ color: 'var(--accent)' }}>
-                    contacto@toptenispa.mx
-                  </a>{' '}
-                  antes de continuar.
-                </p>
-              </div>
+              {/* Padre/Tutor — solo para menores de edad. Marcado como obligatorio
+                  pero non-blocking: no impide continuar el registro si se deja vacío. */}
+              {esMenor && (
+                <div className="border border-[#E0DED8] rounded-[2px] p-4 bg-[#FAFAF7]">
+                  <p className="text-[13px] font-semibold text-[#14110D] mb-1">Padre / Tutor *</p>
+                  <p className="text-[11px] text-[#8A8780] mb-3">
+                    Como el jugador es menor de edad, necesitamos el contacto de un padre o tutor.
+                  </p>
+                  <div className="space-y-3">
+                    <div>
+                      <label className={labelCls}>Nombre</label>
+                      <input value={nombrePadre} onChange={e => setNombrePadre(e.target.value)}
+                             placeholder="Carlos López" className={inputCls} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className={labelCls}>Teléfono</label>
+                        <input type="tel" value={telefonoPadre} onChange={e => setTelefonoPadre(e.target.value)}
+                               placeholder="+52 55 9876 5432" className={inputCls} />
+                      </div>
+                      <div>
+                        <label className={labelCls}>Email</label>
+                        <input type="email" value={emailPadre} onChange={e => setEmailPadre(e.target.value)}
+                               placeholder="carlos@ejemplo.com" className={inputCls} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <button type="submit"
                       className="w-full disabled:opacity-60 text-white font-semibold py-2.5 rounded-[2px] transition-opacity hover:opacity-90 uppercase tracking-[0.08em] text-sm"
