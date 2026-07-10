@@ -32,6 +32,7 @@
 | 5 | Escalas de medición (-2/+2) | — | **descartado** (9 Jul 2026) | Ya resuelto; no vale ni documentar aparte |
 | 6 | Scraper de rankings AMTP | — | **descartado** (9 Jul 2026) | Marco: no es necesario |
 | 7 | Apertura/cierre de sesión | Alta | diseñado, en construcción | Nuevo — encapsula CLAUDE.md reglas 2 y 5 |
+| 8 | Migraciones seguras de Supabase | Alta | idea | Companion de #2 — mecánica de aplicar el cambio, no el diseño de RLS |
 
 ---
 
@@ -140,6 +141,29 @@ Fue un back-and-forth (S6 "fix escala -2/+2 en todo el sistema", S8, S9) pero ya
 
 ---
 
+## 8. Migraciones seguras de Supabase
+
+**Qué es:** el proyecto ya tiene el modelo de roles y el diseño de RLS cubiertos por el Skill #2 (`schema-rls-verification`), pero ese skill asume que la migración ya se decidió — no cubre *cómo aplicarla sin riesgo* a una base con datos reales de coaches y atletas. Este skill cubre la mecánica de la migración en sí: branching, reversibilidad, y qué operaciones son lo bastante peligrosas como para nunca correrlas directo en producción sin pausa.
+
+### Diferencia con el Skill #2
+
+- **#2 (`schema-rls-verification`)** — decide *qué* política de acceso debe tener una tabla, y verifica que las policies se comporten como deben por rol.
+- **#8 (este)** — decide *cómo* se aplica el cambio de schema sin arriesgar los datos que ya existen (coaches, atletas, reportes reales) — antes de que #2 tenga algo que verificar.
+
+No se duplican: una migración nueva pasa primero por #8 (aplicarla con seguridad) y luego por #2 (verificar que el acceso quedó bien).
+
+### Reglas propuestas
+
+- **DDL siempre vía `apply_migration`, nunca `execute_sql` suelto.** `apply_migration` deja un registro versionado y consultable (`list_migrations`) de cada cambio de schema — `execute_sql` no. Reservar `execute_sql` para lecturas/queries, no para `ALTER TABLE`/`CREATE TABLE`.
+- **Operaciones destructivas requieren pausa explícita, no ejecución directa.** `DROP COLUMN`, `DROP TABLE`, cambios de tipo incompatibles, o agregar `NOT NULL` a una columna de una tabla con filas existentes sin default — ninguna se corre sin antes mostrarle a Marco qué se va a perder/romper y esperar su autorización. Mismo principio que el guardrail que se agregó a `feature-build-flow` tras su corrección: proponer no es lo mismo que tener luz verde.
+- **Cambios de riesgo medio/alto se prueban primero en un branch de Supabase** (`create_branch` → `apply_migration` en el branch → correr las queries de verificación de #2 ahí → `merge_branch` solo si todo sale bien), no directo contra producción. Para cambios triviales (agregar una columna nullable sin tocar datos existentes) el branch es ceremonia de más — el skill debe distinguir el riesgo antes de decidir si vale la pena el branch.
+- **Después de aplicar, correr `get_advisors`** (seguridad y performance) — puede atrapar un índice faltante o un gap de RLS que la migración introdujo sin querer.
+- **Actualizar `docs/db-schema.md`** con la tabla/columna nueva o el cambio — ya es regla en el Skill #1 (paso 3), este skill la reafirma específicamente para el caso de migraciones con datos reales de por medio.
+
+**Pendiente de definir antes de construir:** criterio exacto de "riesgo medio/alto" que dispara el paso de branch (¿número de filas afectadas? ¿tipo de operación?), y si vale la pena automatizar el diff antes/después vía `get_advisors` como parte del flujo o dejarlo como paso manual.
+
+---
+
 ## Orden sugerido de construcción
 
 _Actualizado 9 Jul 2026 tras decisión de Marco: #3, #5 y #6 descartados; #7, #2 y #1 construidos._
@@ -147,4 +171,5 @@ _Actualizado 9 Jul 2026 tras decisión de Marco: #3, #5 y #6 descartados; #7, #2
 1. ~~**#7 (apertura/cierre de sesión)**~~ — construido.
 2. ~~**#2 (schema + RLS)**~~ — construido.
 3. ~~**#1 (rebanada de feature)**~~ — construido, con evals completos. Ver detalle arriba.
-4. **#4 (design)** — en discusión: Marco preguntó qué tanto se usaría dado que el design system ya está documentado en `Top Tennis Performance Academy/design-review-prompt.md` + tokens CSS en `src/index.css`. Pendiente de decisión final. Único skill del backlog original sin resolver.
+4. **#4 (design)** — en discusión: Marco preguntó qué tanto se usaría dado que el design system ya está documentado en `Top Tennis Performance Academy/design-review-prompt.md` + tokens CSS en `src/index.css`. Pendiente de decisión final.
+5. **#8 (migraciones seguras de Supabase)** — agregado 9 Jul 2026. Companion de #2, cubre la mecánica de aplicar cambios de schema sin arriesgar datos reales (branching, operaciones destructivas, `apply_migration` vs `execute_sql`). Sin diseñar todavía.
