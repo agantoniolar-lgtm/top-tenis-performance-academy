@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
-import { calcEdad } from '../../lib/athletics.js';
 import { CircleDot, UserPlus, AlertCircle } from 'lucide-react';
 
 export default function Signup() {
@@ -20,18 +19,10 @@ export default function Signup() {
   const [fechaNac,        setFechaNac] = useState('');
   const [mano,            setMano]     = useState('');
 
-  // Padre/tutor — solo aplica si el atleta es menor de edad
-  const [nombrePadre,    setNombrePadre]    = useState('');
-  const [telefonoPadre,  setTelefonoPadre]  = useState('');
-  const [emailPadre,     setEmailPadre]     = useState('');
-
   // Paso 2
   const [email,      setEmail]    = useState('');
   const [password,   setPass]     = useState('');
   const [passConf,   setPassConf] = useState('');
-
-  const edad    = calcEdad(fechaNac);
-  const esMenor = edad !== null && edad < 18;
 
   const handleStep1 = (e) => {
     e.preventDefault();
@@ -69,6 +60,9 @@ export default function Signup() {
       // 2. Crear el perfil del atleta vinculado al auth user
       //    Ya no se asigna coach_id al alta — coach_id es nullable, ningún coach
       //    "dueño" del atleta desde el registro (ver docs/scope-coach-atleta-libre.md).
+      //    Los datos de padre/tutor se piden después, en Mi Perfil — no tiene
+      //    sentido pedirlos en el signup sin un flujo que confirme que quien
+      //    los llena de verdad es el padre/tutor del atleta.
       const { error: dbErr } = await supabase.from('athletes').insert({
         user_id:          uid,
         nombre:           nombre.trim(),
@@ -77,9 +71,6 @@ export default function Signup() {
         fecha_nacimiento: fechaNac,
         mano_dominante:   mano || null,
         fecha_ingreso:    new Date().toISOString().slice(0, 10),
-        nombre_padre:     nombrePadre.trim() || null,
-        telefono_padre:   telefonoPadre.trim() || null,
-        email_padre:      emailPadre.trim() || null,
         activo:           true,
       });
 
@@ -170,36 +161,6 @@ export default function Signup() {
                   <option value="zurdo">Zurdo</option>
                 </select>
               </div>
-
-              {/* Padre/Tutor — solo para menores de edad. Marcado como obligatorio
-                  pero non-blocking: no impide continuar el registro si se deja vacío. */}
-              {esMenor && (
-                <div className="border border-[#E0DED8] rounded-[2px] p-4 bg-[#FAFAF7]">
-                  <p className="text-[13px] font-semibold text-[#14110D] mb-1">Padre / Tutor *</p>
-                  <p className="text-[11px] text-[#8A8780] mb-3">
-                    Como el jugador es menor de edad, necesitamos el contacto de un padre o tutor.
-                  </p>
-                  <div className="space-y-3">
-                    <div>
-                      <label className={labelCls}>Nombre</label>
-                      <input value={nombrePadre} onChange={e => setNombrePadre(e.target.value)}
-                             placeholder="Carlos López" className={inputCls} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className={labelCls}>Teléfono</label>
-                        <input type="tel" value={telefonoPadre} onChange={e => setTelefonoPadre(e.target.value)}
-                               placeholder="+52 55 9876 5432" className={inputCls} />
-                      </div>
-                      <div>
-                        <label className={labelCls}>Email</label>
-                        <input type="email" value={emailPadre} onChange={e => setEmailPadre(e.target.value)}
-                               placeholder="carlos@ejemplo.com" className={inputCls} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               <button type="submit"
                       className="w-full disabled:opacity-60 text-white font-semibold py-2.5 rounded-[2px] transition-opacity hover:opacity-90 uppercase tracking-[0.08em] text-sm"

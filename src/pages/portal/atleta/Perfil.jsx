@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
+import { calcEdad } from '../../../lib/athletics.js';
 
 const GRADOS = [
   '1° Primaria','2° Primaria','3° Primaria','4° Primaria','5° Primaria','6° Primaria',
@@ -27,10 +28,15 @@ export default function AtletaPerfil() {
   const [escuela,   setEscuela]   = useState('');
   const [grado,     setGrado]     = useState('');
 
+  // Padre/tutor — solo se pide (y se muestra) si el atleta es menor de edad.
+  const [nombrePadre,   setNombrePadre]   = useState('');
+  const [telefonoPadre, setTelefonoPadre] = useState('');
+  const [emailPadre,    setEmailPadre]    = useState('');
+
   useEffect(() => {
     if (!user?.id) return;
     supabase.from('athletes')
-      .select('fecha_nacimiento, mano_dominante, tipo_reves, altura_cm, peso_kg, escuela, grado_escolar')
+      .select('fecha_nacimiento, mano_dominante, tipo_reves, altura_cm, peso_kg, escuela, grado_escolar, nombre_padre, telefono_padre, email_padre')
       .eq('user_id', user.id).single()
       .then(({ data }) => {
         if (data) {
@@ -41,10 +47,16 @@ export default function AtletaPerfil() {
           setPeso(data.peso_kg ?? '');
           setEscuela(data.escuela ?? '');
           setGrado(data.grado_escolar ?? '');
+          setNombrePadre(data.nombre_padre ?? '');
+          setTelefonoPadre(data.telefono_padre ?? '');
+          setEmailPadre(data.email_padre ?? '');
         }
         setLoading(false);
       });
   }, [user?.id]);
+
+  const edad    = calcEdad(fechaNac);
+  const esMenor = edad !== null && edad < 18;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -60,6 +72,9 @@ export default function AtletaPerfil() {
       peso_kg:          peso ? parseFloat(peso) : null,
       escuela:          escuela.trim() || null,
       grado_escolar:    grado || null,
+      nombre_padre:     nombrePadre.trim() || null,
+      telefono_padre:   telefonoPadre.trim() || null,
+      email_padre:      emailPadre.trim() || null,
     }).eq('user_id', user.id);
 
     setSaving(false);
@@ -120,6 +135,33 @@ export default function AtletaPerfil() {
             </select>
           </Field>
         </div>
+
+        {/* Padre/Tutor — solo para menores de edad. Obligatorio en el label,
+            pero non-blocking: guardar el resto del perfil no depende de esto. */}
+        {esMenor && (
+          <div className="hairline p-4 mt-6" style={{ background: 'var(--cream)' }}>
+            <p className="text-[13px] font-semibold mb-1">Padre / Tutor *</p>
+            <p className="text-[11px] mb-4" style={{ color: 'var(--ink-mute)' }}>
+              Como eres menor de edad, necesitamos el contacto de un padre o tutor.
+            </p>
+            <div className="space-y-4">
+              <Field label="Nombre">
+                <input value={nombrePadre} onChange={e => setNombrePadre(e.target.value)}
+                       placeholder="Carlos López" className={inp} />
+              </Field>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Teléfono">
+                  <input type="tel" value={telefonoPadre} onChange={e => setTelefonoPadre(e.target.value)}
+                         placeholder="+52 55 9876 5432" className={inp} />
+                </Field>
+                <Field label="Email">
+                  <input type="email" value={emailPadre} onChange={e => setEmailPadre(e.target.value)}
+                         placeholder="carlos@ejemplo.com" className={inp} />
+                </Field>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="flex gap-3 mt-8">
           <button type="submit" disabled={saving}

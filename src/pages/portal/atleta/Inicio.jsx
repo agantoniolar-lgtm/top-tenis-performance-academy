@@ -94,7 +94,7 @@ export default function AtletaInicio() {
     async function load() {
       const [athRes, recRes, reportRes, ptfRes] = await Promise.all([
         supabase.from('athletes')
-          .select('id, nombre, apellido, fecha_nacimiento, mano_dominante, tipo_reves, altura_cm, peso_kg, escuela, grado_escolar, coaches(nombre, apellido)')
+          .select('id, nombre, apellido, fecha_nacimiento, mano_dominante, tipo_reves, altura_cm, peso_kg, escuela, grado_escolar, nombre_padre, telefono_padre, email_padre, coaches(nombre, apellido)')
           .eq('user_id', user.id).single(),
         supabase.from('athlete_recruitment_profile')
           .select('*').eq('athlete_id', user.athlete_id).maybeSingle(),
@@ -143,6 +143,12 @@ export default function AtletaInicio() {
   const recruitmentComplete = !!(recruitment?.division_objetivo && recruitment?.grad_year &&
     (!showAdvancedRec || recruitment?.english_level));
   const recruitmentPending  = recruitmentApplies && !recruitmentComplete;
+
+  // Padre/tutor: solo aplica a menores de edad. Se muestra después de resolver
+  // reclutamiento (o si reclutamiento no aplica) — no se amontonan los avisos.
+  const esMenor      = edad !== null && edad < 18;
+  const tutorComplete = !!(athlete?.nombre_padre || athlete?.telefono_padre || athlete?.email_padre);
+  const tutorPending  = esMenor && !tutorComplete && !recruitmentPending;
 
   const cat  = calcCat(athlete?.fecha_nacimiento);
 
@@ -215,6 +221,25 @@ export default function AtletaInicio() {
               </p>
             </div>
             <button onClick={() => navigate('/portal/mi-reclutamiento')}
+                    className="px-4 py-2 text-[11px] font-semibold uppercase tracking-wide shrink-0 hover:opacity-80 transition"
+                    style={{ background: '#8A6D00', color: '#FFF6D6' }}>
+              Completar →
+            </button>
+          </div>
+        )}
+
+        {/* Aviso no-bloqueante: datos de padre/tutor pendientes (solo menores de edad) */}
+        {tutorPending && (
+          <div className="hairline p-4 flex items-center justify-between gap-4 flex-wrap" style={{ background: '#FFF6D6' }}>
+            <div>
+              <p className="text-[13px] font-semibold" style={{ color: '#8A6D00' }}>
+                Datos de padre/tutor pendientes
+              </p>
+              <p className="text-[12px] mt-0.5" style={{ color: '#8A6D00' }}>
+                Como eres menor de edad, agrega el contacto de un padre o tutor en tu perfil.
+              </p>
+            </div>
+            <button onClick={() => navigate('/portal/mi-perfil')}
                     className="px-4 py-2 text-[11px] font-semibold uppercase tracking-wide shrink-0 hover:opacity-80 transition"
                     style={{ background: '#8A6D00', color: '#FFF6D6' }}>
               Completar →
