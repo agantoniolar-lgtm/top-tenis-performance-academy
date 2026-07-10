@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { MapPin, Phone, Mail, CheckCircle, Loader2, Globe } from 'lucide-react';
+import { MapPin, Phone, Mail, CheckCircle, Loader2, Globe, AlertCircle } from 'lucide-react';
+import { isValidEmail, isValidPhone } from '../../lib/validators.js';
 
 const niveles = [
   'Principiante',
@@ -29,6 +30,7 @@ export default function Contacto() {
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [error, setError] = useState('');
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -46,6 +48,15 @@ export default function Contacto() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    setError('');
+    if (!isValidPhone(form.whatsapp)) {
+      setError('Ingresa un número de WhatsApp con al menos 10 dígitos.');
+      return;
+    }
+    if (!isValidEmail(form.email)) {
+      setError('Ingresa un correo electrónico válido.');
+      return;
+    }
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
@@ -90,6 +101,13 @@ export default function Contacto() {
                   <p className="text-gray-500 text-sm mb-6">
                     Completa el formulario y te contactaremos por WhatsApp.
                   </p>
+
+                  {error && (
+                    <div className="flex items-center gap-2 bg-red-50 text-red-700 border border-red-200 rounded-lg px-4 py-3 text-sm">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      {error}
+                    </div>
+                  )}
 
                   {/* Nombre jugador */}
                   <div>

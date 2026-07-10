@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { CircleDot, UserPlus, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { isValidEmail } from '../../lib/validators.js';
 
 // El código de invitación se configura en .env.local (VITE_COACH_INVITE_CODE).
 // En Vercel, agregarlo en Settings → Environment Variables.
@@ -29,6 +30,10 @@ export default function CoachSignup() {
 
     if (!nombre.trim() || !apellido.trim()) {
       setError('Nombre y apellido son obligatorios.');
+      return;
+    }
+    if (!isValidEmail(email)) {
+      setError('Ingresa un correo electrónico válido.');
       return;
     }
     if (INVITE_CODE && codigo !== INVITE_CODE) {

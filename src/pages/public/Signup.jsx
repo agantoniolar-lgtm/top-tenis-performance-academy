@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { isValidEmail } from '../../lib/validators.js';
 import { useAuth } from '../../hooks/useAuth';
 import { CircleDot, UserPlus, AlertCircle } from 'lucide-react';
 
@@ -36,6 +37,7 @@ export default function Signup() {
 
   const handleSignup = async (e) => {
     e.preventDefault();
+    if (!isValidEmail(email))  { setError('Ingresa un correo electrónico válido.'); return; }
     if (password !== passConf) { setError('Las contraseñas no coinciden.'); return; }
     if (password.length < 8)   { setError('La contraseña debe tener al menos 8 caracteres.'); return; }
 

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
 import { calcEdad } from '../../../lib/athletics.js';
+import { isValidEmail, isValidPhone } from '../../../lib/validators.js';
 
 const GRADOS = [
   '1° Primaria','2° Primaria','3° Primaria','4° Primaria','5° Primaria','6° Primaria',
@@ -60,7 +61,20 @@ export default function AtletaPerfil() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setSaving(true); setError(''); setSuccess(false);
+    setError(''); setSuccess(false);
+
+    // El contacto de padre/tutor sigue siendo opcional (non-blocking) — pero
+    // si se llena, tiene que tener formato válido.
+    if (telefonoPadre.trim() && !isValidPhone(telefonoPadre)) {
+      setError('El teléfono del padre/tutor debe tener al menos 10 dígitos.');
+      return;
+    }
+    if (emailPadre.trim() && !isValidEmail(emailPadre)) {
+      setError('El correo del padre/tutor no tiene un formato válido.');
+      return;
+    }
+
+    setSaving(true);
 
     // Filtramos por user_id (mismo campo que usa el RLS USING clause)
     // para garantizar que la política coincide sin ambigüedad

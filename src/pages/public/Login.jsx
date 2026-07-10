@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
+import { isValidEmail } from '../../lib/validators.js';
 import { CircleDot, LogIn, AlertCircle } from 'lucide-react';
 
 const DEMO = { email: 'marco@toptenispa.mx', password: 'coach123', rol: 'Coach' };
@@ -17,6 +18,7 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    if (!isValidEmail(email)) { setError('Ingresa un correo electrónico válido.'); return; }
     setLoading(true);
     try {
       const data = await login(email, password);

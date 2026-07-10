@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { LayoutDashboard, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { isValidEmail } from '../../lib/validators.js';
 
 const INVITE_CODE = import.meta.env.VITE_CONTENT_INVITE_CODE ?? '';
 
@@ -27,6 +28,10 @@ export default function ContentSignup() {
 
     if (!nombre.trim() || !apellido.trim()) {
       setError('Nombre y apellido son obligatorios.');
+      return;
+    }
+    if (!isValidEmail(email)) {
+      setError('Ingresa un correo electrónico válido.');
       return;
     }
     if (INVITE_CODE && codigo !== INVITE_CODE) {
