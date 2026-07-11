@@ -168,6 +168,23 @@ export function fmtPeriodLong(p) {
 }
 
 /**
+ * Formatea un rango de período trimestral (period_start, period_end) como "jul – sep 2026".
+ * Usado por quarterly_plans (coach y atleta). Antes vivía duplicado en PlanesCoach.jsx.
+ * @param {string|null} start — YYYY-MM-DD
+ * @param {string|null} end — YYYY-MM-DD
+ */
+export function fmtPeriodRange(start, end) {
+  if (!start || !end) return '—';
+  const [ys, ms, ds] = start.split('-').map(Number);
+  const [ye, me, de] = end.split('-').map(Number);
+  const s = new Date(ys, ms - 1, ds);
+  const e = new Date(ye, me - 1, de);
+  const sMon = s.toLocaleDateString('es-MX', { month: 'short' });
+  const eMon = e.toLocaleDateString('es-MX', { month: 'short', year: 'numeric' });
+  return `${sMon} – ${eMon}`;
+}
+
+/**
  * Primer período (YYYY-MM) en el que se puede crear un reporte para un atleta:
  * el mes de su fecha de ingreso. null si no hay fecha.
  * @param {string|null} fechaIngreso — YYYY-MM-DD

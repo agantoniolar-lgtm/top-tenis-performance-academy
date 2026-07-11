@@ -30,6 +30,7 @@ const AtletaInicio        = lazy(() => import('./pages/portal/atleta/Inicio'));
 const AtletaPerfil        = lazy(() => import('./pages/portal/atleta/Perfil'));
 const AtletaReclutamiento = lazy(() => import('./pages/portal/atleta/Reclutamiento'));
 const AtletaRendimiento   = lazy(() => import('./pages/portal/atleta/Rendimiento'));
+const AtletaMiPlan        = lazy(() => import('./pages/portal/atleta/MiPlan'));
 const AthleteVoice        = lazy(() => import('./pages/portal/atleta/AthleteVoice'));
 const MisTorneos          = lazy(() => import('./pages/portal/MisTorneos'));
 const NuevoTorneo         = lazy(() => import('./pages/portal/NuevoTorneo'));
@@ -96,6 +97,7 @@ export default function App() {
                   <Route path="/portal/mi-perfil"        element={<AtletaPerfil />} />
                   <Route path="/portal/mi-reclutamiento" element={<AtletaReclutamiento />} />
                   <Route path="/portal/mi-rendimiento"   element={<AtletaRendimiento />} />
+                  <Route path="/portal/mi-plan"          element={<AtletaMiPlan />} />
                   <Route path="/portal/mis-torneos"           element={<MisTorneos />} />
                   <Route path="/portal/torneos/nuevo"         element={<NuevoTorneo />} />
                   <Route path="/portal/post-torneo"           element={<PostTorneo />} />

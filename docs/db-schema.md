@@ -261,7 +261,7 @@ Solo se puede crear si `reports.athlete_voice_unlocked_at IS NOT NULL` — enfor
 | `report_physical` | Lee de cualquiera, edita los de sus propios reportes | Lee el suyo | |
 | `report_character` | Lee de cualquiera, edita los de sus propios reportes | **Sin acceso** | Solo coaches |
 | `report_athlete_voice` | Lee de cualquiera | Lee y edita el suyo | Solo si `athlete_voice_unlocked_at IS NOT NULL` |
-| `quarterly_plans` / `quarterly_plan_objectives` | Lee, crea y edita cualquier plan de cualquier atleta. **Sin DELETE.** | Lee el suyo | Solo si `status = 'active'`. Antes solo el coach que lo creó — abierto 9 Jul 2026 |
+| `quarterly_plans` / `quarterly_plan_objectives` | Lee, crea y edita cualquier plan de cualquier atleta. **Sin DELETE.** | Lee el suyo | Solo si `status IN ('active', 'completed')` — ampliado 10 Jul 2026 para la vista "Mi plan" del atleta (`docs/scope-mis-planes-atleta.md`); antes solo `active`. `draft` y `archived` siguen sin acceso para el atleta. |
 
 ---
 

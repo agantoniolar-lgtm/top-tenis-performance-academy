@@ -210,7 +210,7 @@ describe('fmtPeriod', () => {
 
 // ─── fmtPeriodLong ───────────────────────────────────────────────────────────
 
-import { fmtPeriodLong, minPeriodFor, isPeriodAllowed, normalizeSeries, winLossRecord } from './athletics.js';
+import { fmtPeriodLong, fmtPeriodRange, minPeriodFor, isPeriodAllowed, normalizeSeries, winLossRecord } from './athletics.js';
 
 describe('fmtPeriodLong', () => {
   it('devuelve — para null', () => {
@@ -220,6 +220,33 @@ describe('fmtPeriodLong', () => {
     const result = fmtPeriodLong('2026-06-01');
     expect(result.toLowerCase()).toContain('junio');
     expect(result).toContain('2026');
+  });
+});
+
+// ─── fmtPeriodRange ──────────────────────────────────────────────────────────
+
+describe('fmtPeriodRange', () => {
+  it('devuelve — si falta start', () => {
+    expect(fmtPeriodRange(null, '2026-09-30')).toBe('—');
+  });
+  it('devuelve — si falta end', () => {
+    expect(fmtPeriodRange('2026-07-01', null)).toBe('—');
+  });
+  it('devuelve — si faltan ambos', () => {
+    expect(fmtPeriodRange(undefined, undefined)).toBe('—');
+  });
+  it('formatea un trimestre dentro del mismo año', () => {
+    const result = fmtPeriodRange('2026-07-01', '2026-09-30');
+    expect(result.toLowerCase()).toMatch(/jul/);
+    expect(result.toLowerCase()).toMatch(/sep/);
+    expect(result).toContain('2026');
+  });
+  it('formatea un trimestre que cruza fin de año sin offset UTC', () => {
+    // '2026-12-01' y '2027-02-28' no deben deslizarse un día por parseo UTC
+    const result = fmtPeriodRange('2026-12-01', '2027-02-28');
+    expect(result.toLowerCase()).toMatch(/dic/);
+    expect(result.toLowerCase()).toMatch(/feb/);
+    expect(result).toContain('2027');
   });
 });
 

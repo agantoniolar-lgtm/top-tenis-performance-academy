@@ -12,6 +12,7 @@ const COACH_NAV = [
 const ATLETA_NAV = [
   { id: 'inicio',      label: 'Inicio',         icon: 'home',   path: '/portal/inicio' },
   { id: 'rendimiento', label: 'Mi rendimiento',  icon: 'pulse',  path: '/portal/mi-rendimiento' },
+  { id: 'plan',        label: 'Mi plan',         icon: 'target', path: '/portal/mi-plan' },
   { id: 'torneos',     label: 'Mis torneos',     icon: 'trophy', path: '/portal/mis-torneos' },
 ];
 

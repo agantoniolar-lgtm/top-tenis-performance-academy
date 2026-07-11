@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
+import { fmtPeriodRange } from '../../../lib/athletics.js';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -56,14 +57,6 @@ function periodEndFor(startStr) {
   d.setMonth(d.getMonth() + 3);
   d.setDate(d.getDate() - 1);
   return d.toISOString().slice(0, 10);
-}
-
-function fmtPeriod(start, end) {
-  const s = new Date(start + 'T12:00:00');
-  const e = new Date(end   + 'T12:00:00');
-  const sMon = s.toLocaleDateString('es-MX', { month: 'short' });
-  const eMon = e.toLocaleDateString('es-MX', { month: 'short', year: 'numeric' });
-  return `${sMon} – ${eMon}`;
 }
 
 function athleteName(plan) {
@@ -598,7 +591,7 @@ export default function PlanesCoach() {
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-semibold truncate">{athleteName(p)}</p>
                   <p className="text-[11px]" style={{ color: 'var(--ink-mute)' }}>
-                    {fmtPeriod(p.period_start, p.period_end)}
+                    {fmtPeriodRange(p.period_start, p.period_end)}
                   </p>
                 </div>
                 <span className="text-[11px] shrink-0" style={{ color: 'var(--ink-mute)' }}>
@@ -662,7 +655,7 @@ export default function PlanesCoach() {
                   className="hairline px-3 py-2 text-[13px] bg-[var(--paper)] outline-none" />
                 {periodStart && (
                   <p className="text-[11px] mt-1.5" style={{ color: 'var(--ink-mute)' }}>
-                    Período: <strong>{fmtPeriod(periodStart, periodEnd)}</strong>
+                    Período: <strong>{fmtPeriodRange(periodStart, periodEnd)}</strong>
                   </p>
                 )}
               </Field>
@@ -696,7 +689,7 @@ export default function PlanesCoach() {
             <div className="space-y-5 mt-6">
               <div className="hairline px-4 py-2.5" style={{ background: 'var(--cream)' }}>
                 <p className="text-[11px] font-semibold" style={{ color: 'var(--ink-mute)' }}>
-                  {selAth?.nombre} {selAth?.apellido}{' · '}{fmtPeriod(periodStart, periodEnd)}
+                  {selAth?.nombre} {selAth?.apellido}{' · '}{fmtPeriodRange(periodStart, periodEnd)}
                 </p>
               </div>
               <div>
@@ -862,7 +855,7 @@ export default function PlanesCoach() {
                 {athleteName(activePlan)}
               </h1>
               <p className="text-[12px] mt-1 flex items-center gap-2" style={{ color: 'var(--ink-mute)' }}>
-                {fmtPeriod(activePlan.period_start, activePlan.period_end)}
+                {fmtPeriodRange(activePlan.period_start, activePlan.period_end)}
                 <StatusBadge status={activePlan.status} />
               </p>
             </div>
