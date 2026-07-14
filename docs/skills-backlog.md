@@ -11,6 +11,14 @@
 > #7 (apertura/cierre de sesión) — confirmado que sí vale la pena construirlo. #1 se
 > actualiza con un paso de doc de scoping. #2 y #4 quedan pendientes de explicar a Marco
 > antes de decidir si se construyen.
+>
+> **Actualización 13 Jul 2026:** se agrega #9 (LLM/agent feature build flow) — el paso 7
+> de #1 (feature-build-flow) no le da espacio suficiente a lo que implica construir una
+> feature de LLM/agent (prompt, iteración, evals). Se separa como skill compañero de #1,
+> pendiente de scoping. Además: barrido completo del kanban (todos los In Progress/In
+> Review, no solo los tocados en la sesión) y se separó la actualización de kanban+commit
+> de `session-open-close` a un skill nuevo, `commit-kanban-sync` — ver Session Log del 13
+> Jul 2026 para el detalle de por qué.
 
 ## Leyenda de estado
 
@@ -33,6 +41,7 @@
 | 6 | Scraper de rankings AMTP | — | **descartado** (9 Jul 2026) | Marco: no es necesario |
 | 7 | Apertura/cierre de sesión | Alta | diseñado, en construcción | Nuevo — encapsula CLAUDE.md reglas 2 y 5 |
 | 8 | Migraciones seguras de Supabase | Alta | idea | Companion de #2 — mecánica de aplicar el cambio, no el diseño de RLS |
+| 9 | LLM/agent feature build flow | Alta | idea, pendiente de scoping | Companion de #1 — el paso 7 de #1 no le da espacio suficiente; dependen una de la otra |
 
 ---
 
@@ -164,6 +173,35 @@ No se duplican: una migración nueva pasa primero por #8 (aplicarla con segurida
 
 ---
 
+## 9. LLM/agent feature build flow
+
+**Qué es:** skill compañero de **#1 (`feature-build-flow`)**, específico para features que involucran un LLM/agent (Edge Functions con prompts, generación de texto, evaluación automática — hoy `generate-quarterly-plan` y `validate-quarterly-plan`). Hoy el paso 7 de #1 solo dice "ramifica aquí, no inventes la convención en silencio, para y scopea con Marco" — es un placeholder, no un flujo. Meterle todo el detalle de LLM/agent adentro de #1 le quita espacio al resto del skill (kanban → scoping → schema/RLS → componente → lib+test), que es genérico para cualquier feature. Por eso se separa, no se fusiona.
+
+### Relación con el Skill #1 — dependencia mutua
+
+- **#1 sigue siendo la orquestación end-to-end.** El task en kanban, el doc de scoping, schema/RLS si aplica, y el componente React siguen pasando por #1 igual que siempre.
+- **#1 delega a #9** en su paso 7, cuando detecta que la feature es LLM/agent — ahí es donde arranca este skill.
+- **#9 asume que #1 ya corrió los pasos 1–2** (kanban + doc de scoping) — no los duplica, retoma desde ahí.
+- Ninguno de los dos funciona solo para una feature de LLM: #1 sin #9 se queda corto en la parte que más iteración necesita; #9 sin #1 no tiene task ni scoping de dónde partir.
+
+### Evidencia de por qué hace falta (no es prematuro)
+
+P&M v2 (`generate-quarterly-plan`) ya pasó por múltiples rondas de iteración que no tienen equivalente en el flujo determinista de #1: rúbrica de objetivos (self-eval → modo `validate` aparte, pm-v4.0), rúbrica de observaciones por dimensión (pm-v2.4 a pm-v2.9, 3 fixes iterativos con regresión completa cada vez), y un set de 5 casos sintéticos (`docs/dumps-test-planning-edge-cases.md`) usado informalmente como dataset de prueba. Todo esto se hizo ad hoc, sesión a sesión, sin un flujo que lo estandarice. El próximo candidato ya está en el Backlog del kanban: "Servicio de notas de voz/texto por atleta" — Marco ya marcó que es la pieza más pesada del roadmap y que necesita su propio doc de scoping antes de tocar código.
+
+### Preguntas a resolver en el scoping — esto determina si `evals/` se construye
+
+1. **¿Dónde viven los evals?** ¿Carpeta `evals/` en la raíz, junto a cada Edge Function, o junto al doc de scoping de la feature?
+2. **¿Formato del dataset de casos?** Ya hay un patrón informal (`docs/dumps-test-planning-edge-cases.md`, 5 casos sintéticos) — ¿se generaliza esa convención o se diseña una nueva?
+3. **¿Quién/qué es el grader?** Ya hay un precedente real en producción: el modo `validate` de `generate-quarterly-plan` (pm-v4.0) funciona como grader embebido, no solo como test — ¿ese patrón se generaliza a LLM-as-judge para futuras features, o cada una diseña el suyo?
+4. **¿Cuándo corre la suite?** #1 ya decidió en principio que no bloquea cada commit (on-demand / schedule / pre-release, gate antes de exponer a coaches) — falta la mecánica real: ¿quién la dispara, con qué comando, dónde se ve el resultado?
+5. **¿Cómo se versiona el prompt?** Ya existe convención informal (`PROMPT_VERSION`, ej. pm-v2.4 → pm-v2.9 → pm-v4.0) — ¿se formaliza como parte de este skill (bump obligatorio + changelog) o se deja como está?
+
+La respuesta a estas 5 preguntas es lo que decide si vale la pena construir la carpeta `evals/` ahora o si se sigue resolviendo ad hoc una sesión más.
+
+**Pendiente:** doc de scoping propio antes de diseñar el skill con `skill-creator` — no construir directo.
+
+---
+
 ## Orden sugerido de construcción
 
 _Actualizado 9 Jul 2026 tras decisión de Marco: #3, #5 y #6 descartados; #7, #2 y #1 construidos._
@@ -173,3 +211,4 @@ _Actualizado 9 Jul 2026 tras decisión de Marco: #3, #5 y #6 descartados; #7, #2
 3. ~~**#1 (rebanada de feature)**~~ — construido, con evals completos. Ver detalle arriba.
 4. **#4 (design)** — en discusión: Marco preguntó qué tanto se usaría dado que el design system ya está documentado en `Top Tennis Performance Academy/design-review-prompt.md` + tokens CSS en `src/index.css`. Pendiente de decisión final.
 5. **#8 (migraciones seguras de Supabase)** — agregado 9 Jul 2026. Companion de #2, cubre la mecánica de aplicar cambios de schema sin arriesgar datos reales (branching, operaciones destructivas, `apply_migration` vs `execute_sql`). Sin diseñar todavía.
+6. **#9 (LLM/agent feature build flow)** — agregado 13 Jul 2026. Companion de #1, cubre lo que el paso 7 de #1 hoy deja como placeholder (prompt, iteración, evals). Necesita doc de scoping propio antes de diseñarse — ahí se decide si `evals/` se construye.

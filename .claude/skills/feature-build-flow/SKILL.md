@@ -11,6 +11,7 @@ Este es el flujo que se repite cada vez que se construye una pieza nueva de la p
 Compañeros de este skill:
 - **`schema-rls-verification`** — se invoca en los pasos de schema y RLS (abajo). No dupliques esa lógica aquí; solo referencia cuándo aplica.
 - **`session-open-close`** — el task en kanban del paso 1 normalmente ya existe si abriste la sesión correctamente con ese skill.
+- **`commit-kanban-sync`** — se invoca en el paso 9 (Commit). No dupliques esa lógica aquí; ese skill es el que hace el commit y actualiza el Status del task en el kanban en el momento.
 
 ## El flujo, paso a paso
 
@@ -69,9 +70,9 @@ Si la feature llama a un modelo (Edge Function con prompt, generación de texto,
 
 Debe pasar sin errores antes de commitear. Si falla, no hay commit — se arregla primero, no se documenta como pendiente.
 
-### 9. Commit
+### 9. Commit + sincronizar kanban
 
-Mensaje descriptivo con prefijo (`feat:` / `fix:` / `chore:` / `refactor:`) que explique qué se hizo — no genérico. Ver CLAUDE.md para ejemplos de mensajes buenos vs. malos.
+Usa **`commit-kanban-sync`** para este paso — no hagas el commit suelto y dejes el Status del task para el cierre de sesión. Ese skill corre lint+test, hace el commit con mensaje descriptivo (prefijo `feat:` / `fix:` / `chore:` / `refactor:`, no genérico — ver CLAUDE.md para ejemplos) y mueve el task del kanban a Done/In Review en el mismo momento. Es lo que evita que el kanban se desincronice del código entre sesiones.
 
 ## Resumen rápido (para no releer todo cada vez)
 
@@ -85,6 +86,6 @@ Mensaje descriptivo con prefijo (`feat:` / `fix:` / `chore:` / `refactor:`) que 
 | 6. Función pura + test | Solo si hay lógica pura extraíble |
 | 7. Tier B evals | Solo si involucra LLM/agent |
 | 8. Lint + test | Sí, sin excepción |
-| 9. Commit | Sí, sin excepción |
+| 9. Commit + kanban (`commit-kanban-sync`) | Sí, sin excepción |
 
 La regla de fondo detrás de cada "condicional": el paso existe para atrapar un tipo de error real que ya pasó en este proyecto (schema innecesario, tests inflados, RLS silenciosa, ubicación de docs perdida). Si genuinamente no aplica, sáltalo sin culpa — pero si aplica y lo saltas para ir más rápido, el error que iba a prevenir probablemente va a pasar de todas formas, solo que más tarde y más caro de arreglar.
