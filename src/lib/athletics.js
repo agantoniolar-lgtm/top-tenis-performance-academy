@@ -247,3 +247,65 @@ export function winLossRecord(rows) {
   }
   return { w, l, total: played.length };
 }
+
+// ─── P&M — cierre de plan trimestral (docs/scope-close-quarterly-plan.md) ──────
+
+/** Las 3 preguntas de la retrospectiva del coach, ya decididas en scope-planning-measurement.md §21. */
+export const COACH_RETRO_QUESTIONS = [
+  '¿Qué del plan funcionó mejor este trimestre?',
+  '¿Qué no funcionó o quedó incompleto?',
+  '¿Qué debería priorizarse el siguiente trimestre?',
+];
+
+/**
+ * Combina las 3 respuestas de la retrospectiva del coach en el único campo de texto
+ * `coach_retrospective`. Respuestas vacías/solo-espacios se omiten. Devuelve null si no
+ * queda ninguna respuesta (equivalente a "no hay retrospectiva capturada todavía").
+ * @param {string[]|null} answers
+ * @returns {string|null}
+ */
+export function formatCoachRetrospective(answers) {
+  const parts = COACH_RETRO_QUESTIONS
+    .map((q, i) => ({ q, a: (answers?.[i] ?? '').trim() }))
+    .filter(({ a }) => a.length > 0)
+    .map(({ q, a }) => `${q}\n${a}`);
+  return parts.length ? parts.join('\n\n') : null;
+}
+
+/**
+ * Focos (`tipo: 'foco'`, no mantenimiento) de un plan que todavía no tienen `outcome`
+ * asignado. Usado como aviso no-bloqueante al confirmar el cierre — el cierre parcial está
+ * permitido (docs/scope-close-quarterly-plan.md §9), esto solo informa qué falta.
+ * @param {{tipo?: string, outcome?: string|null}[]|null} objectives
+ * @returns {object[]}
+ */
+export function focosSinOutcome(objectives) {
+  return (objectives ?? []).filter(o => (o.tipo ?? 'foco') === 'foco' && !o.outcome);
+}
+
+/**
+ * Arma el bundle del periodo previo (docs/scope-planning-measurement.md §7.1, §10) que se
+ * manda como `prior_bundle` a generate-quarterly-plan al crear el plan siguiente.
+ * `monthly_scores` se omite deliberadamente en esta rebanada — no hay fuente uniforme de
+ * score -2..+2 por sub-dimensión para las 4 dimensiones (liderazgo y physical sin resolver,
+ * ver docs/scope-close-quarterly-plan.md §4). Devuelve null si no hay plan o no tiene focos.
+ * @param {{coach_retrospective?: string|null, athlete_retrospective?: string|null}|null} plan
+ * @param {object[]|null} objectives
+ * @returns {object|null}
+ */
+export function buildPriorBundle(plan, objectives) {
+  if (!plan) return null;
+  const focos = (objectives ?? []).filter(o => (o.tipo ?? 'foco') === 'foco');
+  if (!focos.length) return null;
+  return {
+    prior_focos: focos.map(o => ({
+      dimension:         o.dimension,
+      sub_dimension:     o.sub_dimension,
+      objetivo:          o.objetivo ?? o.objective_text ?? null,
+      outcome:           o.outcome ?? null,
+      final_assessment:  o.final_assessment ?? null,
+    })),
+    coach_retrospective:   plan.coach_retrospective ?? null,
+    athlete_retrospective: plan.athlete_retrospective ?? null,
+  };
+}

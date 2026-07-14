@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
-import { fmtPeriodRange } from '../../../lib/athletics.js';
+import {
+  fmtPeriodRange, COACH_RETRO_QUESTIONS,
+  formatCoachRetrospective, focosSinOutcome, buildPriorBundle,
+} from '../../../lib/athletics.js';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -48,6 +51,15 @@ const ANCHOR_LEVELS = [
   ['0',  'Por buen camino'],
   ['-1', 'Rezagado'],
   ['-2', 'Estancado'],
+];
+
+// Cierre del plan (docs/scope-close-quarterly-plan.md) — outcome por foco, cierre 100% manual
+// en esta rebanada (sin asistencia LLM, ver §6 del scope).
+const OUTCOME_OPTIONS = [
+  { value: 'logrado',       label: 'Logrado',      bg: 'rgba(22,163,74,.12)',  color: '#15803d' },
+  { value: 'parcial',       label: 'Parcial',      bg: 'rgba(234,179,8,.15)',  color: '#a16207' },
+  { value: 'continua',      label: 'Continúa',     bg: 'rgba(59,130,246,.12)', color: '#1d4ed8' },
+  { value: 'deprioritized', label: 'Depriorizado', bg: 'rgba(107,114,128,.1)', color: '#6b7280' },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -137,6 +149,16 @@ export default function PlanesCoach() {
   // ── Detail ────────────────────────────────────────────────────────
   const [activePlan, setActivePlan] = useState(null);
 
+  // ── Cierre de plan (view 'closing') ─────────────────────────────────
+  // Cierre parcial permitido (docs/scope-close-quarterly-plan.md §9): cada foco autoguarda su
+  // outcome/final_assessment al editarlo; la retrospectiva se guarda en draft_state mientras el
+  // plan sigue 'active' (mismo mecanismo que el draft de creación) y solo se confirma al cierre.
+  const [closingFocos,  setClosingFocos]  = useState([]); // [{ id, dimension, sub_dimension, objetivo, anchors, outcome, final_assessment }]
+  const [retroAnswers,  setRetroAnswers]  = useState(['', '', '']);
+  const [closeSaving,   setCloseSav]      = useState(false);
+  const [closeError,    setCloseErr]      = useState(null);
+  const [priorBundle,   setPriorBundle]   = useState(null); // bundle del plan completado anterior, para generate/regenerate
+
   // ── Load list ─────────────────────────────────────────────────────
   const loadPlans = async () => {
     if (!user?.coach_id) return;
@@ -174,6 +196,7 @@ export default function PlanesCoach() {
     setGenFocos([]); setFeedback(''); setGenLog([]); setPromptVer(null); setValidacion({});
     setGErr(null); setSErr(null);
     setDraftPlanId(null); setExistingBlock(null); setCheckingExisting(false);
+    setPriorBundle(null);
   };
   const goCreate = () => { resetCreate(); setView('create'); };
   const goList   = () => { setView('list'); setActivePlan(null); };
@@ -224,6 +247,7 @@ export default function PlanesCoach() {
 
       if (existing?.status === 'draft') {
         hydrateFromDraft(existing);
+        loadPriorBundle(selAthlete);
         return;
       }
       if (existing) {
@@ -245,6 +269,7 @@ export default function PlanesCoach() {
       if (cErr) throw cErr;
       setDraftPlanId(created.id);
       setStep(2);
+      loadPriorBundle(selAthlete);
     } catch (e) {
       setGErr(e.message ?? 'Error al validar si ya existe un plan para este atleta y periodo');
     } finally {
@@ -366,7 +391,7 @@ export default function PlanesCoach() {
     setGen(true); setGErr(null);
     try {
       const { data, error } = await supabase.functions.invoke('generate-quarterly-plan', {
-        body: { mode: 'generate', observations, focos },
+        body: { mode: 'generate', observations, focos, ...(priorBundle ? { prior_bundle: priorBundle } : {}) },
       });
       if (error) throw error;
       const out = data?.focos ?? [];
@@ -400,7 +425,8 @@ export default function PlanesCoach() {
     try {
       const { data, error } = await supabase.functions.invoke('generate-quarterly-plan', {
         body: { mode: 'regenerate', observations, focos: selectedFocoList(),
-                coach_feedback: feedback.trim(), prior_output: genFocos },
+                coach_feedback: feedback.trim(), prior_output: genFocos,
+                ...(priorBundle ? { prior_bundle: priorBundle } : {}) },
       });
       if (error) throw error;
       const out = data?.focos ?? [];
@@ -529,6 +555,7 @@ export default function PlanesCoach() {
     setSel(data.athlete_id);
     setPStart(data.period_start);
     hydrateFromDraft(data);
+    loadPriorBundle(data.athlete_id);
     setView('create');
   };
 
@@ -549,6 +576,101 @@ export default function PlanesCoach() {
     await supabase.from('quarterly_plans').update({ status: 'archived' }).eq('id', planId);
     setActivePlan(p => ({ ...p, status: 'archived' }));
     setPlans(ps => ps.map(p => p.id === planId ? { ...p, status: 'archived' } : p));
+  };
+
+  // ── Cierre de plan ────────────────────────────────────────────────
+  // Entra a la vista de cierre desde el detail de un plan 'active'. Hidrata desde los objetivos
+  // ya guardados (outcome/final_assessment si el coach ya avanzó antes) y desde draft_state
+  // (retrospectiva a medio escribir, docs/scope-close-quarterly-plan.md §9).
+  const openClosing = () => {
+    const objs = (activePlan.quarterly_plan_objectives ?? [])
+      .filter(o => (o.tipo ?? 'foco') === 'foco')
+      .slice().sort((a, b) => a.sort_order - b.sort_order);
+    setClosingFocos(objs.map(o => ({
+      id: o.id, dimension: o.dimension, sub_dimension: o.sub_dimension,
+      objetivo: o.objetivo ?? o.objective_text, anchors: o.anchors,
+      outcome: o.outcome ?? '', final_assessment: o.final_assessment ?? '',
+    })));
+    setRetroAnswers(activePlan.draft_state?.closeRetro ?? ['', '', '']);
+    setCloseErr(null);
+    setView('closing');
+  };
+
+  // Autoguarda outcome/final_assessment de UN foco (best-effort, no bloquea la UI).
+  const persistFocoClose = async (objectiveId, patch) => {
+    try {
+      await supabase.from('quarterly_plan_objectives').update(patch).eq('id', objectiveId);
+    } catch (e) {
+      console.warn('No se pudo guardar el cierre de este foco:', e);
+    }
+  };
+
+  const updateFocoOutcome = (id, outcome) => {
+    // Depriorizar no exige final_assessment (scope-planning-measurement.md §21) — se limpia
+    // si el coach había escrito algo y luego cambia a esta opción, para no dejar texto huérfano.
+    const deprioritizedAt = outcome === 'deprioritized' ? new Date().toISOString() : null;
+    setClosingFocos(fs => fs.map(f => f.id === id
+      ? { ...f, outcome, final_assessment: outcome === 'deprioritized' ? '' : f.final_assessment }
+      : f));
+    const dbPatch = { outcome, deprioritized_at: deprioritizedAt };
+    if (outcome === 'deprioritized') dbPatch.final_assessment = null;
+    persistFocoClose(id, dbPatch);
+  };
+
+  const updateFocoAssessment = (id, text) => {
+    setClosingFocos(fs => fs.map(f => f.id === id ? { ...f, final_assessment: text } : f));
+  };
+  const blurFocoAssessment = (id, text) => {
+    persistFocoClose(id, { final_assessment: text });
+  };
+
+  // Guarda la retrospectiva a medio escribir en draft_state (plan sigue 'active').
+  const blurRetro = (next) => {
+    if (!activePlan) return;
+    supabase.from('quarterly_plans')
+      .update({ draft_state: { closeRetro: next } })
+      .eq('id', activePlan.id)
+      .then(() => {}, e => console.warn('No se pudo guardar la retrospectiva:', e));
+  };
+
+  const handleConfirmClose = async () => {
+    setCloseSav(true); setCloseErr(null);
+    try {
+      const coachRetro = formatCoachRetrospective(retroAnswers);
+      const { error } = await supabase.from('quarterly_plans').update({
+        coach_retrospective: coachRetro,
+        status:    'completed',
+        closed_at: new Date().toISOString(),
+        draft_state: null,
+      }).eq('id', activePlan.id);
+      if (error) throw error;
+      await loadPlans();
+      setView('list');
+      setActivePlan(null);
+    } catch (e) {
+      setCloseErr(e.message ?? 'Error al confirmar el cierre');
+    } finally {
+      setCloseSav(false);
+    }
+  };
+
+  // Arma el bundle del plan completado más reciente del atleta (docs/scope-planning-measurement.md
+  // §7.1) para pasarlo a generate/regenerate del plan nuevo. Cold-start (sin plan previo) → null.
+  const loadPriorBundle = async (athleteId) => {
+    try {
+      const { data: prior } = await supabase
+        .from('quarterly_plans')
+        .select('*, quarterly_plan_objectives(*)')
+        .eq('athlete_id', athleteId)
+        .eq('status', 'completed')
+        .order('period_start', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setPriorBundle(prior ? buildPriorBundle(prior, prior.quarterly_plan_objectives) : null);
+    } catch (e) {
+      console.warn('No se pudo cargar el bundle del periodo anterior:', e);
+      setPriorBundle(null);
+    }
   };
 
   // ────────────────────────────────────────────────────────────────────
@@ -860,12 +982,20 @@ export default function PlanesCoach() {
               </p>
             </div>
             {activePlan.status === 'active' && (
-              <button
-                onClick={() => handleArchive(activePlan.id)}
-                className="text-[11px] font-semibold uppercase tracking-wide hairline px-3 py-1.5 hover:bg-[var(--cream)] transition shrink-0"
-                style={{ color: 'var(--ink-mute)' }}>
-                Archivar
-              </button>
+              <div className="flex gap-2 shrink-0">
+                <button
+                  onClick={openClosing}
+                  className="text-[11px] font-semibold uppercase tracking-wide hairline px-3 py-1.5 hover:bg-[var(--cream)] transition"
+                  style={{ color: 'var(--accent)', borderColor: 'var(--accent)' }}>
+                  Cerrar periodo →
+                </button>
+                <button
+                  onClick={() => handleArchive(activePlan.id)}
+                  className="text-[11px] font-semibold uppercase tracking-wide hairline px-3 py-1.5 hover:bg-[var(--cream)] transition"
+                  style={{ color: 'var(--ink-mute)' }}>
+                  Archivar
+                </button>
+              </div>
             )}
           </div>
 
@@ -888,6 +1018,8 @@ export default function PlanesCoach() {
                           objetivo:       o.objetivo ?? o.objective_text,
                           estandar_usado: o.estandar_usado,
                           anchors:        o.anchors,
+                          outcome:          activePlan.status === 'completed' ? o.outcome : null,
+                          final_assessment: activePlan.status === 'completed' ? o.final_assessment : null,
                         }}
                       />
                     ))}
@@ -911,8 +1043,146 @@ export default function PlanesCoach() {
                   </div>
                 </div>
               )}
+
+              {activePlan.status === 'completed' && (activePlan.coach_retrospective || activePlan.athlete_retrospective) && (
+                <div className="space-y-3 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+                  <p className="eyebrow !text-[10px]" style={{ color: 'var(--ink-mute)' }}>
+                    Retrospectiva del periodo
+                  </p>
+                  {activePlan.coach_retrospective && (
+                    <p className="text-[13px] whitespace-pre-wrap" style={{ lineHeight: 1.6 }}>{activePlan.coach_retrospective}</p>
+                  )}
+                  {activePlan.athlete_retrospective && (
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide mb-1" style={{ color: 'var(--ink-mute)' }}>
+                        El atleta
+                      </p>
+                      <p className="text-[13px]" style={{ lineHeight: 1.6 }}>{activePlan.athlete_retrospective}</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
+        </div>
+      </Shell>
+    );
+  }
+
+  // ────────────────────────────────────────────────────────────────────
+  // RENDER — CLOSING (cierre de plan, docs/scope-close-quarterly-plan.md)
+  // ────────────────────────────────────────────────────────────────────
+  if (view === 'closing' && activePlan) {
+    const pending = focosSinOutcome(closingFocos);
+    return (
+      <Shell>
+        <div className="max-w-2xl">
+          <button
+            onClick={() => setView('detail')}
+            className="text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-mute)] hover:text-[var(--ink)] transition mb-3 block">
+            ← Volver al plan
+          </button>
+          <div className="mb-6">
+            <h1 className="font-display font-extrabold text-[26px] leading-none">
+              Cerrar periodo — {athleteName(activePlan)}
+            </h1>
+            <p className="text-[12px] mt-1" style={{ color: 'var(--ink-mute)' }}>
+              {fmtPeriodRange(activePlan.period_start, activePlan.period_end)} · marca el resultado de cada
+              foco y escribe tu retrospectiva. Guarda tu avance en el momento — puedes volver después.
+            </p>
+          </div>
+
+          <div className="space-y-4 mb-8">
+            {closingFocos.map(f => (
+              <div key={f.id} className="hairline p-4" style={{ background: 'var(--paper)' }}>
+                <p className="eyebrow !text-[9px] mb-1" style={{ color: 'var(--ink-mute)' }}>
+                  {SUB_LABEL[f.sub_dimension] ?? f.sub_dimension}
+                </p>
+                <p className="text-[13px] font-medium leading-relaxed mb-2">{f.objetivo}</p>
+                {f.anchors && <AnchorList anchors={f.anchors} />}
+
+                <div className="flex flex-wrap gap-1.5 mt-3">
+                  {OUTCOME_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => updateFocoOutcome(f.id, opt.value)}
+                      className="text-[10px] font-semibold px-2 py-1 uppercase tracking-wide hairline transition"
+                      style={{
+                        background: f.outcome === opt.value ? opt.bg : 'transparent',
+                        color:      f.outcome === opt.value ? opt.color : 'var(--ink-mute)',
+                        borderColor: f.outcome === opt.value ? opt.color : undefined,
+                      }}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+
+                {f.outcome && f.outcome !== 'deprioritized' && (
+                  <textarea
+                    value={f.final_assessment}
+                    onChange={e => updateFocoAssessment(f.id, e.target.value)}
+                    onBlur={e => blurFocoAssessment(f.id, e.target.value)}
+                    rows={2}
+                    placeholder="Cierre narrativo de este foco — qué pasó, en tus palabras."
+                    className="w-full hairline px-3 py-2 mt-2 text-[12px] bg-[var(--cream)] outline-none resize-none"
+                    style={{ lineHeight: 1.6 }}
+                  />
+                )}
+              </div>
+            ))}
+            {closingFocos.length === 0 && (
+              <p className="text-[13px]" style={{ color: 'var(--ink-mute)' }}>Este plan no tiene focos que cerrar.</p>
+            )}
+          </div>
+
+          <div className="mb-6">
+            <p className="eyebrow !text-[10px] mb-3" style={{ color: 'var(--ink-mute)' }}>
+              Tu retrospectiva del periodo
+            </p>
+            <div className="space-y-3">
+              {COACH_RETRO_QUESTIONS.map((q, i) => (
+                <div key={i}>
+                  <label className="text-[12px] font-medium block mb-1">{q}</label>
+                  <textarea
+                    value={retroAnswers[i]}
+                    onChange={e => {
+                      const next = retroAnswers.map((a, idx) => idx === i ? e.target.value : a);
+                      setRetroAnswers(next);
+                    }}
+                    onBlur={() => blurRetro(retroAnswers)}
+                    rows={2}
+                    className="w-full hairline px-3 py-2 text-[12px] bg-[var(--paper)] outline-none resize-none"
+                    style={{ lineHeight: 1.6 }}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {pending.length > 0 && (
+            <div className="hairline p-3 mb-4" style={{ background: 'rgba(234,179,8,.08)' }}>
+              <p className="text-[12px]" style={{ color: '#a16207', lineHeight: 1.6 }}>
+                {pending.length} foco{pending.length === 1 ? '' : 's'} sin resultado asignado todavía —
+                puedes confirmar el cierre igual y volver después.
+              </p>
+            </div>
+          )}
+          {closeError && <ErrorBox msg={closeError} />}
+
+          <div className="flex gap-3">
+            <button
+              onClick={() => setView('detail')}
+              className="px-4 py-2 text-[11px] font-semibold uppercase tracking-wide hairline hover:bg-[var(--cream)] transition">
+              ← Volver
+            </button>
+            <button
+              onClick={handleConfirmClose}
+              disabled={closeSaving}
+              className="px-6 py-2 text-[11px] font-semibold uppercase tracking-wide text-white disabled:opacity-40 hover:opacity-90 transition"
+              style={{ background: 'var(--accent)' }}>
+              {closeSaving ? 'Confirmando…' : 'Confirmar cierre'}
+            </button>
+          </div>
         </div>
       </Shell>
     );
@@ -1043,6 +1313,7 @@ function FocoCard({ foco, veredicto }) {
   // "Qué revisar" que antes vivía arriba de todos los focos. `veredicto` viene del modo `validate`
   // (pasada de validación aparte); mientras no llega, no se muestra nada (silencioso, no bloquea).
   const insuficiente = veredicto && veredicto.objetivo_suficiente === false;
+  const outcomeOpt = foco.outcome ? OUTCOME_OPTIONS.find(o => o.value === foco.outcome) : null;
   return (
     <div className="hairline px-4 py-3" style={{ background: 'var(--paper)' }}>
       <div className="flex items-center gap-2 mb-1.5">
@@ -1053,6 +1324,12 @@ function FocoCard({ foco, veredicto }) {
           <span className="text-[9px] font-semibold px-1.5 py-0.5 uppercase tracking-wide"
                 style={{ background: 'var(--cream)', color: 'var(--ink-mute)' }}>
             {foco.estandar_usado}
+          </span>
+        )}
+        {outcomeOpt && (
+          <span className="text-[9px] font-semibold px-1.5 py-0.5 uppercase tracking-wide"
+                style={{ background: outcomeOpt.bg, color: outcomeOpt.color }}>
+            {outcomeOpt.label}
           </span>
         )}
       </div>
@@ -1066,6 +1343,11 @@ function FocoCard({ foco, veredicto }) {
       {insuficiente && (
         <p className="text-[10.5px] mt-2 font-medium" style={{ color: '#a16207' }}>
           Revisa este objetivo antes de guardar: {formatObjetivoMotivo(veredicto.objetivo_motivo)}.
+        </p>
+      )}
+      {foco.final_assessment && (
+        <p className="text-[12px] mt-2 italic" style={{ color: 'var(--ink-mute)', lineHeight: 1.6 }}>
+          {foco.final_assessment}
         </p>
       )}
     </div>

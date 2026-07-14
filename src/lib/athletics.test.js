@@ -338,3 +338,70 @@ describe('winLossRecord', () => {
     expect(winLossRecord([])).toEqual({ w: 0, l: 0, total: 0 });
   });
 });
+
+// ─── P&M — cierre de plan trimestral ───────────────────────────────────────────
+
+import { formatCoachRetrospective, focosSinOutcome, buildPriorBundle } from './athletics.js';
+
+describe('formatCoachRetrospective', () => {
+  it('combina las 3 respuestas con su pregunta', () => {
+    const out = formatCoachRetrospective(['A', 'B', 'C']);
+    expect(out.split('\n\n')).toHaveLength(3);
+    expect(out).toContain('A');
+    expect(out).toContain('B');
+    expect(out).toContain('C');
+  });
+  it('omite respuestas vacías o solo espacios', () => {
+    const out = formatCoachRetrospective(['A', '', '   ']);
+    expect(out.split('\n\n')).toHaveLength(1);
+    expect(out).toContain('A');
+  });
+  it('devuelve null si todas las respuestas están vacías', () => {
+    expect(formatCoachRetrospective(['', '', ''])).toBeNull();
+  });
+  it('devuelve null si el input es null o undefined', () => {
+    expect(formatCoachRetrospective(null)).toBeNull();
+    expect(formatCoachRetrospective(undefined)).toBeNull();
+  });
+});
+
+describe('focosSinOutcome', () => {
+  it('devuelve solo focos (no mantenimiento) sin outcome', () => {
+    const objs = [
+      { tipo: 'foco', outcome: 'logrado' },
+      { tipo: 'foco', outcome: null },
+      { tipo: 'mantenimiento', outcome: null },
+    ];
+    expect(focosSinOutcome(objs)).toHaveLength(1);
+  });
+  it('devuelve array vacío si todos los focos ya tienen outcome', () => {
+    expect(focosSinOutcome([{ tipo: 'foco', outcome: 'logrado' }])).toEqual([]);
+  });
+  it('maneja input null o undefined', () => {
+    expect(focosSinOutcome(null)).toEqual([]);
+    expect(focosSinOutcome(undefined)).toEqual([]);
+  });
+});
+
+describe('buildPriorBundle', () => {
+  it('arma el bundle solo con focos (excluye mantenimiento) y las retrospectivas del plan', () => {
+    const plan = { coach_retrospective: 'x', athlete_retrospective: null };
+    const objs = [
+      { tipo: 'foco', dimension: 'tecnica', sub_dimension: 'forehand', objetivo: 'obj', outcome: 'logrado', final_assessment: 'bien' },
+      { tipo: 'mantenimiento', dimension: 'tactica', sub_dimension: 'puntos_clave' },
+    ];
+    const bundle = buildPriorBundle(plan, objs);
+    expect(bundle.prior_focos).toHaveLength(1);
+    expect(bundle.prior_focos[0].sub_dimension).toBe('forehand');
+    expect(bundle.coach_retrospective).toBe('x');
+    expect(bundle.athlete_retrospective).toBeNull();
+  });
+  it('devuelve null si no hay plan', () => {
+    expect(buildPriorBundle(null, [])).toBeNull();
+  });
+  it('devuelve null si el plan no tiene ningún foco (solo mantenimiento o vacío)', () => {
+    expect(buildPriorBundle({}, [{ tipo: 'mantenimiento' }])).toBeNull();
+    expect(buildPriorBundle({}, [])).toBeNull();
+    expect(buildPriorBundle({}, null)).toBeNull();
+  });
+});
