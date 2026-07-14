@@ -118,3 +118,38 @@ No hay lógica pura nueva evidente más allá de armar el `prior_bundle` (mapeo 
 ## 12. Siguiente paso
 
 Backlog nuevo (creado en el kanban): repensar `liderazgo` (agregar score −2..+2 a `report_character`, además de la nota) y `physical` como dimensión dentro de P&M — decisión de Marco, needs su propia conversación antes de scopear. Cuando eso se resuelva, retomar la asistencia LLM de este build (sugerencia de outcome + trayectoria de scores) como una segunda rebanada.
+
+## 13. Hallazgos de la revisión de Marco (14 Jul 2026) — pendientes de decidir
+
+Marco revisó el flujo construido (§11) y encontró huecos reales antes de darlo por terminado. Ninguno de estos se resolvió todavía — quedan registrados para no perderse.
+
+### Gate de tiempo para cerrar — resuelto (no-bloqueante)
+El botón "Cerrar periodo →" no tenía ningún chequeo contra `period_end`. Decisión de Marco: avisar si se cierra antes de que el trimestre termine, sin bloquear. **Construido:** aviso ámbar no-bloqueante en la vista de cierre si `period_end` todavía no pasó.
+
+### `prior_bundle` — mismo objeto que "el bundle del periodo previo" (aclaración de términos)
+Confirmado: lo que se construyó en §11 (`buildPriorBundle` → `{ prior_focos, coach_retrospective, athlete_retrospective }`) **es** `prior_bundle` — no son dos cosas distintas, es el mismo objeto descrito de dos formas en la conversación. Hoy es deliberadamente angosto (coincide con §7.1/§10 del doc madre, sin `monthly_scores` por el gap del §4).
+
+### `prior_bundle` — riesgo de mega-dump al integrar scores + notas de voz (abierto)
+Marco señala que el "contexto anterior" que debería alimentar el plan siguiente es más amplio que lo construido: el bundle estructurado (ya listo), la trayectoria de scores (bloqueada, ver task de liderazgo/physical), las notas de voz del periodo — sobre todo las del último mes — (servicio todavía sin construir), y comentarios adicionales del coach al cerrar. Preocupación explícita: si se concatena todo sin curar, se vuelve un mega-dump que degrada la calidad del output de `generate`/`regenerate`, no la mejora. **Sin resolver todavía** — decidir si esto se scopea dentro de "Servicio de notas de voz/texto por atleta" (que ya menciona conectar con `generate-quarterly-plan`) o aparte. Ver conversación de esta sesión para la discusión completa.
+
+### Vista de cierre — falta contexto de scores/comentarios del periodo (abierto)
+La vista de cierre muestra objetivo + anclas (la rúbrica -2..+2), pero **no muestra los scores reales que se capturaron mes a mes** durante el trimestre, ni el último comentario del coach (ej. `tecnica_nota`, `tactica_nota`, `etica_trabajo_nota`, `coachabilidad_nota` de `report_on_court`/`report_character`) — esto sí existe en BD para técnica/táctica/ética de trabajo/coachabilidad (no para liderazgo/physical, ver §4). Sin esto, el coach cierra "a ciegas" respecto a lo que él mismo capturó mes a mes, incluyendo su propio comentario más reciente. **Pendiente de construir**, condicionado a la pregunta de secuencia de abajo.
+
+### Anclas vs. outcome — vocabularios no congruentes (abierto, pregunta de diseño)
+Las anclas son una escala de progreso (`Estancado → Rezagado → Por buen camino → Adelantado → Superado`); `outcome` es un vocabulario de decisión distinto (`logrado`/`parcial`/`continúa`/`deprioritized`) sin mapeo definido entre ambos. Hoy el coach tiene que traducir mentalmente de un lenguaje al otro sin ninguna ayuda visual. Sin resolver — depende en parte de tener los scores reales visibles (punto anterior) para que el mapeo tenga sentido.
+
+### Secuencia: ¿reporte del mes 3 y luego cierre, o el cierre lo reemplaza? (abierto, bloqueante para el punto de scores)
+No estaba definido ni en el doc madre ni en este build. Necesita respuesta de Marco antes de construir la vista de scores en el cierre.
+
+### Después de "Confirmar cierre" — resuelto y construido
+Decisión de Marco: saltar directo a crear el plan del atleta que acaba de cerrar (atleta + periodo siguiente prellenados), guardándose como draft si no se completa en el momento — "esto ya debería estar construido" (el mecanismo de draft sí existía, solo faltaba dispararlo automáticamente). **Construido:** `handleConfirmClose` ahora calcula el periodo siguiente (`nextPeriodStartFor`, nuevo helper + test), y llama a `startPlanCreation` (refactor de lo que antes era `handleStep1Continue`, ahora parametrizado para poder llamarse tanto desde el botón del paso 1 como desde este salto automático). Queda pendiente, no construido todavía: pre-seleccionar en el paso 3 los focos que cerraron con `outcome: 'continua'` (hoy el carryover del paso 3 sigue mostrando cualquier foco del periodo anterior sin distinguir por outcome — mismo mecanismo de siempre, no lo tocué).
+
+### Reportes mensuales conectados al cierre (nuevo, 14 Jul 2026 — no construido, necesita más definición)
+Respuesta de Marco a la pregunta de secuencia: no quiere "reporte de mes 3, luego aparte el cierre" como dos cosas desconectadas — quiere que **completar el reporte del mes 3 sea el trigger que abre, tanto al coach como al atleta, el retrospective y el cierre de periodo**. Construir esto como pasos conectados desde ahora, aunque más adelante decidamos quitar el reporte de mes 3 como paso independiente.
+
+Esto es más grande que lo que cubre esta rebanada y toca una decisión ya tomada que valdría la pena reabrir explícitamente antes de construir: `athlete_retrospective` está hoy fuera de alcance (depende de "formato de cierre compartido atleta/papá/coach", Backlog, baja prioridad — `docs/scope-mis-planes-atleta.md` §7). Si el trigger debe abrir el retrospective **también al atleta**, eso implica adelantar esa pieza, no solo conectar el cierre del coach a un evento. **No construido — pendiente de que Marco confirme si esto adelanta la captura del lado del atleta o si por ahora el trigger solo aplica al coach** (el atleta se queda como está: solo lectura, sin retrospective propio, hasta que el backlog de "formato de cierre compartido" se scopee aparte).
+
+Detalle técnico adicional sin resolver: "completar el reporte del mes 3" requiere saber qué reporte mensual corresponde al mes 3 de un plan trimestral dado — hoy `reports` se relaciona por `(athlete_id, period)` sin ningún vínculo directo a `quarterly_plans`. Hace falta definir esa relación (¿por fecha? ¿por un FK nuevo?) antes de poder disparar nada automáticamente.
+
+### Notas de voz — cruce entre 3 piezas (abierto, no bloquea esta rebanada)
+Marco identifica que el servicio de notas de voz (Backlog, sin scopear) va a tocar simultáneamente: este cierre (notas de cierre / comentarios adicionales), `generate`/`regenerate` (contexto para el plan siguiente), y su propio doc de arquitectura (captura, pipeline, prompt). El task de backlog "Servicio de notas de voz/texto por atleta" ya menciona esta conexión de forma general — falta hacerla explícita para que su doc de scoping (cuando se escriba) la cubra directamente en vez de asumirla.

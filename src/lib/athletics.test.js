@@ -341,7 +341,24 @@ describe('winLossRecord', () => {
 
 // ─── P&M — cierre de plan trimestral ───────────────────────────────────────────
 
-import { formatCoachRetrospective, focosSinOutcome, buildPriorBundle } from './athletics.js';
+import { formatCoachRetrospective, focosSinOutcome, buildPriorBundle, nextPeriodStartFor } from './athletics.js';
+
+describe('nextPeriodStartFor', () => {
+  it('devuelve el día siguiente al period_end', () => {
+    expect(nextPeriodStartFor('2026-06-30')).toBe('2026-07-01');
+  });
+  it('cruza fin de año correctamente', () => {
+    expect(nextPeriodStartFor('2026-12-31')).toBe('2027-01-01');
+  });
+  it('maneja fin de mes de 28/29 días (febrero)', () => {
+    expect(nextPeriodStartFor('2026-02-28')).toBe('2026-03-01'); // 2026 no es bisiesto
+    expect(nextPeriodStartFor('2028-02-29')).toBe('2028-03-01'); // 2028 sí es bisiesto
+  });
+  it('devuelve null si no hay period_end', () => {
+    expect(nextPeriodStartFor(null)).toBeNull();
+    expect(nextPeriodStartFor(undefined)).toBeNull();
+  });
+});
 
 describe('formatCoachRetrospective', () => {
   it('combina las 3 respuestas con su pregunta', () => {

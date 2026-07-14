@@ -248,6 +248,20 @@ export function winLossRecord(rows) {
   return { w, l, total: played.length };
 }
 
+/**
+ * Inicio del periodo siguiente a partir del `period_end` de un plan — el día después. Usado al
+ * confirmar el cierre de un plan para prellenar el atleta+periodo del plan siguiente
+ * (docs/scope-close-quarterly-plan.md §13, "post-cierre").
+ * @param {string|null} periodEnd fecha 'YYYY-MM-DD'
+ * @returns {string|null}
+ */
+export function nextPeriodStartFor(periodEnd) {
+  if (!periodEnd) return null;
+  const d = new Date(periodEnd + 'T12:00:00');
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
 // ─── P&M — cierre de plan trimestral (docs/scope-close-quarterly-plan.md) ──────
 
 /** Las 3 preguntas de la retrospectiva del coach, ya decididas en scope-planning-measurement.md §21. */

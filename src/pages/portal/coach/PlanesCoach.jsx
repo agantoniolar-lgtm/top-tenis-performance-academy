@@ -3,7 +3,7 @@ import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
 import {
   fmtPeriodRange, COACH_RETRO_QUESTIONS,
-  formatCoachRetrospective, focosSinOutcome, buildPriorBundle,
+  formatCoachRetrospective, focosSinOutcome, buildPriorBundle, nextPeriodStartFor,
 } from '../../../lib/athletics.js';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -231,23 +231,27 @@ export default function PlanesCoach() {
     if ((ds.genFocos ?? []).length > 0) runValidate(ds.genFocos);
   };
 
-  // ── Paso 1 → 2: valida que no exista ya un plan para atleta+periodo ─
-  const handleStep1Continue = async () => {
-    if (!selAthlete || !periodStart) return;
+  // ── Paso 1 → 2: valida que no exista ya un plan para atleta+periodo, hidrata un draft
+  // existente o crea uno nuevo. Parametrizada (en vez de leer selAthlete/periodStart directo)
+  // porque también se dispara automáticamente al confirmar un cierre, para saltar directo a
+  // crear el plan siguiente del mismo atleta (docs/scope-close-quarterly-plan.md §13, post-cierre).
+  const startPlanCreation = async (athleteId, pStart) => {
+    if (!athleteId || !pStart) return;
+    setSel(athleteId); setPStart(pStart);
     setCheckingExisting(true); setExistingBlock(null); setGErr(null);
     try {
       const { data: existing, error } = await supabase
         .from('quarterly_plans')
         .select('id, status, raw_input, draft_state')
-        .eq('athlete_id', selAthlete)
-        .eq('period_start', periodStart)
+        .eq('athlete_id', athleteId)
+        .eq('period_start', pStart)
         .neq('status', 'archived')
         .maybeSingle();
       if (error) throw error;
 
       if (existing?.status === 'draft') {
         hydrateFromDraft(existing);
-        loadPriorBundle(selAthlete);
+        loadPriorBundle(athleteId);
         return;
       }
       if (existing) {
@@ -258,10 +262,10 @@ export default function PlanesCoach() {
       const { data: created, error: cErr } = await supabase
         .from('quarterly_plans')
         .insert({
-          athlete_id:   selAthlete,
+          athlete_id:   athleteId,
           coach_id:     user.coach_id,
-          period_start: periodStart,
-          period_end:   periodEnd,
+          period_start: pStart,
+          period_end:   periodEndFor(pStart),
           status:       'draft',
         })
         .select('id')
@@ -269,13 +273,14 @@ export default function PlanesCoach() {
       if (cErr) throw cErr;
       setDraftPlanId(created.id);
       setStep(2);
-      loadPriorBundle(selAthlete);
+      loadPriorBundle(athleteId);
     } catch (e) {
       setGErr(e.message ?? 'Error al validar si ya existe un plan para este atleta y periodo');
     } finally {
       setCheckingExisting(false);
     }
   };
+  const handleStep1Continue = () => startPlanCreation(selAthlete, periodStart);
 
   // ── Paso 2 → 3: identificar sub-dimensiones del dump ──────────────
   const handleIdentify = async () => {
@@ -644,9 +649,17 @@ export default function PlanesCoach() {
         draft_state: null,
       }).eq('id', activePlan.id);
       if (error) throw error;
+
+      // Salta directo a crear el plan siguiente del mismo atleta, prellenado (docs/scope-close-
+      // quarterly-plan.md §13, post-cierre) — se guarda como draft automáticamente si no se
+      // completa en el momento, igual que cualquier otro plan en creación.
+      const nextAthleteId = activePlan.athlete_id;
+      const nextStart = nextPeriodStartFor(activePlan.period_end);
       await loadPlans();
-      setView('list');
+      resetCreate();
       setActivePlan(null);
+      setView('create');
+      startPlanCreation(nextAthleteId, nextStart);
     } catch (e) {
       setCloseErr(e.message ?? 'Error al confirmar el cierre');
     } finally {
@@ -1074,6 +1087,7 @@ export default function PlanesCoach() {
   // ────────────────────────────────────────────────────────────────────
   if (view === 'closing' && activePlan) {
     const pending = focosSinOutcome(closingFocos);
+    const closingEarly = activePlan.period_end && new Date(activePlan.period_end + 'T23:59:59') > new Date();
     return (
       <Shell>
         <div className="max-w-2xl">
@@ -1090,6 +1104,12 @@ export default function PlanesCoach() {
               {fmtPeriodRange(activePlan.period_start, activePlan.period_end)} · marca el resultado de cada
               foco y escribe tu retrospectiva. Guarda tu avance en el momento — puedes volver después.
             </p>
+            {closingEarly && (
+              <p className="text-[11px] mt-2 font-medium" style={{ color: '#a16207' }}>
+                Este trimestre termina el {activePlan.period_end} — todavía no se cumple. Puedes cerrar
+                antes de tiempo, pero revisa que no te falte la medición de algún mes.
+              </p>
+            )}
           </div>
 
           <div className="space-y-4 mb-8">
