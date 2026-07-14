@@ -507,3 +507,22 @@ Ver §11 (UTR automatizado depreciado, captura manual) y §13 (se retira el ejem
 
 ### Siguiente paso
 Con estas correcciones incorporadas, el scope queda listo para empezar los docs de scoping de las dos rúbricas en Backlog — la de observaciones parte de la tabla preliminar de este §21; la de objetivos parte de los hallazgos ya acumulados en §16–§20.
+
+## 22. Revisión de sesión (14 Jul 2026) — "Mi plan" del atleta construido; retrospective capture confirmado como gap abierto, no como bug
+
+Apertura de sesión, retomando el foco dejado en Next Session (Session 31, 13 Jul 2026): incorporar a este doc lo construido en "Mi plan" y revisar si `athlete_retrospective` queda vacío en la práctica por falta de mecanismo de captura del lado del atleta.
+
+### Lo construido
+- **"Mi plan" (atleta)** — `src/pages/portal/atleta/MiPlan.jsx` (commit `ab4b430`), scopeado en `docs/scope-mis-planes-atleta.md`. Vista de solo lectura: plan `active` arriba + planes `completed` en lista expandible, agrupados por dimensión igual que el detail del coach. No muestra `diagnostico` (redactado pensando en el coach, no en 2ª persona).
+- **RLS ampliado** (`docs/db-schema.md` línea 264, 10 Jul 2026): el atleta pasó de leer solo `status = 'active'` a `status IN ('active', 'completed')` en `quarterly_plans` / `quarterly_plan_objectives`. Sigue siendo **solo `SELECT`** — el atleta no tiene, ni tuvo nunca, permiso de escritura sobre estas tablas.
+- Si `coach_retrospective` y/o `athlete_retrospective` existen en un plan `completed`, `MiPlan.jsx` los muestra debajo del plan; si no existen, simplemente no renderiza esa sección (no bloquea la vista).
+
+### Confirmado — el vacío de `athlete_retrospective` no es un bug de "Mi plan"
+Es consecuencia directa de que el **cierre del loop nunca se construyó**, no de que falte un formulario para el atleta específicamente:
+- `PlanesCoach.jsx` no tiene ningún código para `outcome`, `closed_at`, `coach_retrospective` ni `athlete_retrospective` — cero referencias en el archivo.
+- La edge function `close-quarterly-plan` (§10) sigue sin existir; el task correspondiente ("P&M v2 — close-quarterly-plan + retrospectives + handoff periodo→periodo") sigue en Backlog.
+- Es decir: **tampoco el coach tiene hoy dónde escribir su retrospective.** El gap es el cierre completo, no un hueco asimétrico del lado del atleta.
+- Esto ya estaba anticipado explícitamente en `docs/scope-mis-planes-atleta.md` §7 ("Captura del `athlete_retrospective` por el propio atleta — depende de 'Formato de cierre compartido atleta/papá/coach', Backlog, baja prioridad") y es coherente con §13/§21 de este doc: el retrospective del atleta **no bloquea** el cierre, el del coach sí — pero ninguno de los dos tiene todavía un flujo que los capture.
+
+### Conclusión
+No hace falta cambiar el modelo — `MiPlan.jsx` ya está diseñado para el estado intermedio (retrospectives ausentes = no se muestra la sección, sin romper nada). El siguiente paso natural, cuando se retome **"P&M v2 — close-quarterly-plan + retrospectives + handoff periodo→periodo"**, es que ese build defina primero el flujo de `coach_retrospective` (lado coach, dentro de `PlanesCoach.jsx` o una vista de cierre nueva) antes de considerar un formulario dedicado para `athlete_retrospective` — que sigue dependiendo del backlog de "formato de cierre compartido atleta/papá/coach" tal como ya estaba decidido.
