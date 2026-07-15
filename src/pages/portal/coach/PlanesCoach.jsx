@@ -66,7 +66,7 @@ const ESTADO_OPTIONS = [
   { value: 'fallido', label: 'Fallido', bg: 'rgba(220,38,38,.12)', color: '#b91c1c' },
 ];
 const ESTADO_PLACEHOLDER = {
-  logrado: 'Cierre narrativo de este foco — qué pasó, en tus palabras.',
+  logrado: 'Describe qué hizo que el objetivo se lograra — qué cambió, en tus palabras.',
   parcial: 'Describe por qué el objetivo se logró parcialmente.',
   fallido: 'Describe por qué el objetivo no se logró.',
 };
@@ -107,7 +107,10 @@ const RUBRICA_OBJETIVOS_LABELS = {
 };
 function formatObjetivoMotivo(motivo) {
   if (!motivo) return '';
-  const partes = motivo.split(',').map(s => s.trim()).filter(Boolean)
+  // El modelo debería separar los números con coma ("1, 3"), pero en la práctica a veces usa
+  // "+" u otro separador (bug reportado por Marco: "1+2+3" se mostraba literal, sin traducir).
+  // Extraer los dígitos directamente es robusto a cualquier separador que use el modelo.
+  const partes = (motivo.match(/\d+/g) ?? [])
     .map(n => RUBRICA_OBJETIVOS_LABELS[n] ?? n);
   return partes.join('; ');
 }
@@ -1160,33 +1163,38 @@ export default function PlanesCoach() {
                 {/* Scores + último comentario del trimestre (docs/scope-close-quarterly-plan.md
                     §13/§16.9) — en badges, mismo lenguaje visual que el resto del archivo. El más
                     reciente es el que se resalta arriba en las anclas (§16.3): es lo último que el
-                    coach vio del atleta en esta dimensión. Physical no tiene mapeo a report_physical. */}
-                {(f.monthlyScores?.length > 0 || f.lastNote) && (
-                  <div className="mt-2 pt-2" style={{ borderTop: '1px dashed var(--border)' }}>
-                    {f.monthlyScores?.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-1">
-                        <span className="text-[10px]" style={{ color: 'var(--ink-mute)' }}>Scores del trimestre:</span>
-                        {f.monthlyScores.map((s, i) => {
-                          const isLast = i === f.monthlyScores.length - 1;
-                          return (
-                            <span key={i}
-                                  className="text-[9px] font-semibold px-1.5 py-0.5 uppercase tracking-wide hairline"
-                                  style={{
-                                    background: s < 0 ? 'rgba(220,38,38,.1)' : s === 0 ? 'var(--cream)' : 'rgba(22,163,74,.12)',
-                                    color:      s < 0 ? '#b91c1c' : s === 0 ? 'var(--ink-mute)' : '#15803d',
-                                    borderColor: isLast ? (s < 0 ? '#b91c1c' : s === 0 ? 'var(--ink-mute)' : '#15803d') : undefined,
-                                  }}>
-                              {OC_LABEL[String(s)] ?? s}
-                            </span>
-                          );
-                        })}
-                      </div>
-                    )}
-                    {f.lastNote && (
-                      <p className="text-[11px] mt-1" style={{ color: 'var(--ink-mute)' }}>Último comentario: <em>{f.lastNote}</em></p>
-                    )}
-                  </div>
-                )}
+                    coach vio del atleta en esta dimensión. Physical no tiene mapeo a report_physical.
+                    Bug reportado por Marco (atleta sin ningún reporte mensual en el periodo): el
+                    bloque entero desaparecía en silencio, indistinguible de "esto está roto" — ahora
+                    siempre se muestra algo, aunque sea el aviso de que no hay datos. */}
+                <div className="mt-2 pt-2" style={{ borderTop: '1px dashed var(--border)' }}>
+                  {f.monthlyScores?.length > 0 ? (
+                    <div className="flex flex-wrap items-center gap-1">
+                      <span className="text-[10px]" style={{ color: 'var(--ink-mute)' }}>Scores del trimestre:</span>
+                      {f.monthlyScores.map((s, i) => {
+                        const isLast = i === f.monthlyScores.length - 1;
+                        return (
+                          <span key={i}
+                                className="text-[9px] font-semibold px-1.5 py-0.5 uppercase tracking-wide hairline"
+                                style={{
+                                  background: s < 0 ? 'rgba(220,38,38,.1)' : s === 0 ? 'var(--cream)' : 'rgba(22,163,74,.12)',
+                                  color:      s < 0 ? '#b91c1c' : s === 0 ? 'var(--ink-mute)' : '#15803d',
+                                  borderColor: isLast ? (s < 0 ? '#b91c1c' : s === 0 ? 'var(--ink-mute)' : '#15803d') : undefined,
+                                }}>
+                            {OC_LABEL[String(s)] ?? s}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-[10px]" style={{ color: 'var(--ink-mute)' }}>
+                      Sin scores registrados este trimestre todavía.
+                    </p>
+                  )}
+                  {f.lastNote && (
+                    <p className="text-[11px] mt-1" style={{ color: 'var(--ink-mute)' }}>Último comentario: <em>{f.lastNote}</em></p>
+                  )}
+                </div>
 
                 <div className="mt-3">
                   <p className="text-[9px] font-semibold uppercase tracking-wide mb-1" style={{ color: 'var(--ink-mute)' }}>Estado</p>

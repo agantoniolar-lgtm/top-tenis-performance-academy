@@ -215,6 +215,19 @@ Fix del bug de §16.2: `handleIdentify` ahora arma `carryoverSubs` desde `priorB
 
 `npm run lint && npm test` limpio (112 tests, 2 nuevos en `buildPriorBundle` para el shape de `carryover`). **Pendiente de que Marco lo pruebe en vivo** con los datos de Test Athlete antes de dar el task por Done — mismo criterio que el resto de este documento.
 
+### 16.3.1 Bugs encontrados en la segunda revisión (15 Jul 2026) — corregidos
+
+Marco probó cerrando el plan del atleta "Marco Damian" (jul–oct 2026, distinto de Test Athlete). 4 hallazgos:
+
+1. **Highlight del ancla no se veía.** Investigado contra datos reales: este atleta tiene **cero reportes mensuales** en Supabase (`reports` vacío para su `athlete_id`) — el plan apenas empezó el 10 Jul. No es un bug de `highlightKey`/`toAnchorKey` — es la ausencia total de datos, comportamiento esperado dado que no hay scores que resaltar. El bug real era otro: el bloque entero de scores desaparecía en silencio cuando no había datos, indistinguible de "esto está roto".
+2. **Placeholder no cambiaba en "Logrado".** Sí era un bug real — le había dado a `logrado` el mismo texto genérico que el fallback por defecto, así que visualmente parecía no funcionar. Corregido: placeholder propio ("Describe qué hizo que el objetivo se lograra…").
+3. **Badges de scores "no visibles".** Mismo origen que el punto 1 — cero reportes para ese atleta, el bloque no renderizaba nada en vez de decir explícitamente que no hay datos.
+4. **Warning "Revisa este objetivo antes de guardar: 1+2+3."** — bug real de parseo. `objetivo_motivo` (modo `validate`) se supone que el modelo lo devuelve separado por coma ("1, 3"), pero a veces usa "+" u otro separador; `formatObjetivoMotivo` solo hacía `split(',')`, así que "1+2+3" nunca se partía y se mostraba crudo. Corregido: ahora extrae los dígitos con regex (`match(/\d+/g)`), robusto a cualquier separador que use el modelo — no depende de que el prompt sea perfecto.
+
+**Fix aplicado (mismo commit que el redesign de outcome, ver git log):** placeholder de "Logrado" corregido; bloque de scores/anclas ahora siempre muestra algo — badges si hay datos, o "Sin scores registrados este trimestre todavía" si no los hay; `formatObjetivoMotivo` robusto a separador. `npm run lint && npm test` limpio.
+
+**Nota para la próxima corrida en vivo:** probar de nuevo con un atleta que sí tenga reportes mensuales dentro del periodo del plan (Test Athlete) para confirmar visualmente que el highlight y los badges sí aparecen cuando hay datos — con "Marco Damian" (cero reportes) no se puede verificar esa parte, solo el fallback.
+
 ### 16.4 Abierto — ciclo de vida de fechas del plan (no resuelto, necesita su propia sesión de scoping)
 
 Hoy: al confirmar el cierre, el draft del periodo siguiente se crea con `period_start` = primer día del mes siguiente (elegido a mano en el paso 1 del wizard — esto era manual porque la lógica de carryover/`prior_bundle` todavía no existía cuando se diseñó ese paso).
@@ -231,9 +244,9 @@ Propuesta de Marco: separar tres fechas en vez de asumir que el cierre y el inic
 - `RUBRICA_OBJETIVOS_LABELS[1]` (`PlanesCoach.jsx`): "parece calco del diagnóstico" → "parece copia directa del diagnóstico" (se lee más claro).
 - Aviso "Revisa este objetivo antes de guardar…" (paso 4, `FocoCard`) y el aviso "Mencionaste esto pero no hay un área de mejora concreta…" (paso 3, `FocoGroup`): ambos estaban en texto plano ámbar, poco visibles — ahora van dentro de una caja `hairline` con fondo ámbar (`rgba(234,179,8,.08)`), mismo patrón ya usado en el aviso de "cierre anticipado" y el de "focos sin resultado" de la vista de cierre.
 
-### 16.6 Abierto — ¿debería mantenimiento tener outcome también?
+### 16.6 Resuelto — mantenimiento se queda como está
 
-No preguntado explícitamente a Marco todavía. Sale de 16.1: hoy mantenimiento nunca se cierra (no tiene `outcome`, no aparece en la vista de cierre). Si un foco de mantenimiento sí tuvo cambios relevantes en el trimestre, hoy no hay forma de dejarlo registrado más allá del chip de nombre. Pendiente de decidir si esto se queda así a propósito (mantenimiento = deliberadamente ligero, sin fricción de cierre) o si necesita al menos un outcome opcional.
+Decisión de Marco (15 Jul 2026): mantenimiento **no** pasa a tener outcome. Se queda deliberadamente ligero — solo el chip de nombre, sin fricción de cierre. Si algo de mantenimiento se vuelve relevante, la vía es subirlo a foco en el plan del siguiente trimestre, no capturar su cierre in situ. No requiere cambios de código — es el comportamiento actual (§16.1), confirmado a propósito.
 
 ### 16.7 Pendiente de scopear — botones "mejorar" por objetivo en vez de un solo box de feedback
 
@@ -241,13 +254,15 @@ Observación de Marco tras ver que un feedback genérico en el box único de reg
 
 **No construido — es un cambio de interacción no trivial** (probablemente necesita que `regenerate` acepte feedback por-objetivo en vez de un solo string global, tocando el contrato de la edge function). Requiere su propio scoping antes de construir, se anota aquí para no perderse.
 
-### 16.8 Bug de prompt — las anclas de técnica no deberían asentarse en "consistente en entrenamiento"
+### 16.8 Bug de prompt, verificado contra datos reales — táctica se filtra al eje de carácter
 
-En el cierre de mayo–jul, el nivel "0" (estándar "de forma consistente") del ancla generada para revés decía "consistente en entrenamiento". Corrección de Marco: para dimensiones de **técnica**, ningún nivel de la escala debería premiar consistencia solo en drill/entrenamiento como punto de referencia — la transferencia de técnica debe apuntar siempre a partido.
+Hipótesis inicial (antes de verificar): técnica y carácter comparten plantilla de anclas en el prompt. **Falsa** — verificado contra el prompt real (`supabase/functions/generate-quarterly-plan/index.ts` línea ~189-193): ya existen dos ejes separados y correctos:
+- **técnica/táctica → TRANSFERENCIA**: `-2 sin avance · -1 solo en drill aislado · 0 consistente en drill controlado, empieza a aparecer en punto · +1 consistente en sparring/sets · +2 lo sostiene en partido bajo presión`.
+- **carácter → FRECUENCIA**: `-2 sin cambio · -1 solo con recordatorio del coach · 0 consistente en entrenamiento · +1 consistente en partido sin recordatorio · +2 lo sostiene en torneo y lo modela para otros`.
 
-La plantilla genérica de anclas vive en el prompt de `supabase/functions/generate-quarterly-plan/index.ts` (línea ~193): *"-2 sin cambio · -1 solo con recordatorio del coach · 0 consistente en entrenamiento · +1 consistente en partido sin recordatorio · +2 lo sostiene en torneo y lo modela para otros"*. Es una plantilla compartida entre técnica/táctica/carácter — cambiarla afecta la generación de anclas para las tres dimensiones, no es un cambio de copy aislado.
+Verificado contra `quarterly_plan_objectives.anchors` reales en Supabase (no solo el prompt): **el eje sí está bien diseñado, pero el modelo no lo respeta de forma consistente para táctica.** `backhand` (técnica) usa correctamente TRANSFERENCIA en las 4 veces que se generó. Pero varios focos de **táctica** (`seleccion_golpe`, `manejo_riesgo`, y una versión de `puntos_clave`) se generaron con el vocabulario de FRECUENCIA prestado de carácter — literalmente "consistente en entrenamiento" / "sostiene en torneo y lo modela para otros" — mientras otros focos de táctica generados en la misma sesión (`transferencia_partido`, `puntos_clave` en otra corrida, `serve` técnica) sí usaron TRANSFERENCIA correctamente. Es decir: **no es un problema de diseño de plantilla, es inconsistencia del modelo aplicando la instrucción** — un problema de adherencia al prompt, no de arquitectura del prompt.
 
-**No es un fix trivial de texto** — es un ajuste de prompt (Tier B del `feature-build-flow`: no determinista, se valida contra ejemplos/rúbrica, no con un test exacto). Pendiente: decidir si técnica necesita su propia plantilla de anclas separada de táctica/carácter (donde "en entrenamiento" sí puede tener sentido como paso intermedio), o si el ajuste aplica a las tres. No construido — necesita revisión con Marco viendo ejemplos generados, antes de tocar el prompt en producción.
+**Fix propuesto (pendiente de aprobación de Marco antes de deployar):** agregar una regla explícita anti-mezcla justo después del bloque "EJES DE LAS ANCLAS" en el prompt: *"REGLA ANTI-MEZCLA DE EJES (estricta): las anclas de técnica y táctica NUNCA deben usar vocabulario del eje de carácter ('entrenamiento', 'sin recordatorio', 'torneo', 'lo modela para otros'). Usa siempre drill → sparring/sets → partido bajo presión."* Es un cambio de prompt (Tier B — no determinista), así que antes de deployar hace falta generar 3-4 ejemplos con el prompt ajustado y que Marco los revise, en vez de confiar en un solo caso.
 
 ### 16.9 UI — scores del trimestre en badges en vez de texto plano
 
