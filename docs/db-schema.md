@@ -263,6 +263,8 @@ Solo se puede crear si `reports.athlete_voice_unlocked_at IS NOT NULL` — enfor
 | `report_athlete_voice` | Lee de cualquiera | Lee y edita el suyo | Solo si `athlete_voice_unlocked_at IS NOT NULL` |
 | `quarterly_plans` / `quarterly_plan_objectives` | Lee, crea y edita cualquier plan de cualquier atleta. **Sin DELETE.** | Lee el suyo | Solo si `status IN ('active', 'completed')` — ampliado 10 Jul 2026 para la vista "Mi plan" del atleta (`docs/scope-mis-planes-atleta.md`); antes solo `active`. `draft` y `archived` siguen sin acceso para el atleta. |
 
+> **`quarterly_plan_objectives` — cambio de schema 15 Jul 2026** (`docs/scope-close-quarterly-plan.md` §16.3, migración `split_outcome_state_and_carryover`): `outcome` pasó de 4 valores (`logrado`/`parcial`/`continua`/`deprioritized`) a 3 (`logrado`/`parcial`/`fallido`) — es el estado final del objetivo. Se agregó columna nueva `carryover` (boolean, nullable) — decisión independiente de si el foco se lleva al draft del periodo siguiente (`true` = continúa, `false` = depriorizado, junto con `deprioritized_at` que ya existía). RLS sin cambios, no hubo policy nueva. Sin tabla propia documentada arriba en "## Tablas" todavía — pendiente si se necesita una sección dedicada.
+
 ---
 
 ## Decisiones pendientes

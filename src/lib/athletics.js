@@ -333,17 +333,17 @@ export function monthlyScoresForFoco(foco, monthlyReports) {
 }
 
 /**
- * Focos a pre-seleccionar en el paso 3 del wizard de creación: primero los que cerraron como
- * `continua` en el plan anterior (señal explícita del coach al cerrar), luego completa hasta
- * `maxFocos` con las candidatas más urgentes del dump actual — mismo comportamiento previo,
- * ahora con `continua` priorizado por encima (docs/scope-close-quarterly-plan.md §13).
- * Deduplica por `dimension_sub_dimension` (un foco puede ser `continua` Y candidata a la vez).
+ * Focos a pre-seleccionar en el paso 3 del wizard de creación: primero los que tienen
+ * `carryover = true` en el plan anterior (señal explícita del coach al cerrar, independiente
+ * del `outcome`/estado — docs/scope-close-quarterly-plan.md §16.3), luego completa hasta
+ * `maxFocos` con las candidatas más urgentes del dump actual.
+ * Deduplica por `dimension_sub_dimension` (un foco puede tener carryover Y ser candidata a la vez).
  * @param {{dimension: string, sub_dimension: string, candidata_a_foco?: boolean, urgencia?: string}[]|null} identified
- * @param {Set<string>|null} continuaSubs sub_dimension con outcome='continua' en el plan anterior
+ * @param {Set<string>|null} carryoverSubs sub_dimension con carryover=true en el plan anterior
  * @param {number} maxFocos
  * @returns {object[]} subconjunto de `identified`, en orden de prioridad
  */
-export function preselectFocos(identified, continuaSubs, maxFocos) {
+export function preselectFocos(identified, carryoverSubs, maxFocos) {
   const urgenciaOrder = { alta: 0, media: 1, baja: 2 };
   const byUrgencia = (a, b) => (urgenciaOrder[a.urgencia] ?? 1) - (urgenciaOrder[b.urgencia] ?? 1);
   const seen = new Set();
@@ -353,7 +353,7 @@ export function preselectFocos(identified, continuaSubs, maxFocos) {
     if (seen.has(k) || out.length >= maxFocos) return;
     seen.add(k); out.push(it);
   };
-  (identified ?? []).filter(it => continuaSubs?.has(it.sub_dimension)).forEach(tryAdd);
+  (identified ?? []).filter(it => carryoverSubs?.has(it.sub_dimension)).forEach(tryAdd);
   (identified ?? []).filter(it => it.candidata_a_foco).slice().sort(byUrgencia).forEach(tryAdd);
   return out;
 }
@@ -361,6 +361,9 @@ export function preselectFocos(identified, continuaSubs, maxFocos) {
 /**
  * Arma el bundle del periodo previo (docs/scope-planning-measurement.md §7.1, §10) que se
  * manda como `prior_bundle` a generate-quarterly-plan al crear el plan siguiente.
+ * `outcome` (docs/scope-close-quarterly-plan.md §16.3) es ahora el estado final del objetivo
+ * (logrado/parcial/fallido) y `carryover` es la decisión independiente de si sigue al periodo
+ * siguiente — antes eran el mismo campo de 4 valores excluyentes.
  * `monthly_scores` se omite deliberadamente en esta rebanada — no hay fuente uniforme de
  * score -2..+2 por sub-dimensión para las 4 dimensiones (liderazgo y physical sin resolver,
  * ver docs/scope-close-quarterly-plan.md §4). Devuelve null si no hay plan o no tiene focos.
@@ -378,6 +381,7 @@ export function buildPriorBundle(plan, objectives) {
       sub_dimension:     o.sub_dimension,
       objetivo:          o.objetivo ?? o.objective_text ?? null,
       outcome:           o.outcome ?? null,
+      carryover:         o.carryover ?? null,
       final_assessment:  o.final_assessment ?? null,
     })),
     coach_retrospective:   plan.coach_retrospective ?? null,

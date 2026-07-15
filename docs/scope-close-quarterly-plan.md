@@ -207,7 +207,13 @@ Modelo actual: un solo campo `outcome` con 4 valores mutuamente excluyentes (`lo
 - `buildPriorBundle`: mismo shape de `prior_focos`, cambia qué significa `outcome` (ahora 3 valores) y agrega `carryover`.
 - `MiPlan.jsx` `OUTCOME_LABELS`: actualizar a los 3 estados nuevos — `continúa`/`depriorizado` deja de ser un chip de "outcome" visible al atleta (es metadata de decisión del coach, no un resultado del objetivo).
 
-**Este es el trabajo grande que sale de esta corrida — no construido todavía. Necesita su propio slice de `feature-build-flow` (task nuevo en kanban, migración, componente, tests) antes de tocar código.**
+**Construido (15 Jul 2026, misma sesión).** Migración `split_outcome_state_and_carryover`: `outcome` CHECK a 3 valores (`logrado`/`parcial`/`fallido`), columna nueva `carryover boolean`. Backfill de datos existentes (todo dummy/test todavía, sin coaches reales usando el flujo): `continua` → `carryover=true` + `outcome=null`; `deprioritized` → `carryover=false` + `outcome=null` (conserva `deprioritized_at`); `logrado`/`parcial` se quedaron igual, `carryover` sin decidir (`null`). `docs/db-schema.md` actualizado.
+
+`PlanesCoach.jsx` vista `closing`: dos bloques de chips por foco — "Estado" (`ESTADO_OPTIONS`, 3 valores) y "¿Sigue el siguiente trimestre?" (`CARRYOVER_OPTIONS`, continúa/depriorizado) — independientes, un foco puede tener cualquier combinación. El ancla que corresponde al score mensual más reciente se resalta visualmente en `AnchorList` (borde + fondo azul + negrita) — nuevo prop `highlightKey`. Placeholder de `final_assessment` cambia según el estado elegido (`ESTADO_PLACEHOLDER`). Scores del trimestre pasaron de texto plano a badges (§16.9, hecho junto con esto), con el más reciente marcado con borde. El detail de un plan `completed` también muestra ambos badges (estado + carryover) por foco.
+
+Fix del bug de §16.2: `handleIdentify` ahora arma `carryoverSubs` desde `priorBundle.prior_focos.filter(f => f.carryover === true)` (antes leía `f.outcome === 'continua'`, que ya no existe) y **además** inyecta directo a la lista de candidatas cualquier foco con carryover que el modelo no haya vuelto a identificar en el dump nuevo — ya no depende de que el coach lo mencione de nuevo. `preselectFocos`/`buildPriorBundle` actualizados al nuevo shape (`outcome` + `carryover` como campos separados). `MiPlan.jsx`: `OUTCOME_LABELS` a los 3 estados nuevos — carryover ya no se le muestra al atleta como si fuera un resultado del objetivo.
+
+`npm run lint && npm test` limpio (112 tests, 2 nuevos en `buildPriorBundle` para el shape de `carryover`). **Pendiente de que Marco lo pruebe en vivo** con los datos de Test Athlete antes de dar el task por Done — mismo criterio que el resto de este documento.
 
 ### 16.4 Abierto — ciclo de vida de fechas del plan (no resuelto, necesita su propia sesión de scoping)
 

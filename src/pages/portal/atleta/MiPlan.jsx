@@ -48,11 +48,14 @@ const ANCHOR_LEVELS = [
   ['-2', 'Estancado'],
 ];
 
+// docs/scope-close-quarterly-plan.md §16.3 — outcome es el estado final del objetivo
+// (logrado/parcial/fallido); carryover (continúa/depriorizado) es la decisión del coach de
+// si el foco sigue al periodo siguiente, no un resultado del objetivo — no se le muestra al
+// atleta como si fuera un outcome.
 const OUTCOME_LABELS = {
-  logrado:        { label: 'Logrado',   bg: 'rgba(22,163,74,.12)',  color: '#15803d' },
-  parcial:        { label: 'Parcial',   bg: 'rgba(234,179,8,.15)',  color: '#a16207' },
-  continua:       { label: 'Continúa',  bg: 'rgba(59,130,246,.12)', color: '#1d4ed8' },
-  deprioritized:  { label: 'Depriorizado', bg: 'rgba(107,114,128,.1)', color: '#6b7280' },
+  logrado: { label: 'Logrado', bg: 'rgba(22,163,74,.12)', color: '#15803d' },
+  parcial: { label: 'Parcial', bg: 'rgba(234,179,8,.15)', color: '#a16207' },
+  fallido: { label: 'Fallido', bg: 'rgba(220,38,38,.12)', color: '#b91c1c' },
 };
 
 // ─── Main ─────────────────────────────────────────────────────────────────────

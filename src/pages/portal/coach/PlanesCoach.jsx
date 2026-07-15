@@ -54,14 +54,28 @@ const ANCHOR_LEVELS = [
   ['-2', 'Estancado'],
 ];
 
-// Cierre del plan (docs/scope-close-quarterly-plan.md) — outcome por foco, cierre 100% manual
-// en esta rebanada (sin asistencia LLM, ver §6 del scope).
-const OUTCOME_OPTIONS = [
-  { value: 'logrado',       label: 'Logrado',      bg: 'rgba(22,163,74,.12)',  color: '#15803d' },
-  { value: 'parcial',       label: 'Parcial',      bg: 'rgba(234,179,8,.15)',  color: '#a16207' },
-  { value: 'continua',      label: 'Continúa',     bg: 'rgba(59,130,246,.12)', color: '#1d4ed8' },
-  { value: 'deprioritized', label: 'Depriorizado', bg: 'rgba(107,114,128,.1)', color: '#6b7280' },
+// Cierre del plan (docs/scope-close-quarterly-plan.md §16.3) — dos decisiones independientes
+// por foco, cierre 100% manual (sin asistencia LLM, ver §6 del scope):
+// 1) estado final del objetivo (logrado/parcial/fallido) — informado por el ancla más reciente.
+// 2) decisión de carryover (continúa/depriorizado) — si aparece como candidato en el draft
+//    del periodo siguiente. Un foco puede ser, por ejemplo, "parcial" Y "continúa" a la vez —
+//    antes eran 4 valores excluyentes de un solo campo y eso no se podía expresar.
+const ESTADO_OPTIONS = [
+  { value: 'logrado', label: 'Logrado', bg: 'rgba(22,163,74,.12)', color: '#15803d' },
+  { value: 'parcial', label: 'Parcial', bg: 'rgba(234,179,8,.15)', color: '#a16207' },
+  { value: 'fallido', label: 'Fallido', bg: 'rgba(220,38,38,.12)', color: '#b91c1c' },
 ];
+const ESTADO_PLACEHOLDER = {
+  logrado: 'Cierre narrativo de este foco — qué pasó, en tus palabras.',
+  parcial: 'Describe por qué el objetivo se logró parcialmente.',
+  fallido: 'Describe por qué el objetivo no se logró.',
+};
+const CARRYOVER_OPTIONS = [
+  { value: true,  label: 'Continúa',     bg: 'rgba(59,130,246,.12)', color: '#1d4ed8' },
+  { value: false, label: 'Depriorizado', bg: 'rgba(107,114,128,.1)', color: '#6b7280' },
+];
+/** Mapea un score -2..+2 a la key de ANCHOR_LEVELS ('+2'..'-2', el 0 y negativos van sin signo). */
+const toAnchorKey = (s) => (s > 0 ? `+${s}` : String(s));
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -303,21 +317,37 @@ export default function PlanesCoach() {
       if (!list.length) throw new Error('No se identificaron sub-dimensiones. Agrega más detalle al texto.');
       const quality = data?.dump_quality ?? null;
 
-      // Carryover + pre-selección de 'continua' (docs/scope-close-quarterly-plan.md §13): viene de
-      // priorBundle (plan `completed` más reciente, ya cargado desde el paso 1) en vez de una query
-      // aparte — requiere que el plan anterior esté formalmente cerrado, consistente con el modelo
-      // del handoff (§7.1). Antes esta query aceptaba planes 'active' también; ya no.
+      // Carryover + pre-selección (docs/scope-close-quarterly-plan.md §16.3): viene de priorBundle
+      // (plan `completed` más reciente, ya cargado desde el paso 1) en vez de una query aparte —
+      // requiere que el plan anterior esté formalmente cerrado, consistente con el modelo del
+      // handoff (§7.1). `carryover` es ahora una decisión independiente del `outcome` (estado) —
+      // antes se leía como `outcome === 'continua'`.
       const priorFocos = priorBundle?.prior_focos ?? [];
-      const carryover = new Set(priorFocos.map(f => f.sub_dimension));
-      const continuaSubs = new Set(priorFocos.filter(f => f.outcome === 'continua').map(f => f.sub_dimension));
+      const carryoverFocos = priorFocos.filter(f => f.carryover === true);
+      const carryoverSubs = new Set(carryoverFocos.map(f => f.sub_dimension));
 
       // Ordenar por urgencia (alta → baja) para que la priorización guíe la selección
       list = list
-        .map(it => ({ ...it, carryover: carryover.has(it.sub_dimension) }))
+        .map(it => ({ ...it, carryover: carryoverSubs.has(it.sub_dimension) }))
         .sort(byUrgencia);
-      // Pre-seleccionar: primero los 'continua', luego completa hasta el límite con las candidatas
-      // más urgentes.
-      const pre = new Set(preselectFocos(list, continuaSubs, MAX_FOCOS).map(it => focoKey(it.dimension, it.sub_dimension)));
+
+      // Fix docs/scope-close-quarterly-plan.md §16.2: un foco con carryover=true debe aparecer
+      // siempre como candidato, sin depender de que el coach lo vuelva a mencionar en el dump
+      // nuevo — antes, si el modelo no lo re-identificaba del texto, se perdía por completo.
+      const listedSubs = new Set(list.map(it => it.sub_dimension));
+      const injectedCarryover = carryoverFocos
+        .filter(f => !listedSubs.has(f.sub_dimension))
+        .map(f => ({
+          dimension: f.dimension, sub_dimension: f.sub_dimension,
+          read_corto: f.objetivo ?? 'Continúa del trimestre anterior.',
+          candidata_a_foco: true, urgencia: 'alta', observacion_suficiente: true,
+          carryover: true,
+        }));
+      list = [...injectedCarryover, ...list];
+
+      // Pre-seleccionar: primero los que tienen carryover, luego completa hasta el límite con las
+      // candidatas más urgentes.
+      const pre = new Set(preselectFocos(list, carryoverSubs, MAX_FOCOS).map(it => focoKey(it.dimension, it.sub_dimension)));
       setIdList(list);
       setSelFocos(pre);
       setDumpQuality(quality);
@@ -601,7 +631,7 @@ export default function PlanesCoach() {
       return {
         id: o.id, dimension: o.dimension, sub_dimension: o.sub_dimension,
         objetivo: o.objetivo ?? o.objective_text, anchors: o.anchors,
-        outcome: o.outcome ?? '', final_assessment: o.final_assessment ?? '',
+        outcome: o.outcome ?? '', carryover: o.carryover ?? null, final_assessment: o.final_assessment ?? '',
         monthlyScores: scores, lastNote,
       };
     }));
@@ -609,7 +639,7 @@ export default function PlanesCoach() {
     setView('closing');
   };
 
-  // Autoguarda outcome/final_assessment de UN foco (best-effort, no bloquea la UI).
+  // Autoguarda outcome/carryover/final_assessment de UN foco (best-effort, no bloquea la UI).
   const persistFocoClose = async (objectiveId, patch) => {
     try {
       await supabase.from('quarterly_plan_objectives').update(patch).eq('id', objectiveId);
@@ -618,16 +648,19 @@ export default function PlanesCoach() {
     }
   };
 
-  const updateFocoOutcome = (id, outcome) => {
-    // Depriorizar no exige final_assessment (scope-planning-measurement.md §21) — se limpia
-    // si el coach había escrito algo y luego cambia a esta opción, para no dejar texto huérfano.
-    const deprioritizedAt = outcome === 'deprioritized' ? new Date().toISOString() : null;
-    setClosingFocos(fs => fs.map(f => f.id === id
-      ? { ...f, outcome, final_assessment: outcome === 'deprioritized' ? '' : f.final_assessment }
-      : f));
-    const dbPatch = { outcome, deprioritized_at: deprioritizedAt };
-    if (outcome === 'deprioritized') dbPatch.final_assessment = null;
-    persistFocoClose(id, dbPatch);
+  // Estado final del objetivo (logrado/parcial/fallido) — independiente de la decisión de
+  // carryover (docs/scope-close-quarterly-plan.md §16.3).
+  const updateFocoEstado = (id, outcome) => {
+    setClosingFocos(fs => fs.map(f => f.id === id ? { ...f, outcome } : f));
+    persistFocoClose(id, { outcome });
+  };
+
+  // Decisión de carryover — si este foco aparece como candidato en el draft del periodo
+  // siguiente. `deprioritized_at` marca cuándo se decidió que NO continúa.
+  const updateFocoCarryover = (id, carryover) => {
+    const deprioritizedAt = carryover === false ? new Date().toISOString() : null;
+    setClosingFocos(fs => fs.map(f => f.id === id ? { ...f, carryover } : f));
+    persistFocoClose(id, { carryover, deprioritized_at: deprioritizedAt });
   };
 
   const updateFocoAssessment = (id, text) => {
@@ -1029,6 +1062,7 @@ export default function PlanesCoach() {
                           estandar_usado: o.estandar_usado,
                           anchors:        o.anchors,
                           outcome:          activePlan.status === 'completed' ? o.outcome : null,
+                          carryover:        activePlan.status === 'completed' ? o.carryover : null,
                           final_assessment: activePlan.status === 'completed' ? o.final_assessment : null,
                         }}
                       />
@@ -1116,45 +1150,91 @@ export default function PlanesCoach() {
                   {SUB_LABEL[f.sub_dimension] ?? f.sub_dimension}
                 </p>
                 <p className="text-[13px] font-medium leading-relaxed mb-2">{f.objetivo}</p>
-                {f.anchors && <AnchorList anchors={f.anchors} />}
+                {f.anchors && (
+                  <AnchorList
+                    anchors={f.anchors}
+                    highlightKey={f.monthlyScores?.length ? toAnchorKey(f.monthlyScores[f.monthlyScores.length - 1]) : null}
+                  />
+                )}
 
                 {/* Scores + último comentario del trimestre (docs/scope-close-quarterly-plan.md
-                    §13) — primera versión solo para visualizar; formato final pendiente de decidir
-                    viéndolo con datos reales. Physical no tiene mapeo a report_physical todavía. */}
+                    §13/§16.9) — en badges, mismo lenguaje visual que el resto del archivo. El más
+                    reciente es el que se resalta arriba en las anclas (§16.3): es lo último que el
+                    coach vio del atleta en esta dimensión. Physical no tiene mapeo a report_physical. */}
                 {(f.monthlyScores?.length > 0 || f.lastNote) && (
-                  <div className="mt-2 pt-2 text-[11px]" style={{ borderTop: '1px dashed var(--border)', color: 'var(--ink-mute)' }}>
+                  <div className="mt-2 pt-2" style={{ borderTop: '1px dashed var(--border)' }}>
                     {f.monthlyScores?.length > 0 && (
-                      <p>Scores del trimestre: <strong>{f.monthlyScores.map(s => OC_LABEL[String(s)] ?? s).join(' · ')}</strong></p>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span className="text-[10px]" style={{ color: 'var(--ink-mute)' }}>Scores del trimestre:</span>
+                        {f.monthlyScores.map((s, i) => {
+                          const isLast = i === f.monthlyScores.length - 1;
+                          return (
+                            <span key={i}
+                                  className="text-[9px] font-semibold px-1.5 py-0.5 uppercase tracking-wide hairline"
+                                  style={{
+                                    background: s < 0 ? 'rgba(220,38,38,.1)' : s === 0 ? 'var(--cream)' : 'rgba(22,163,74,.12)',
+                                    color:      s < 0 ? '#b91c1c' : s === 0 ? 'var(--ink-mute)' : '#15803d',
+                                    borderColor: isLast ? (s < 0 ? '#b91c1c' : s === 0 ? 'var(--ink-mute)' : '#15803d') : undefined,
+                                  }}>
+                              {OC_LABEL[String(s)] ?? s}
+                            </span>
+                          );
+                        })}
+                      </div>
                     )}
                     {f.lastNote && (
-                      <p className="mt-0.5">Último comentario: <em>{f.lastNote}</em></p>
+                      <p className="text-[11px] mt-1" style={{ color: 'var(--ink-mute)' }}>Último comentario: <em>{f.lastNote}</em></p>
                     )}
                   </div>
                 )}
 
-                <div className="flex flex-wrap gap-1.5 mt-3">
-                  {OUTCOME_OPTIONS.map(opt => (
-                    <button
-                      key={opt.value}
-                      onClick={() => updateFocoOutcome(f.id, opt.value)}
-                      className="text-[10px] font-semibold px-2 py-1 uppercase tracking-wide hairline transition"
-                      style={{
-                        background: f.outcome === opt.value ? opt.bg : 'transparent',
-                        color:      f.outcome === opt.value ? opt.color : 'var(--ink-mute)',
-                        borderColor: f.outcome === opt.value ? opt.color : undefined,
-                      }}>
-                      {opt.label}
-                    </button>
-                  ))}
+                <div className="mt-3">
+                  <p className="text-[9px] font-semibold uppercase tracking-wide mb-1" style={{ color: 'var(--ink-mute)' }}>Estado</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {ESTADO_OPTIONS.map(opt => (
+                      <button
+                        key={opt.value}
+                        onClick={() => updateFocoEstado(f.id, opt.value)}
+                        className="text-[10px] font-semibold px-2 py-1 uppercase tracking-wide hairline transition"
+                        style={{
+                          background: f.outcome === opt.value ? opt.bg : 'transparent',
+                          color:      f.outcome === opt.value ? opt.color : 'var(--ink-mute)',
+                          borderColor: f.outcome === opt.value ? opt.color : undefined,
+                        }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
-                {f.outcome && f.outcome !== 'deprioritized' && (
+                <div className="mt-2">
+                  <p className="text-[9px] font-semibold uppercase tracking-wide mb-1" style={{ color: 'var(--ink-mute)' }}>
+                    ¿Sigue el siguiente trimestre?
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {CARRYOVER_OPTIONS.map(opt => (
+                      <button
+                        key={String(opt.value)}
+                        onClick={() => updateFocoCarryover(f.id, opt.value)}
+                        className="text-[10px] font-semibold px-2 py-1 uppercase tracking-wide hairline transition"
+                        style={{
+                          background: f.carryover === opt.value ? opt.bg : 'transparent',
+                          color:      f.carryover === opt.value ? opt.color : 'var(--ink-mute)',
+                          borderColor: f.carryover === opt.value ? opt.color : undefined,
+                        }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {f.outcome && (
                   <textarea
                     value={f.final_assessment}
                     onChange={e => updateFocoAssessment(f.id, e.target.value)}
                     onBlur={e => blurFocoAssessment(f.id, e.target.value)}
                     rows={2}
-                    placeholder="Cierre narrativo de este foco — qué pasó, en tus palabras."
+                    placeholder={ESTADO_PLACEHOLDER[f.outcome] ?? 'Cierre narrativo de este foco — qué pasó, en tus palabras.'}
                     className="w-full hairline px-3 py-2 mt-2 text-[12px] bg-[var(--cream)] outline-none resize-none"
                     style={{ lineHeight: 1.6 }}
                   />
@@ -1320,7 +1400,8 @@ function FocoCard({ foco, veredicto }) {
   // "Qué revisar" que antes vivía arriba de todos los focos. `veredicto` viene del modo `validate`
   // (pasada de validación aparte); mientras no llega, no se muestra nada (silencioso, no bloquea).
   const insuficiente = veredicto && veredicto.objetivo_suficiente === false;
-  const outcomeOpt = foco.outcome ? OUTCOME_OPTIONS.find(o => o.value === foco.outcome) : null;
+  const estadoOpt = foco.outcome ? ESTADO_OPTIONS.find(o => o.value === foco.outcome) : null;
+  const carryoverOpt = foco.carryover != null ? CARRYOVER_OPTIONS.find(o => o.value === foco.carryover) : null;
   return (
     <div className="hairline px-4 py-3" style={{ background: 'var(--paper)' }}>
       <div className="flex items-center gap-2 mb-1.5">
@@ -1333,10 +1414,16 @@ function FocoCard({ foco, veredicto }) {
             {foco.estandar_usado}
           </span>
         )}
-        {outcomeOpt && (
+        {estadoOpt && (
           <span className="text-[9px] font-semibold px-1.5 py-0.5 uppercase tracking-wide"
-                style={{ background: outcomeOpt.bg, color: outcomeOpt.color }}>
-            {outcomeOpt.label}
+                style={{ background: estadoOpt.bg, color: estadoOpt.color }}>
+            {estadoOpt.label}
+          </span>
+        )}
+        {carryoverOpt && (
+          <span className="text-[9px] font-semibold px-1.5 py-0.5 uppercase tracking-wide"
+                style={{ background: carryoverOpt.bg, color: carryoverOpt.color }}>
+            {carryoverOpt.label}
           </span>
         )}
       </div>
@@ -1363,21 +1450,39 @@ function FocoCard({ foco, veredicto }) {
   );
 }
 
-function AnchorList({ anchors }) {
+/**
+ * `highlightKey` (docs/scope-close-quarterly-plan.md §16.3) resalta el ancla que corresponde
+ * al score mensual más reciente del trimestre — es lo último que el coach vio del atleta en
+ * esta dimensión, y el insumo principal para elegir el estado final del objetivo al cerrar.
+ */
+function AnchorList({ anchors, highlightKey = null }) {
   return (
     <div className="mt-2 space-y-0.5">
-      {ANCHOR_LEVELS.map(([k, label]) => (
-        <div key={k} className="flex items-start gap-2 text-[11px]" style={{ lineHeight: 1.5 }}>
-          <span className="w-6 shrink-0 font-bold tabular-nums"
-                style={{ color: k.startsWith('-') ? '#b91c1c' : k === '0' ? 'var(--ink-mute)' : '#15803d' }}>
-            {k}
-          </span>
-          <span className="w-[88px] shrink-0 text-[10px] uppercase tracking-wide" style={{ color: 'var(--ink-mute)' }}>
-            {label}
-          </span>
-          <span className="flex-1" style={{ color: 'var(--ink)' }}>{anchors[k]}</span>
-        </div>
-      ))}
+      {ANCHOR_LEVELS.map(([k, label]) => {
+        const isHighlight = highlightKey === k;
+        return (
+          <div key={k} className="flex items-start gap-2 text-[11px] -mx-1 px-1"
+               style={{
+                 lineHeight: 1.5,
+                 background: isHighlight ? 'rgba(59,130,246,.10)' : 'transparent',
+                 borderLeft: isHighlight ? '2px solid #1d4ed8' : '2px solid transparent',
+               }}>
+            <span className="w-6 shrink-0 font-bold tabular-nums"
+                  style={{ color: k.startsWith('-') ? '#b91c1c' : k === '0' ? 'var(--ink-mute)' : '#15803d' }}>
+              {k}
+            </span>
+            <span className="w-[88px] shrink-0 text-[10px] uppercase tracking-wide" style={{ color: 'var(--ink-mute)' }}>
+              {label}
+            </span>
+            <span className="flex-1" style={{ color: 'var(--ink)', fontWeight: isHighlight ? 600 : 400 }}>{anchors[k]}</span>
+          </div>
+        );
+      })}
+      {highlightKey && (
+        <p className="text-[9px] mt-1" style={{ color: 'var(--ink-mute)' }}>
+          Resaltado: el score más reciente registrado este trimestre.
+        </p>
+      )}
     </div>
   );
 }

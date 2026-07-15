@@ -484,7 +484,7 @@ describe('buildPriorBundle', () => {
   it('arma el bundle solo con focos (excluye mantenimiento) y las retrospectivas del plan', () => {
     const plan = { coach_retrospective: 'x', athlete_retrospective: null };
     const objs = [
-      { tipo: 'foco', dimension: 'tecnica', sub_dimension: 'forehand', objetivo: 'obj', outcome: 'logrado', final_assessment: 'bien' },
+      { tipo: 'foco', dimension: 'tecnica', sub_dimension: 'forehand', objetivo: 'obj', outcome: 'logrado', carryover: false, final_assessment: 'bien' },
       { tipo: 'mantenimiento', dimension: 'tactica', sub_dimension: 'puntos_clave' },
     ];
     const bundle = buildPriorBundle(plan, objs);
@@ -492,6 +492,18 @@ describe('buildPriorBundle', () => {
     expect(bundle.prior_focos[0].sub_dimension).toBe('forehand');
     expect(bundle.coach_retrospective).toBe('x');
     expect(bundle.athlete_retrospective).toBeNull();
+  });
+  it('propaga outcome (estado) y carryover como campos independientes (§16.3)', () => {
+    const objs = [
+      { tipo: 'foco', dimension: 'tactica', sub_dimension: 'manejo_riesgo', objetivo: 'obj', outcome: 'parcial', carryover: true, final_assessment: 'sigue en proceso' },
+    ];
+    const bundle = buildPriorBundle({}, objs);
+    expect(bundle.prior_focos[0].outcome).toBe('parcial');
+    expect(bundle.prior_focos[0].carryover).toBe(true);
+  });
+  it('carryover null si el foco todavía no tiene decisión de carryover', () => {
+    const objs = [{ tipo: 'foco', dimension: 'tecnica', sub_dimension: 'serve', objetivo: 'obj' }];
+    expect(buildPriorBundle({}, objs).prior_focos[0].carryover).toBeNull();
   });
   it('devuelve null si no hay plan', () => {
     expect(buildPriorBundle(null, [])).toBeNull();
