@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
 import {
-  fmtPeriodRange, COACH_RETRO_QUESTIONS,
+  fmtPeriodRange, fmtSign, COACH_RETRO_QUESTIONS,
   formatCoachRetrospective, focosSinOutcome, buildPriorBundle, nextPeriodStartFor,
+  monthlyScoresForFoco, preselectFocos,
 } from '../../../lib/athletics.js';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -301,36 +302,21 @@ export default function PlanesCoach() {
       if (!list.length) throw new Error('No se identificaron sub-dimensiones. Agrega más detalle al texto.');
       const quality = data?.dump_quality ?? null;
 
-      // Carryover: focos del plan anterior del atleta
-      let carryover = new Set();
-      try {
-        const { data: prior } = await supabase
-          .from('quarterly_plans')
-          .select('id')
-          .eq('athlete_id', selAthlete)
-          .in('status', ['active', 'completed'])
-          .lt('period_start', periodStart)
-          .order('period_start', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (prior?.id) {
-          const { data: pObjs } = await supabase
-            .from('quarterly_plan_objectives')
-            .select('sub_dimension')
-            .eq('plan_id', prior.id)
-            .eq('tipo', 'foco');
-          carryover = new Set((pObjs ?? []).map(o => o.sub_dimension));
-        }
-      } catch { /* sin plan anterior */ }
+      // Carryover + pre-selección de 'continua' (docs/scope-close-quarterly-plan.md §13): viene de
+      // priorBundle (plan `completed` más reciente, ya cargado desde el paso 1) en vez de una query
+      // aparte — requiere que el plan anterior esté formalmente cerrado, consistente con el modelo
+      // del handoff (§7.1). Antes esta query aceptaba planes 'active' también; ya no.
+      const priorFocos = priorBundle?.prior_focos ?? [];
+      const carryover = new Set(priorFocos.map(f => f.sub_dimension));
+      const continuaSubs = new Set(priorFocos.filter(f => f.outcome === 'continua').map(f => f.sub_dimension));
 
       // Ordenar por urgencia (alta → baja) para que la priorización guíe la selección
       list = list
         .map(it => ({ ...it, carryover: carryover.has(it.sub_dimension) }))
         .sort(byUrgencia);
-      // Pre-seleccionar las candidatas más urgentes hasta el límite
-      const pre = new Set();
-      list.filter(it => it.candidata_a_foco).sort(byUrgencia).slice(0, MAX_FOCOS)
-        .forEach(it => pre.add(focoKey(it.dimension, it.sub_dimension)));
+      // Pre-seleccionar: primero los 'continua', luego completa hasta el límite con las candidatas
+      // más urgentes.
+      const pre = new Set(preselectFocos(list, continuaSubs, MAX_FOCOS).map(it => focoKey(it.dimension, it.sub_dimension)));
       setIdList(list);
       setSelFocos(pre);
       setDumpQuality(quality);
@@ -587,15 +573,37 @@ export default function PlanesCoach() {
   // Entra a la vista de cierre desde el detail de un plan 'active'. Hidrata desde los objetivos
   // ya guardados (outcome/final_assessment si el coach ya avanzó antes) y desde draft_state
   // (retrospectiva a medio escribir, docs/scope-close-quarterly-plan.md §9).
-  const openClosing = () => {
+  const openClosing = async () => {
     const objs = (activePlan.quarterly_plan_objectives ?? [])
       .filter(o => (o.tipo ?? 'foco') === 'foco')
       .slice().sort((a, b) => a.sort_order - b.sort_order);
-    setClosingFocos(objs.map(o => ({
-      id: o.id, dimension: o.dimension, sub_dimension: o.sub_dimension,
-      objetivo: o.objetivo ?? o.objective_text, anchors: o.anchors,
-      outcome: o.outcome ?? '', final_assessment: o.final_assessment ?? '',
-    })));
+
+    // Scores + notas del trimestre por foco (docs/scope-close-quarterly-plan.md §13) — primera
+    // versión, solo para visualizar cómo se ve; el formato final se decide viéndolo con datos reales.
+    let monthlyReports = [];
+    try {
+      const { data } = await supabase
+        .from('reports')
+        .select('period, report_on_court(*), report_character(*)')
+        .eq('athlete_id', activePlan.athlete_id)
+        .gte('period', activePlan.period_start)
+        .lte('period', activePlan.period_end)
+        .order('period', { ascending: true });
+      monthlyReports = data ?? [];
+    } catch (e) {
+      console.warn('No se pudieron cargar los reportes mensuales del periodo:', e);
+    }
+
+    setClosingFocos(objs.map(o => {
+      const foco = { dimension: o.dimension, sub_dimension: o.sub_dimension };
+      const { scores, lastNote } = monthlyScoresForFoco(foco, monthlyReports);
+      return {
+        id: o.id, dimension: o.dimension, sub_dimension: o.sub_dimension,
+        objetivo: o.objetivo ?? o.objective_text, anchors: o.anchors,
+        outcome: o.outcome ?? '', final_assessment: o.final_assessment ?? '',
+        monthlyScores: scores, lastNote,
+      };
+    }));
     setRetroAnswers(activePlan.draft_state?.closeRetro ?? ['', '', '']);
     setCloseErr(null);
     setView('closing');
@@ -1120,6 +1128,20 @@ export default function PlanesCoach() {
                 </p>
                 <p className="text-[13px] font-medium leading-relaxed mb-2">{f.objetivo}</p>
                 {f.anchors && <AnchorList anchors={f.anchors} />}
+
+                {/* Scores + último comentario del trimestre (docs/scope-close-quarterly-plan.md
+                    §13) — primera versión solo para visualizar; formato final pendiente de decidir
+                    viéndolo con datos reales. Physical no tiene mapeo a report_physical todavía. */}
+                {(f.monthlyScores?.length > 0 || f.lastNote) && (
+                  <div className="mt-2 pt-2 text-[11px]" style={{ borderTop: '1px dashed var(--border)', color: 'var(--ink-mute)' }}>
+                    {f.monthlyScores?.length > 0 && (
+                      <p>Scores del trimestre: <strong>{f.monthlyScores.map(fmtSign).join(' · ')}</strong></p>
+                    )}
+                    {f.lastNote && (
+                      <p className="mt-0.5">Último comentario: <em>{f.lastNote}</em></p>
+                    )}
+                  </div>
+                )}
 
                 <div className="flex flex-wrap gap-1.5 mt-3">
                   {OUTCOME_OPTIONS.map(opt => (

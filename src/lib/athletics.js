@@ -298,6 +298,67 @@ export function focosSinOutcome(objectives) {
 }
 
 /**
+ * Scores mensuales (-2..+2) y último comentario del coach para un foco, a partir de los reportes
+ * mensuales del periodo — para mostrarlos en la vista de cierre (docs/scope-close-quarterly-plan.md
+ * §13, "vista de cierre: falta contexto de scores/comentarios"). Técnica/táctica leen de
+ * `report_on_court` (la nota es compartida por dimensión: `tecnica_nota`/`tactica_nota`, no por
+ * sub-dimensión); carácter lee de `report_character` (nota específica `${sub_dimension}_nota`,
+ * `liderazgo` no tiene columna de score, solo nota). `physical` no tiene mapeo limpio a
+ * `report_physical` (catálogo de baselines pendiente, ver backlog) — devuelve vacío a propósito
+ * en vez de inventar una columna.
+ * @param {{dimension: string, sub_dimension: string}} foco
+ * @param {{report_on_court?: object|object[], report_character?: object|object[]}[]|null} monthlyReports ordenados por period ascendente
+ * @returns {{ scores: number[], lastNote: string|null }}
+ */
+export function monthlyScoresForFoco(foco, monthlyReports) {
+  const firstRow = (x) => Array.isArray(x) ? (x[0] ?? null) : (x ?? null);
+  const table = foco?.dimension === 'tecnica' || foco?.dimension === 'tactica' ? 'report_on_court'
+              : foco?.dimension === 'character' ? 'report_character'
+              : null;
+  if (!table || !foco?.sub_dimension) return { scores: [], lastNote: null };
+  const noteKey = foco.dimension === 'tecnica' ? 'tecnica_nota'
+                : foco.dimension === 'tactica' ? 'tactica_nota'
+                : `${foco.sub_dimension}_nota`;
+  const scores = [];
+  let lastNote = null;
+  for (const r of monthlyReports ?? []) {
+    const row = firstRow(r?.[table]);
+    if (!row) continue;
+    const v = row[foco.sub_dimension];
+    if (v != null) scores.push(v);
+    const n = row[noteKey];
+    if (n) lastNote = n;
+  }
+  return { scores, lastNote };
+}
+
+/**
+ * Focos a pre-seleccionar en el paso 3 del wizard de creación: primero los que cerraron como
+ * `continua` en el plan anterior (señal explícita del coach al cerrar), luego completa hasta
+ * `maxFocos` con las candidatas más urgentes del dump actual — mismo comportamiento previo,
+ * ahora con `continua` priorizado por encima (docs/scope-close-quarterly-plan.md §13).
+ * Deduplica por `dimension_sub_dimension` (un foco puede ser `continua` Y candidata a la vez).
+ * @param {{dimension: string, sub_dimension: string, candidata_a_foco?: boolean, urgencia?: string}[]|null} identified
+ * @param {Set<string>|null} continuaSubs sub_dimension con outcome='continua' en el plan anterior
+ * @param {number} maxFocos
+ * @returns {object[]} subconjunto de `identified`, en orden de prioridad
+ */
+export function preselectFocos(identified, continuaSubs, maxFocos) {
+  const urgenciaOrder = { alta: 0, media: 1, baja: 2 };
+  const byUrgencia = (a, b) => (urgenciaOrder[a.urgencia] ?? 1) - (urgenciaOrder[b.urgencia] ?? 1);
+  const seen = new Set();
+  const out = [];
+  const tryAdd = (it) => {
+    const k = `${it.dimension}_${it.sub_dimension}`;
+    if (seen.has(k) || out.length >= maxFocos) return;
+    seen.add(k); out.push(it);
+  };
+  (identified ?? []).filter(it => continuaSubs?.has(it.sub_dimension)).forEach(tryAdd);
+  (identified ?? []).filter(it => it.candidata_a_foco).slice().sort(byUrgencia).forEach(tryAdd);
+  return out;
+}
+
+/**
  * Arma el bundle del periodo previo (docs/scope-planning-measurement.md §7.1, §10) que se
  * manda como `prior_bundle` a generate-quarterly-plan al crear el plan siguiente.
  * `monthly_scores` se omite deliberadamente en esta rebanada — no hay fuente uniforme de

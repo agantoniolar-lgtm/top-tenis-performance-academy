@@ -341,7 +341,87 @@ describe('winLossRecord', () => {
 
 // ─── P&M — cierre de plan trimestral ───────────────────────────────────────────
 
-import { formatCoachRetrospective, focosSinOutcome, buildPriorBundle, nextPeriodStartFor } from './athletics.js';
+import {
+  formatCoachRetrospective, focosSinOutcome, buildPriorBundle, nextPeriodStartFor,
+  monthlyScoresForFoco, preselectFocos,
+} from './athletics.js';
+
+describe('preselectFocos', () => {
+  const forehand = { dimension: 'tecnica', sub_dimension: 'forehand', candidata_a_foco: true, urgencia: 'baja' };
+  const backhand = { dimension: 'tecnica', sub_dimension: 'backhand', candidata_a_foco: true, urgencia: 'alta' };
+  const volea    = { dimension: 'tecnica', sub_dimension: 'volea', candidata_a_foco: true, urgencia: 'media' };
+
+  it('prioriza los continua por encima de las candidatas más urgentes', () => {
+    const out = preselectFocos([forehand, backhand], new Set(['forehand']), 2);
+    expect(out[0].sub_dimension).toBe('forehand'); // continua, aunque su urgencia sea baja
+    expect(out[1].sub_dimension).toBe('backhand');
+  });
+  it('sin continua, ordena las candidatas por urgencia (alta primero)', () => {
+    const out = preselectFocos([forehand, backhand, volea], new Set(), 3);
+    expect(out.map(o => o.sub_dimension)).toEqual(['backhand', 'volea', 'forehand']);
+  });
+  it('respeta el límite maxFocos', () => {
+    const out = preselectFocos([forehand, backhand, volea], new Set(), 1);
+    expect(out).toHaveLength(1);
+    expect(out[0].sub_dimension).toBe('backhand');
+  });
+  it('no duplica un foco que es continua Y candidata a la vez', () => {
+    const out = preselectFocos([forehand], new Set(['forehand']), 5);
+    expect(out).toHaveLength(1);
+  });
+  it('ignora items no-candidata que tampoco son continua', () => {
+    const noCandidata = { dimension: 'tecnica', sub_dimension: 'volea', candidata_a_foco: false, urgencia: 'alta' };
+    expect(preselectFocos([noCandidata], new Set(), 5)).toHaveLength(0);
+  });
+  it('maneja identified/continuaSubs null o vacíos', () => {
+    expect(preselectFocos(null, null, 5)).toEqual([]);
+    expect(preselectFocos([], new Set(), 5)).toEqual([]);
+  });
+});
+
+describe('monthlyScoresForFoco', () => {
+  it('técnica: junta los scores de los 3 meses y la nota compartida de dimensión (la más reciente)', () => {
+    const reports = [
+      { report_on_court: { forehand: -1, tecnica_nota: 'mes 1' } },
+      { report_on_court: { forehand: 0, tecnica_nota: null } },
+      { report_on_court: { forehand: 1, tecnica_nota: 'mes 3' } },
+    ];
+    const out = monthlyScoresForFoco({ dimension: 'tecnica', sub_dimension: 'forehand' }, reports);
+    expect(out.scores).toEqual([-1, 0, 1]);
+    expect(out.lastNote).toBe('mes 3');
+  });
+  it('táctica: usa tactica_nota, no tecnica_nota', () => {
+    const reports = [{ report_on_court: { puntos_clave: 2, tactica_nota: 'bien', tecnica_nota: 'no debe usarse' } }];
+    const out = monthlyScoresForFoco({ dimension: 'tactica', sub_dimension: 'puntos_clave' }, reports);
+    expect(out.scores).toEqual([2]);
+    expect(out.lastNote).toBe('bien');
+  });
+  it('carácter: usa la nota específica de la sub-dimensión', () => {
+    const reports = [{ report_character: { etica_trabajo: 1, etica_trabajo_nota: 'constante', coachabilidad_nota: 'no debe usarse' } }];
+    const out = monthlyScoresForFoco({ dimension: 'character', sub_dimension: 'etica_trabajo' }, reports);
+    expect(out.scores).toEqual([1]);
+    expect(out.lastNote).toBe('constante');
+  });
+  it('liderazgo: sin columna de score, pero sí toma la nota', () => {
+    const reports = [{ report_character: { liderazgo_nota: 'mejor esta semana' } }];
+    const out = monthlyScoresForFoco({ dimension: 'character', sub_dimension: 'liderazgo' }, reports);
+    expect(out.scores).toEqual([]);
+    expect(out.lastNote).toBe('mejor esta semana');
+  });
+  it('physical: devuelve vacío en vez de inventar un mapeo de columna', () => {
+    const out = monthlyScoresForFoco({ dimension: 'physical', sub_dimension: 'sprint_20m' }, [{ report_physical: { sprint_20m: 3.2 } }]);
+    expect(out).toEqual({ scores: [], lastNote: null });
+  });
+  it('maneja reportes sin la sub-tabla (fila null) y arrays anidados de Supabase', () => {
+    const reports = [{ report_on_court: null }, { report_on_court: [{ forehand: -2 }] }];
+    const out = monthlyScoresForFoco({ dimension: 'tecnica', sub_dimension: 'forehand' }, reports);
+    expect(out.scores).toEqual([-2]);
+  });
+  it('maneja monthlyReports null/undefined/vacío', () => {
+    expect(monthlyScoresForFoco({ dimension: 'tecnica', sub_dimension: 'forehand' }, null)).toEqual({ scores: [], lastNote: null });
+    expect(monthlyScoresForFoco({ dimension: 'tecnica', sub_dimension: 'forehand' }, [])).toEqual({ scores: [], lastNote: null });
+  });
+});
 
 describe('nextPeriodStartFor', () => {
   it('devuelve el día siguiente al period_end', () => {
