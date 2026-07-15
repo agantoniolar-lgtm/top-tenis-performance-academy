@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
 import {
-  fmtPeriodRange, fmtSign, COACH_RETRO_QUESTIONS,
-  formatCoachRetrospective, focosSinOutcome, buildPriorBundle, nextPeriodStartFor,
+  fmtPeriodRange, OC_LABEL,
+  focosSinOutcome, buildPriorBundle, nextPeriodStartFor,
   monthlyScoresForFoco, preselectFocos,
 } from '../../../lib/athletics.js';
 
@@ -152,10 +152,11 @@ export default function PlanesCoach() {
 
   // ── Cierre de plan (view 'closing') ─────────────────────────────────
   // Cierre parcial permitido (docs/scope-close-quarterly-plan.md §9): cada foco autoguarda su
-  // outcome/final_assessment al editarlo; la retrospectiva se guarda en draft_state mientras el
-  // plan sigue 'active' (mismo mecanismo que el draft de creación) y solo se confirma al cierre.
+  // outcome/final_assessment al editarlo. Las preguntas de retrospectiva del coach se quitaron de
+  // la UI por ahora (§14, 15 Jul 2026) — sin valor claro hasta que los coaches usen el resto del
+  // flujo; formatCoachRetrospective/COACH_RETRO_QUESTIONS siguen en athletics.js, testeadas, listas
+  // para reconectar cuando haga falta.
   const [closingFocos,  setClosingFocos]  = useState([]); // [{ id, dimension, sub_dimension, objetivo, anchors, outcome, final_assessment }]
-  const [retroAnswers,  setRetroAnswers]  = useState(['', '', '']);
   const [closeSaving,   setCloseSav]      = useState(false);
   const [closeError,    setCloseErr]      = useState(null);
   const [priorBundle,   setPriorBundle]   = useState(null); // bundle del plan completado anterior, para generate/regenerate
@@ -604,7 +605,6 @@ export default function PlanesCoach() {
         monthlyScores: scores, lastNote,
       };
     }));
-    setRetroAnswers(activePlan.draft_state?.closeRetro ?? ['', '', '']);
     setCloseErr(null);
     setView('closing');
   };
@@ -637,21 +637,10 @@ export default function PlanesCoach() {
     persistFocoClose(id, { final_assessment: text });
   };
 
-  // Guarda la retrospectiva a medio escribir en draft_state (plan sigue 'active').
-  const blurRetro = (next) => {
-    if (!activePlan) return;
-    supabase.from('quarterly_plans')
-      .update({ draft_state: { closeRetro: next } })
-      .eq('id', activePlan.id)
-      .then(() => {}, e => console.warn('No se pudo guardar la retrospectiva:', e));
-  };
-
   const handleConfirmClose = async () => {
     setCloseSav(true); setCloseErr(null);
     try {
-      const coachRetro = formatCoachRetrospective(retroAnswers);
       const { error } = await supabase.from('quarterly_plans').update({
-        coach_retrospective: coachRetro,
         status:    'completed',
         closed_at: new Date().toISOString(),
         draft_state: null,
@@ -1135,7 +1124,7 @@ export default function PlanesCoach() {
                 {(f.monthlyScores?.length > 0 || f.lastNote) && (
                   <div className="mt-2 pt-2 text-[11px]" style={{ borderTop: '1px dashed var(--border)', color: 'var(--ink-mute)' }}>
                     {f.monthlyScores?.length > 0 && (
-                      <p>Scores del trimestre: <strong>{f.monthlyScores.map(fmtSign).join(' · ')}</strong></p>
+                      <p>Scores del trimestre: <strong>{f.monthlyScores.map(s => OC_LABEL[String(s)] ?? s).join(' · ')}</strong></p>
                     )}
                     {f.lastNote && (
                       <p className="mt-0.5">Último comentario: <em>{f.lastNote}</em></p>
@@ -1175,30 +1164,6 @@ export default function PlanesCoach() {
             {closingFocos.length === 0 && (
               <p className="text-[13px]" style={{ color: 'var(--ink-mute)' }}>Este plan no tiene focos que cerrar.</p>
             )}
-          </div>
-
-          <div className="mb-6">
-            <p className="eyebrow !text-[10px] mb-3" style={{ color: 'var(--ink-mute)' }}>
-              Tu retrospectiva del periodo
-            </p>
-            <div className="space-y-3">
-              {COACH_RETRO_QUESTIONS.map((q, i) => (
-                <div key={i}>
-                  <label className="text-[12px] font-medium block mb-1">{q}</label>
-                  <textarea
-                    value={retroAnswers[i]}
-                    onChange={e => {
-                      const next = retroAnswers.map((a, idx) => idx === i ? e.target.value : a);
-                      setRetroAnswers(next);
-                    }}
-                    onBlur={() => blurRetro(retroAnswers)}
-                    rows={2}
-                    className="w-full hairline px-3 py-2 text-[12px] bg-[var(--paper)] outline-none resize-none"
-                    style={{ lineHeight: 1.6 }}
-                  />
-                </div>
-              ))}
-            </div>
           </div>
 
           {pending.length > 0 && (
