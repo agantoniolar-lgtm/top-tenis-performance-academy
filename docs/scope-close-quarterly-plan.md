@@ -171,3 +171,82 @@ Decisiones de Marco tras ver §13 en vivo:
 - **Retrospectiva del coach — quitada de la UI por ahora.** Sin valor claro hasta que los coaches usen el resto del flujo. Se removió el bloque de 3 preguntas de la vista de cierre, `retroAnswers`/`blurRetro`, y `handleConfirmClose` ya no escribe `coach_retrospective`. `formatCoachRetrospective`/`COACH_RETRO_QUESTIONS` siguen en `src/lib/athletics.js`, testeadas, listas para reconectar cuando haga falta — no se borró la lógica, solo el wiring a la UI.
 - **Corrección de la corrección:** el rango completo de labels se había agregado al plan `completed` (feb–abr) — pero la vista de cierre (donde se ven los scores) solo es accesible desde el botón "Cerrar periodo →", que **solo aparece en planes `active`**. Un plan ya `completed` no tiene forma de reabrir ese wizard. Se movió/replicó la corrección al plan `active` (may–jul, el que sí se puede probar hoy): `volea` (mayo → Superado) y un foco nuevo `seleccion_golpe` (junio → Superado) — `manejo_riesgo` se deja como está (0, sin mejora clara) como contraste realista de un foco que sigue sin resolverse.
 - **Pregunta: si el plan se cierra con los 3 reportes mensuales completos (sin cerrar antes de tiempo), ¿los scores del trimestre traen 3 valores?** Sí, con una precisión: `monthlyScoresForFoco` toma un valor por cada reporte mensual cuyo `period` cae dentro de `period_start`..`period_end` **y** cuya columna de esa sub-dimensión no sea null. Si los 3 reportes existen y el coach llenó esa sub-dimensión específica los 3 meses → 3 valores. Si un reporte existe pero esa sub-dimensión en particular quedó sin calificar ese mes (columna null) → ese mes no cuenta, salen menos de 3. La función no fuerza "exactamente 3" — simplemente cuenta lo que de verdad esté capturado en el rango de fechas del plan.
+
+## 16. Primera corrida en vivo (15 Jul 2026) — hallazgos y decisiones
+
+Marco corrió el flujo completo (coach + atleta) siguiendo `docs/qa-guia-cierre-plan-trimestral.md` sobre los datos dummy de Test Athlete. Confirmó los pasos C1–C11 y A1–A6. Esto es lo que salió.
+
+### 16.1 Confirmado — mantenimiento nunca pasa por `outcome`
+
+Pregunta de Marco: si un foco hace carryover como mantenimiento, ¿se muestra solo el label, sin anclas, aunque su outcome haya sido "parcial"? Respuesta, verificada en código: `openClosing` filtra `objs` a `tipo === 'foco'` antes de armar `closingFocos` (línea 578-580) — los ítems `tipo === 'mantenimiento'` **nunca entran al flujo de cierre**, nunca tienen `outcome`, y tanto en `PlanesCoach.jsx` (detail) como en `MiPlan.jsx` se renderizan siempre como chip de texto plano, sin anclas ni outcome, sin importar el trimestre. No es un bug — es el comportamiento actual — pero confirma que "parcial" nunca aplica a mantenimiento porque mantenimiento no tiene outcome en absoluto. Ver 16.6 para la pregunta abierta de si esto debería cambiar.
+
+### 16.2 Bug confirmado — el carryover de "Continúa" no aparece en el draft nuevo si no se menciona en el dump
+
+Marco cerró mayo–jul con `manejo_riesgo` marcado como `continúa`, pero al crear el draft ago–oct ese foco no apareció como candidato — solo aparecieron sub-dimensiones que sí estaban mencionadas en el texto de observaciones nuevo.
+
+Causa raíz, verificada en `src/lib/athletics.js`: `preselectFocos(identified, continuaSubs, maxFocos)` (línea 346) solo puede pre-seleccionar sub-dimensiones que **ya vienen dentro de `identified`** — y `identified` sale de la llamada `mode: 'identify'` al modelo, que identifica sub-dimensiones **a partir del texto nuevo que el coach acaba de escribir** (`handleIdentify`, `PlanesCoach.jsx` línea ~288). Si el coach no vuelve a mencionar "manejo de riesgo" en el dump de este trimestre, el modelo nunca lo identifica, `identified` no lo contiene, y `preselectFocos` no tiene nada que preseleccionar — aunque `continuaSubs` sí lo traiga correctamente desde `priorBundle`.
+
+Esto contradice el modelo que Marco confirma en 16.3: un foco con `continúa` debe aparecer siempre en el draft siguiente, sin depender de que el coach lo vuelva a escribir. **Fix real:** los focos con carryover deben inyectarse directo desde `priorBundle.prior_focos` a la lista de candidatas del paso 3 (no pasar por `identify` en absoluto para estos), y el dump de observaciones nuevo solo debería aportar candidatas adicionales. Se resuelve junto con 16.3, no aparte — son el mismo cambio.
+
+### 16.3 Decisión de Marco — el `outcome` de hoy mezcla dos decisiones que deberían ser independientes
+
+Modelo actual: un solo campo `outcome` con 4 valores mutuamente excluyentes (`logrado` / `parcial` / `continua` / `deprioritized`). Problema real, con ejemplo de Marco: si un foco es "Parcial" pero el coach quiere que continúe el siguiente trimestre, **hoy no puede expresar las dos cosas a la vez** — elegir "Parcial" pierde el carryover, porque "Continúa" es una opción distinta y excluyente.
+
+**Decisión — separar en dos ejes:**
+
+1. **Estado final del objetivo** — `logrado` / `parcial` / `fallido` (nuevo, antónimo de logrado; reemplaza el uso de "continúa" como si fuera un estado). Se basa en el **ancla más reciente** registrada en el periodo para esa sub-dimensión (el último score de `report_on_court`/`report_character` dentro del rango del plan) — ese valor debe quedar **destacado/resaltado visualmente** en la vista de cierre, junto con la progresión completa de los scores mensuales (`monthlyScoresForFoco` ya trae esto), porque es lo último que el coach observó del atleta en esa dimensión antes de escribir el cierre narrativo. Si el plan se cierra antes de tiempo (`closingEarly`), se usa el ancla más reciente disponible para el highlight — si no hay ninguna, no bloquea.
+   - El placeholder del `final_assessment` cambia según el estado elegido — ej. si el coach elige "Parcial", el placeholder pasa a algo como *"Describe por qué el objetivo se logró parcialmente"*.
+2. **Decisión de carryover** — `continúa` (sí) / `depriorizado` (no), independiente del estado. Si es `depriorizado`, el foco **no** aparece como candidato en el draft del siguiente plan. Si es `continúa`, **sí** debe aparecer siempre como candidato en el paso 3 del wizard siguiente — corrige el bug de 16.2.
+   - Un foco puede ser **Parcial + Continúa** a la vez (el caso que motivó esto), o **Logrado + Depriorizado** (ya no hace falta seguirle dando seguimiento dedicado), etc. — las dos decisiones son ortogonales.
+   - Implicación para el scoping de notas de voz (todavía sin hacer): cuando un foco llega por carryover al periodo siguiente, y además hay notas de voz nuevas sobre esa misma sub-dimensión, el coach va a tener que elegir qué priorizar entre el carryover y lo nuevo — anotado como requisito para ese scoping, no se resuelve aquí.
+
+**Implicación técnica (para cuando se construya, no construido todavía):**
+- Migración: reemplazar el CHECK de 4 valores por `outcome` de 3 valores (`logrado`/`parcial`/`fallido`) + columna nueva `carryover boolean` (nullable). `deprioritized_at` se reinterpreta como "cuándo se decidió no dar carryover" en vez de depender de un valor de `outcome`.
+- UI (`PlanesCoach.jsx`, vista `closing`): dos controles por foco en vez de 4 chips — 3 chips de estado + un toggle de carryover. Agregar el highlight del ancla más reciente + progresión de `monthlyScores`.
+- `preselectFocos`/`handleIdentify`: dejar de depender de que el sub_dimension reaparezca en `identified` — inyectar directo desde `priorBundle.prior_focos` los que tengan `carryover === true` (fix de 16.2, mismo cambio).
+- `buildPriorBundle`: mismo shape de `prior_focos`, cambia qué significa `outcome` (ahora 3 valores) y agrega `carryover`.
+- `MiPlan.jsx` `OUTCOME_LABELS`: actualizar a los 3 estados nuevos — `continúa`/`depriorizado` deja de ser un chip de "outcome" visible al atleta (es metadata de decisión del coach, no un resultado del objetivo).
+
+**Este es el trabajo grande que sale de esta corrida — no construido todavía. Necesita su propio slice de `feature-build-flow` (task nuevo en kanban, migración, componente, tests) antes de tocar código.**
+
+### 16.4 Abierto — ciclo de vida de fechas del plan (no resuelto, necesita su propia sesión de scoping)
+
+Hoy: al confirmar el cierre, el draft del periodo siguiente se crea con `period_start` = primer día del mes siguiente (elegido a mano en el paso 1 del wizard — esto era manual porque la lógica de carryover/`prior_bundle` todavía no existía cuando se diseñó ese paso).
+
+Propuesta de Marco: separar tres fechas en vez de asumir que el cierre y el inicio del siguiente plan son el mismo evento:
+1. `closed_at` — cuándo se cerró formalmente el periodo anterior (ya existe).
+2. Fecha en la que empieza el **borrador** del periodo siguiente (hoy implícita, no se guarda aparte).
+3. Fecha de **publicación** del plan siguiente — cuando el coach efectivamente confirma/guarda el plan (`handleSavePlan`). Esta sería la que debería fijar el `period_start` real (y por lo tanto `period_end`, hoy siempre `period_start + 3 meses - 1 día`), no una fecha elegida a mano en el paso 1. Mientras el coach escribe el draft, se mostraría un periodo de 3 meses "proyectado" tentativo, pero el periodo real se fija hasta publicar — así los planes sí duran 3 meses de uso real, en vez de 3 meses contados desde que se creó el draft (que puede quedarse sin publicar días o semanas).
+
+**No construido, no scopeado a detalle todavía** — toca `startPlanCreation`, `periodEndFor`, el paso 1 del wizard, y probablemente separar `draft_created_at` de `period_start` en el schema. Necesita su propia sesión de scoping antes de tocar código — se anota aquí para no perderse, no se resuelve en esta sesión.
+
+### 16.5 Hecho ahora — fixes de copy/UI triviales (sin ambigüedad, aplicados directo)
+
+- `RUBRICA_OBJETIVOS_LABELS[1]` (`PlanesCoach.jsx`): "parece calco del diagnóstico" → "parece copia directa del diagnóstico" (se lee más claro).
+- Aviso "Revisa este objetivo antes de guardar…" (paso 4, `FocoCard`) y el aviso "Mencionaste esto pero no hay un área de mejora concreta…" (paso 3, `FocoGroup`): ambos estaban en texto plano ámbar, poco visibles — ahora van dentro de una caja `hairline` con fondo ámbar (`rgba(234,179,8,.08)`), mismo patrón ya usado en el aviso de "cierre anticipado" y el de "focos sin resultado" de la vista de cierre.
+
+### 16.6 Abierto — ¿debería mantenimiento tener outcome también?
+
+No preguntado explícitamente a Marco todavía. Sale de 16.1: hoy mantenimiento nunca se cierra (no tiene `outcome`, no aparece en la vista de cierre). Si un foco de mantenimiento sí tuvo cambios relevantes en el trimestre, hoy no hay forma de dejarlo registrado más allá del chip de nombre. Pendiente de decidir si esto se queda así a propósito (mantenimiento = deliberadamente ligero, sin fricción de cierre) o si necesita al menos un outcome opcional.
+
+### 16.7 Pendiente de scopear — botones "mejorar" por objetivo en vez de un solo box de feedback
+
+Observación de Marco tras ver que un feedback genérico en el box único de regeneración ("¿Algo no cuadra?", paso 4) volvió **todos** los objetivos vagos de nuevo, no solo el que quería corregir. Idea: en vez de un textarea único que regenera todo el plan, cada objetivo (y cada observación identificada en el paso 3) tendría un botón "Mejorar" que abre un mini-input local — mismo patrón que los comentarios de IA en Google Docs (seleccionas/haces click en el bloque específico, dices qué cambiar de eso puntualmente). Esto también resuelve el pedido puntual: **quitar la caja fija "¿Algo no cuadra?"** del fondo del paso 4 (manteniendo la regla de que hace falta un comentario para poder regenerar), y en su lugar poner una caja de instrucciones corta justo debajo de la barra de progreso (`StepBar`), antes de la lista de dimensiones, explicando que cada objetivo se puede afinar individualmente.
+
+**No construido — es un cambio de interacción no trivial** (probablemente necesita que `regenerate` acepte feedback por-objetivo en vez de un solo string global, tocando el contrato de la edge function). Requiere su propio scoping antes de construir, se anota aquí para no perderse.
+
+### 16.8 Bug de prompt — las anclas de técnica no deberían asentarse en "consistente en entrenamiento"
+
+En el cierre de mayo–jul, el nivel "0" (estándar "de forma consistente") del ancla generada para revés decía "consistente en entrenamiento". Corrección de Marco: para dimensiones de **técnica**, ningún nivel de la escala debería premiar consistencia solo en drill/entrenamiento como punto de referencia — la transferencia de técnica debe apuntar siempre a partido.
+
+La plantilla genérica de anclas vive en el prompt de `supabase/functions/generate-quarterly-plan/index.ts` (línea ~193): *"-2 sin cambio · -1 solo con recordatorio del coach · 0 consistente en entrenamiento · +1 consistente en partido sin recordatorio · +2 lo sostiene en torneo y lo modela para otros"*. Es una plantilla compartida entre técnica/táctica/carácter — cambiarla afecta la generación de anclas para las tres dimensiones, no es un cambio de copy aislado.
+
+**No es un fix trivial de texto** — es un ajuste de prompt (Tier B del `feature-build-flow`: no determinista, se valida contra ejemplos/rúbrica, no con un test exacto). Pendiente: decidir si técnica necesita su propia plantilla de anclas separada de táctica/carácter (donde "en entrenamiento" sí puede tener sentido como paso intermedio), o si el ajuste aplica a las tres. No construido — necesita revisión con Marco viendo ejemplos generados, antes de tocar el prompt en producción.
+
+### 16.9 UI — scores del trimestre en badges en vez de texto plano
+
+Confirmado por Marco: el formato actual (`"Scores del trimestre: Estancado · Rezagado · Superado"`, texto plano) pasa a badges — mismo lenguaje visual que ya usan `OUTCOME_OPTIONS`/`UrgenciaChip` en el resto del archivo. No construido todavía.
+
+### 16.10 Mobile-first — no está gateado en `feature-build-flow`
+
+Marco preguntó si el skill `feature-build-flow` ya obliga a revisar mobile-first al construir. Verificado: **no** — el paso 5 (Componente React) solo dice "sigue los tokens y patrones de diseño ya establecidos... considera si aplica una revisión con los skills del plugin `design`" — no menciona explícitamente viewport móvil, aunque el task "Mobile first en todo el portal" ya se cerró como Done en esta sesión. Sin un check explícito, features nuevas (como este flujo de cierre) pueden salir sin auditar mobile por default. `feature-build-flow` es un skill de solo-lectura en este entorno (no editable desde aquí) — si Marco quiere que quede gateado, la opción es (a) agregar una línea a `CLAUDE.md` bajo las reglas de testing/build, que sí es editable desde este proyecto, o (b) que Marco edite el skill directamente desde Settings → Capabilities. Pendiente de que Marco decida cuál prefiere.

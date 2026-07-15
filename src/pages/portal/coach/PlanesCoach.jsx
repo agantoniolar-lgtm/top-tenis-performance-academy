@@ -85,7 +85,7 @@ const uuid = () => (crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${
 // de números separados por coma (ej. "1, 3"), nunca prosa — esto la vuelve UI-legible sin depender del
 // prompt para redactar bien la explicación.
 const RUBRICA_OBJETIVOS_LABELS = {
-  1: 'no agrega una prescripción sustancial (parece calco del diagnóstico)',
+  1: 'no agrega una prescripción sustancial (parece copia directa del diagnóstico)',
   2: 'puede estar inventando detalle que el diagnóstico no menciona',
   3: 'asume una causa que el diagnóstico no especificó',
   4: 'el sujeto parece ser el coach/la academia, no el atleta',
@@ -1287,7 +1287,7 @@ function FocoGroup({ title, items, selected, limitReached, onToggle }) {
                   {it.read_corto}
                 </span>
                 {it.candidata_a_foco && it.observacion_suficiente === false && (
-                  <span className="block text-[10.5px] mt-1 font-medium" style={{ color: '#a16207' }}>
+                  <span className="hairline block text-[10.5px] mt-1 px-2 py-1 font-medium" style={{ background: 'rgba(234,179,8,.08)', color: '#a16207', lineHeight: 1.5 }}>
                     Mencionaste esto pero no hay un área de mejora concreta — vuelve y agrega más detalle, o déjalo en mantenimiento.
                   </span>
                 )}
@@ -1348,9 +1348,11 @@ function FocoCard({ foco, veredicto }) {
       <p className="text-[13px] font-medium leading-relaxed mb-2">{foco.objetivo}</p>
       {foco.anchors && <AnchorList anchors={foco.anchors} />}
       {insuficiente && (
-        <p className="text-[10.5px] mt-2 font-medium" style={{ color: '#a16207' }}>
-          Revisa este objetivo antes de guardar: {formatObjetivoMotivo(veredicto.objetivo_motivo)}.
-        </p>
+        <div className="hairline p-2 mt-2" style={{ background: 'rgba(234,179,8,.08)' }}>
+          <p className="text-[10.5px] font-medium" style={{ color: '#a16207', lineHeight: 1.5 }}>
+            Revisa este objetivo antes de guardar: {formatObjetivoMotivo(veredicto.objetivo_motivo)}.
+          </p>
+        </div>
       )}
       {foco.final_assessment && (
         <p className="text-[12px] mt-2 italic" style={{ color: 'var(--ink-mute)', lineHeight: 1.6 }}>

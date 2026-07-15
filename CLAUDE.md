@@ -74,6 +74,12 @@ No hacer esto de manera automática — esperar el comando explícito de Marco.
 
 Si hay más de una sesión en el mismo día: el historial se preserva en **Session Logs** — agregar ahí una entrada nueva por cada sesión adicional, indicando en **What we did** que es una sesión adicional del mismo día. La página principal (Last Session) igual se **reemplaza** con el resumen de la sesión que se acaba de cerrar, no se le agrega al texto anterior.
 
+### 6. Mobile-first en toda UI nueva
+
+Coaches usan el portal en cancha; atletas, desde el teléfono. No es un check automatizable como lint/test (no hay linter de responsive) — es una **verificación manual**, y como tal es un paso del proceso de construcción, no una regla de commit.
+
+Se hace en el paso 5 (Componente React) del flujo de `feature-build-flow`, **antes** de pasar al paso de lint+test+commit: cualquier componente React nuevo, o cambio visual no trivial a uno existente, se revisa en viewport móvil (~375px) — layout, botones alcanzables, texto sin desbordar — antes de considerar ese paso terminado. Si el cambio es puramente de lógica/datos sin superficie visual nueva, este paso no aplica (mismo criterio condicional que el resto del flujo).
+
 ---
 
 ## Estructura de archivos del proyecto
