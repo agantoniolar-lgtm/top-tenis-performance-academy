@@ -1,0 +1,17 @@
+# Tasks — {{PROJECT_NAME}}
+
+Active tasks only. Completed tasks move to `TASKS_ARCHIVE.md`. One entry per task, in the format below. Status values: `backlog`, `in progress`, `in review`, `done`.
+
+<!--
+### {{task-id}} — {{short title}}
+- category: {{feature | fix | doc | decision | research | bug-bash | review}}
+- status: {{backlog | in progress | in review | done}}
+- created: {{YYYY-MM-DD}}
+- updated: {{YYYY-MM-DD}}
+- branch: {{ai/{{task-id}}-{{slug}} or none yet}}
+
+**Description (accumulates as work happens — what, when, how):**
+- {{YYYY-MM-DD}}: {{what happened}}
+-->
+
+<!-- No active tasks yet. Copy the block above to add the first one. -->

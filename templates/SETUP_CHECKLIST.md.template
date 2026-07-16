@@ -1,0 +1,60 @@
+# Setup checklist — {{PROJECT_NAME}}
+
+This file is the source of truth for whether this project's guardrails are actually in place. The agent re-reads this file rather than relying on conversation memory — especially after a long session, or at the start of any new session, if there's any doubt. Every box must be checked before feature work begins in earnest. For a retrofit of an existing project, this file instead reflects what's currently missing and doubles as the to-do list to close the gap.
+
+## 1. Law and rules
+- [ ] `CLAUDE.md` generated and present at repo root
+- [ ] Plan-first rule confirmed in `CLAUDE.md`
+- [ ] Architectural pattern stated (what it is: ___)
+
+## 2. Git discipline
+- [ ] Branch protection / convention confirmed: one branch per task, named from task ID
+- [ ] Commit template (WHAT/WHY/RISK) confirmed as standing rule
+- [ ] `index.lock` handling procedure present in the `commit` skill
+
+## 3. Structure locks
+- [ ] {{STRICT_TYPING_MECHANISM}} enabled and verified (e.g. `tsconfig.json` has `"strict": true`, or `mypy`/Pydantic configured)
+- [ ] Lint configured and passing on a clean checkout
+- [ ] {{RLS_OR_EQUIVALENT}} verification skill present, if this project has per-user or per-role data access
+
+## 4. Sandbox
+{{SANDBOX_CHECKLIST_BLOCK}}
+
+## 4b. Secrets hygiene
+- [ ] `.env.example` copied in, real values filled into `.env.dev` (or `.env.local`), never `.env.example` itself
+- [ ] `.env*` (except `.env.example`) confirmed present in `.gitignore`
+- [ ] Confirmed no API key, password, or connection string exists in `CLAUDE.md`, `SETUP_CHECKLIST.md`, `TASKS.md`, or any file under `.claude/skills/`
+
+## 5. Verification
+- [ ] At least one deterministic test exists and passes
+- [ ] Eval harness present, if this project has any AI-native (model-call) feature: ___
+- [ ] UI walkthrough step confirmed in `verify-ui`, if this project has a UI
+
+## 6. Task tracking
+- [ ] `TASKS.md` exists and is empty or seeded with current work
+- [ ] `TASKS_ARCHIVE.md` exists (can start empty)
+- [ ] `/logs/` directory exists
+- [ ] `STATUS.md` exists with a `maturity:` field set
+
+## 7. Maturity
+- [ ] `maturity:` field set in `STATUS.md` (prototype / pre-users / live-users)
+- [ ] Confirmed this reflects the project's actual real-world status, not a default
+
+## 8. Cowork native loading (skip if this project is only ever worked on via Claude Code)
+- [ ] `COWORK_PROJECT_INSTRUCTIONS.md` generated
+- [ ] Its content pasted into this project's Cowork Settings → Project Instructions — a manual step, not something the agent can do itself
+
+---
+
+**When every box above is checked, setup is done.** Modifying project specifics after this point (adding a new table, a new skill, changing the stack) does not require re-running the full setup interview — just update the relevant section of this checklist and the affected files directly.
+
+## Supabase free-tier sandbox — reference block
+
+Use this exact block in section 4 for any Supabase project on the free tier (branching requires a paid plan):
+
+```
+- [ ] Sandbox: second Supabase project created (name: ___, URL/keys in .env.dev)
+- [ ] Sandbox: dev project seeded with fake data
+- [ ] Sandbox: reset script written and tested (path: ___)
+- [ ] Sandbox: prod credentials confirmed absent from dev environment entirely
+```

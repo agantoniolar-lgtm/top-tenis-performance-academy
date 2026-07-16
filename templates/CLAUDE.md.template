@@ -1,0 +1,43 @@
+# {{PROJECT_NAME}} — Agent Operating Rules
+
+This file is the law for how Claude works in this repo. It doesn't change per task — the skills in `/skills` are the procedures that satisfy these rules for a given kind of work. If a skill and this file ever conflict, this file wins.
+
+## Who reviews, and how
+
+{{OWNER_NAME}} directs this project but does not read or write code. Every checkpoint below must produce something reviewable without opening a diff or a source file: a plain-English audit-log entry, a UI walkthrough, an eval scorecard, or an explicit chat confirmation. If a step can't be restated in those terms, redesign the step — don't ask {{OWNER_NAME}} to read code.
+
+## Non-negotiable rules
+
+1. **Plan first.** Never modify files for a feature, refactor, or bug fix without first stating a blueprint (what will change, what files are touched, what could break) and getting explicit approval. No exceptions for "small" changes — small changes just get a small blueprint.
+2. **One branch per task.** Named from the task ID in `TASKS.md`. Push as often as needed while work continues. Only delete the branch after it has been merged into `main`, and only merge after {{OWNER_NAME}}'s approval. A push is never a completion signal.
+3. **Commit messages are plain English, always.** Format: `WHAT: ... / WHY: ... / RISK: ...`, one line each. Never assume the reader can parse git-speak.
+4. **Structure locks are on and strict, always.** {{STRICT_TYPING_MECHANISM}} is enabled from the first commit and stays on regardless of project maturity. Never loosen this "to move faster" — the cost of strict typing falls on the agent, not the human reviewing.
+5. **Sandboxing is mandatory before any destructive or data-touching command.** Never run a command against production credentials or production data during development or testing. See `SETUP_CHECKLIST.md` for this project's specific sandbox setup.
+6. **Nothing merges to `main` without passing verification appropriate to the change** — deterministic tests, AI-native evals, and/or a UI walkthrough, per the `verify-*` skills. A failing test or a failing eval blocks the merge exactly the same way; neither is optional.
+7. **Report, don't assume.** After every commit, state explicitly what happened (commit hash, or the specific reason it didn't happen). After every significant build, summarize what changed in the audit-log entry for that task in `TASKS.md`, in plain English, organized by what a reviewer would check, not by file.
+8. **No secrets or project-specific identifiers in committed files, ever.** API keys, DB passwords, and connection strings live only in `.env` (gitignored) — never in `CLAUDE.md`, `SETUP_CHECKLIST.md`, `TASKS.md`, or anything under `.claude/skills/`. Those files are meant to be copied wholesale into other projects and are expected to be committed; `.env` is neither. Non-secret identifiers (project name, Supabase project ref, region) are fine in `CLAUDE.md`/`STATUS.md`. If a task ever seems to require putting a real key or credential into a committed file, stop and flag it instead of doing it.
+
+## Stack
+
+- Backend/data: {{STACK_BACKEND}}
+- AI-native logic: {{STACK_AI_NATIVE}}
+- Frontend: {{STACK_FRONTEND}}
+- Language/type safety: {{STACK_LANGUAGE}}
+- Testing: {{STACK_TESTING}}
+- Package manager: {{STACK_PACKAGE_MANAGER}}
+
+## Maturity
+
+Current maturity tier is set in `STATUS.md` under `maturity:` and is only ever changed by {{OWNER_NAME}}. It governs how much sandbox and eval rigor applies — see `/skills/verify-evals` and `/skills/build` for what changes at each tier. Never infer or change this field yourself.
+
+## Skills
+
+The procedures that satisfy the rules above live in `/skills`. The default sequence for any non-trivial task is:
+
+`scope → design → build → verify → commit`
+
+`verify` branches into `verify-tests` (always), `verify-evals` (only if the task involves a model call with non-deterministic output), and `verify-ui` (only if the task touches a UI flow). `session-log` runs at the end of every session regardless of what else happened. See each skill's own file for triggers and procedure.
+
+## Task tracking
+
+Every unit of work — a doc, a scope, a build, a fix, a review — gets an entry in `TASKS.md` before work starts, moves through `backlog → in progress → in review → done`, and accumulates its own audit log (what/when/how) as work happens. Completed tasks move to `TASKS_ARCHIVE.md` periodically. `STATUS.md` always reflects the current state of the project at a glance. None of this is optional busywork — it's {{OWNER_NAME}}'s primary review surface.

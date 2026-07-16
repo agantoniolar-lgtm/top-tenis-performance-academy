@@ -1,0 +1,17 @@
+# Project status — {{PROJECT_NAME}}
+
+maturity: {{prototype | pre-users | live-users}}
+
+<!--
+Only {{OWNER_NAME}} changes the maturity field above, and only when the project's real-world status actually changes.
+Every skill reads this field to decide how much sandbox and eval rigor to apply. See CLAUDE.md.
+-->
+
+## Last session ({{YYYY-MM-DD}})
+{{one paragraph, plain English, summarizing what got done — see /skills/session-log}}
+
+## Pending / next session priority
+{{what's next, in priority order}}
+
+## Decided / deferred
+{{anything explicitly decided to postpone, and why, so it doesn't get silently re-litigated later}}

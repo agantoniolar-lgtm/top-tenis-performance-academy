@@ -1,0 +1,17 @@
+# Cowork project instructions — {{PROJECT_NAME}}
+
+This file is not read automatically by anything — Cowork does not scan a connected folder for files. Copy the block below into this project's Cowork Settings → Project Instructions field once. Cowork reloads project instructions every session, which is what makes this work without any repo-scanning.
+
+---
+
+This project follows the AE framework (see `CLAUDE.md` at the project root for the full rules).
+
+At the start of every session:
+1. Read `CLAUDE.md` at the project root in full before doing anything else.
+2. For any task — scoping, designing, building, verifying, committing, or closing a session — read the matching file under `.claude/skills/<name>/SKILL.md` first and follow its procedure exactly. Don't rely on remembering what a skill says; re-read it.
+3. Don't skip the scope/design/verify/commit sequence for tasks that feel small — each skill's own file states when a shortcut is actually appropriate.
+4. If `SETUP_CHECKLIST.md` has any unchecked boxes, treat closing those as the highest priority before other work.
+
+---
+
+Re-paste this block if `CLAUDE.md`'s location or the skills directory ever moves — otherwise this instruction never needs to change even as the project's rules evolve, since it only points at files rather than repeating their content.
