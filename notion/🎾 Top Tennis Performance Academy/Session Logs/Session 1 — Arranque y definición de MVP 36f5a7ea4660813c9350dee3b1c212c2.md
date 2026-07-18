@@ -1,0 +1,7 @@
+# Session 1 — Arranque y definición de MVP
+
+Date: May 22, 2026
+Key decisions: MVP redefinido a dos módulos: NuevoReporte (reporte del coach) y PTF (plan de trabajo del atleta). Todo lo demás es post-MVP. Kanban de Notion es la fuente de verdad del trabajo.
+Open items / follow-ups: El equipo de Top Tennis debe responder las preguntas del documento http://guia-sesion-campos-nuevoreporte-ptf.md antes de la próxima sesión. Con esas respuestas se diseña el schema de BD y se arranca con Supabase.
+Status: Complete
+What we did: Sesión de arranque. Se estableció la estructura de trabajo: http://CLAUDE.md con reglas, kanban en Notion como fuente de verdad, y criterios de cierre de sesión. Se pobló el kanban completo importando épicas y tareas desde http://PRODUCTO.md. Se revisó el prototipo de diseño (expediente-atleta.html) y la propuesta de colaboración con el equipo. Se redefinió el alcance real del MVP: únicamente el reporte del coach (NuevoReporte) y el Plan de Trabajo del atleta (PTF). Se reorganizaron las prioridades del kanban en consecuencia — tareas de video, especialistas y mobile bajadas a Low; auth renombrado a 'Configurar Supabase: schema, auth y RLS'. Se agregaron 3 tasks de pre-código: definición de campos de NuevoReporte, definición de campos de PTF, y diseño del schema de BD. Se creó una guía de sesión con preguntas estructuradas para definir los campos con los coaches. Se actualizó http://CLAUDE.md con la estructura de carpetas del repositorio.

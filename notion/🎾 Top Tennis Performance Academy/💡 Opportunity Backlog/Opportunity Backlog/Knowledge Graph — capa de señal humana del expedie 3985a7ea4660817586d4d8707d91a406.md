@@ -1,0 +1,7 @@
+# Knowledge Graph — capa de señal humana del expediente
+
+Description: Grafo de conocimiento (inspirado en GBrain de Garry Tan: markdown-first, entidades y edges tipados extraídos sin LLM, retrieval híbrido semántico + grafo) construido sobre el contenido narrativo del expediente del atleta — PTFs, notas de carácter del coach, reportes de psico/nutri/fisio. No reemplaza el schema relacional en Supabase, que sigue siendo la fuente de verdad para el expediente verificable; es una capa de retrieval/reasoning encima para permitir preguntas en lenguaje natural con evidencia cruzada entre fuentes.
+Effort: Alto y prematuro por ahora. Depende de que el MVP relacional esté estable y de tener volumen real de PTFs/reportes narrativos acumulados antes de que el retrieval de grafo aporte valor.
+Potential: Habilita un asistente de AI que responda preguntas sobre un atleta cruzando evidencia narrativa + estructurada — diferenciador fuerte de cara a recruiters y universidades. Origen: conversación con founder de http://ai-coach.fr sobre GBrain, 2026-07-08.
+Status: Backlog
+Why it matters: Ataca directamente la capa diferenciadora del producto (la señal humana que ningún ranking como UTR/AMTP entrega). Los datos numéricos — ranking, SwingVision — no se benefician de un grafo porque ya son estructurados; el valor del grafo está específicamente en el texto libre y sus relaciones.

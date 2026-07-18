@@ -12,8 +12,9 @@ Any approved task from `scope` that has a data-structure component, a UI compone
 
 ### If the task involves new or changed data structure
 1. Design the schema/type change explicitly before writing implementation code — table shape, types, relationships.
-2. If the change touches access rules for different roles/users, this is where the RLS-equivalent verification requirement gets flagged for `verify-tests` later — note it in the task's `TASKS.md` entry so it isn't missed at verification time.
-3. Confirm the design against {{STACK_LANGUAGE}} strict-mode constraints before moving on — if the type checker would reject the shape, fix it here, not during build.
+2. **For Supabase projects: write the change as a migration file (`supabase migration new <name>`), never as SQL run directly against the database by hand.** Check `SETUP_CHECKLIST.md` section 3b first — if `supabase/migrations/` doesn't exist or doesn't reflect the actual current schema, that's a retrofit gap to close (baseline via `supabase db pull`) before this task's schema change can be added as a migration on top of it. Ad hoc SQL against any database, even for something that feels small, is exactly the fragile, unreproducible pattern this framework exists to prevent.
+3. If the change touches access rules for different roles/users, this is where the RLS-equivalent verification requirement gets flagged for `verify-tests` later — note it in the task's `TASKS.md` entry so it isn't missed at verification time.
+4. Confirm the design against {{STACK_LANGUAGE}} strict-mode constraints before moving on — if the type checker would reject the shape, fix it here, not during build.
 
 ### If the task involves a new or changed UI surface
 1. Invoke the relevant installed design skill(s) before writing any component code — typically `design-system` (consistency with existing patterns), `ux-copy` (any new microcopy, labels, error states), and `accessibility-review` (for anything non-trivial). Use `design-critique` if there's an existing mockup or screen to react to.

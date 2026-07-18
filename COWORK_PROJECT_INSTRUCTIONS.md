@@ -4,11 +4,11 @@ Este archivo no se lee automáticamente por nada — Cowork no escanea una carpe
 
 ---
 
-Este proyecto sigue las reglas de trabajo en `CLAUDE.md` (raíz del repo) — el tracking de tasks vive en el kanban de Notion, no en `TASKS.md`/`STATUS.md` (esos archivos existen como estructura del framework de setup pero hoy están vacíos; ver `SETUP_CHECKLIST.md` sección 6 para el estado de esa decisión).
+Este proyecto sigue las reglas de trabajo en `CLAUDE.md` (raíz del repo) — el tracking de tasks vive en archivos locales del repo (`TASKS.md`/`TASKS_ARCHIVE.md`/`STATUS.md`/`/logs/`) desde el 2026-07-17, migrado desde un kanban de Notion que queda solo como respaldo histórico en `notion/`, sin actualizarse más.
 
 Al abrir cualquier sesión de trabajo:
 1. Leer `CLAUDE.md` completo antes de hacer cualquier otra cosa.
-2. Para abrir/cerrar sesión, usar el skill `session-open-close` (lee Last/Next Session de Notion). Para comitear a media sesión, usar `commit-kanban-sync`. Para construir una feature, usar `feature-build-flow`.
+2. Para abrir/cerrar sesión, usar el skill `session-log`. Para comitear a media sesión, usar `commit`. Para construir una feature, seguir la secuencia `scope → design → build → verify → commit` (ver `CLAUDE.md` → Skills para el detalle, incluida la particularidad de este proyecto de verificar RLS antes de construir la UI).
 3. Si `SETUP_CHECKLIST.md` tiene casillas sin marcar, tratarlas como prioridad antes de otro trabajo — especialmente la sección 4b (secrets) si sigue pendiente.
 4. No saltarse el paso de mobile-first (~375px) en UI nueva — regla 6 de CLAUDE.md.
 

@@ -1,0 +1,158 @@
+﻿Task
+Diseñar e implementar Portal de Sponsors
+"Configurar Supabase: schema, auth y RLS"
+Definir estrategia de hosting y deploy
+Conectar Expediente del atleta a backend real
+Completar formulario NuevoReporte
+Diseñar campos del PTF con los coaches
+Implementar flujo de subida de video en Ejercicios
+Validar diseño en mobile
+Diseñar e implementar Talent Card
+Diseñar e implementar épica de Reportes de Especialistas
+Diseñar campos del NuevoReporte con coaches
+Diseñar schema de base de datos
+Implementar formulario PTF funcional
+Set up de herramientas del equipo
+PTF Voice Interview — Entrevista conversacional de voz post-partido
+"Investigar API de UTR — acceso, crawler, o update manual"
+Evaluar integración Swing Vision — On-Court & On-Tournament
+"Definir visión, MVP y alcance del producto"
+Crear documento http://nuevoreporte-schema.md
+"Configurar estructura de trabajo (http://CLAUDE.md, kanban Notion, carpetas del repo)"
+Crear guía de definición de campos PTF y NuevoReporte para coaches
+Crear documento http://ptf-post-tournament-form.md
+Diseñar analytics de uso de plataforma y página web
+Definir estrategia de planes de entrenamiento (builder en app vs workflow externo)
+Diseñar e implementar registro de asistencia
+"Definir protocolo de pruebas físicas — schema, cadencia y métricas SV"
+Definir checklist de torneos y entrenamientos — frecuencia y owner
+Definir evaluación de conducta y liderazgo — frecuencia y campos
+Implementar Portal · Expediente del Atleta — frontend React
+Limpiar portal MVP — conectar a Supabase real
+Integración de API de UTR para resultados de partidos
+Solicitud de acceso a API de UTR Sports
+[Post-MVP] Publicación del plan trimestral y notificaciones a atleta y papás
+Scraper de rankings AMTP (http://amtp.mx)
+[Post-MVP] Definir estructura y campos del plan trimestral
+[Post-MVP] Flujo de ingestion del plan trimestral para coaches con AI
+Implementar escalas PTF en PostTorneo.jsx
+Auth de coaches y atletas
+[Post-MVP] Admin dashboard — métricas de engagement
+Diseñar e implementar perfil del atleta
+[Post-MVP] Error logs y dashboard de errores
+Pantalla de reportes pendientes por periodo
+Investigar y definir 2FA + notificaciones por WhatsApp
+[Post-MVP] Conectar progreso escolar con transcripts por ciclo
+[Post-MVP] Recordatorio automático de actualizar grado escolar en agosto
+Fix 404 en rutas SPA (Vercel rewrite)
+Pantalla de reportes pendientes por periodo
+Implementar Athlete Voice — auto-evaluación del atleta por período
+Auditar y blindar la capa de display de escalas (-2/+2 vs 1-5)
+Crear tablas tournaments + athlete_tournaments y conectar MisTorneos / NuevoTorneo
+Fix rondas Q1/Q2/Q3 + label fecha + NuevoTorneoCoach.jsx + RLS coaches
+Guía de QA: checklist de funcionalidades y mapa de flujos end-to-end (atleta + coach)
+B9 — Athlete Voice no indica qué periodo está disponible
+F8 — Registro y monitoreo de dobles (post-MVP)
+F2 — Definir con coaches el alta de atletas
+B3 — Fecha de inicio del atleta inconsistente con sus reportes
+F5 — Explicaciones inline en dimensiones de táctica y FMS
+B6 — Autocomplete de Google se borra en el login
+B1 — W/L record no se actualiza en expediente ni talent card
+B8 — Inicio de atleta sigue diciendo 'llena tu primer PTF' tras llenarlo
+F6 — Talent card: números en los nodos de la gráfica del coach
+B7 — PTF: quitar ronda 'Campeón' (duplica 'Final' + victoria)
+B2 — No se ve la diferencia periodo a periodo en ética de trabajo y coachabilidad
+F3 — Expediente: mostrar sub-dimensiones de táctica separadas de técnica
+B10 — Box vacío de UTR en mi-rendimiento
+F7 — Vista de PTFs por torneo para el coach
+B4 — Posible off-by-one de mes al guardar reportes
+F4 — Box de técnica se ve vacío en el expediente
+B5 — Talent card: sección percepción compara PTFs en vez de reportes de periodo
+F1 — Auth de coaches (sign up / log in)
+B11 — PTF no guardó ronda/resultado/victoria (Abierto La Hacienda)
+F9 — Gráfica de trayectoria global a todo el ancho en Talent Card
+Mover data demo de Sofía a Marco Damián
+Revisar Claude Design para atleta y coach
+Planes trimestrales + views de atleta y coach
+Mobile first en todo el portal
+Landing page
+"SwingVision: revisar output, exportable y data disponible para tracking de atletas"
+PTF: cambiar campo 'técnica' → 'golpes bajo presión'
+"F7 · Design polish P1 — Seguimiento: strip de pendientes, jerarquía visual, chip ACTUAL, sidebar limpio"
+Revisar MFA / email confirmation para atletas y coaches
+Landing — pedir quotes reales de atletas y papás para testimonials
+Landing — definir sección Camino a USA con el equipo
+Landing — acceso diferenciado para recruiters universitarios
+Landing — video hero (Content Management System)
+Landing — reescribir Home.jsx con nueva arquitectura
+Coach Summary View — vista de todos los atletas
+CDS — Bloque 2: Auth rol Content + /registro-content
+CDS — Bloque 1: DB + Storage migration
+CDS — Bloque 3: Panel de contenido
+CDS — Bloque 4: Páginas públicas consumen DB
+CDS — Bloque 5: Mosaico de fotos de perfil (atletas y coaches)
+CDS — Bloque 6: Highlights por atleta (fotos + videos)
+feat: vista Equipo — summary view multi-atleta para coaches
+AMTP — Widget de ranking en perfil del atleta
+Planes trimestrales — generación con LLM y tracking en reportes mensuales
+Scope: rediseño de planning + measurement (objetivos medibles vs plan)
+"P&M v2 — Catálogo de métricas físicas, unidades, protocolos de test + baselines"
+P&M v2 — validate-quarterly-plan v2 + captura de logs (semilla eval set)
+P&M v2 — Medición mensual -2..+2 por sub-dimensión (focos + mantenimiento)
+P&M v2 — Calendario de evaluaciones mensuales + recordatorio de cierre
+P&M v2 — close-quarterly-plan + retrospectives + handoff periodo→periodo
+P&M v2 — Rúbrica de calidad de anclas + set de estándares de cierre
+P&M v2 — UI nuevo flujo PlanesCoach: compuerta de selección de focos + revisión
+P&M v2 — Migración schema v2 (objetivos + planes) y deprecar objective_text
+P&M v2 — generate-quarterly-plan v3: dump de observaciones → dimensiones + anclas
+P&M v2 — Estado draft persistente en el flujo de planes
+P&M v2 — Voz: revisión/regeneración por voz + summary de notas en el dump
+P&M v2 — Edición de plan a mitad de trimestre
+P&M v2 — Voz: dump de observaciones por voz (transcripción)
+P&M v2 — Voz: log de anotaciones por atleta (grabaciones + transcripts)
+P&M v2 — Guard: un plan por atleta por periodo
+P&M v2 — Guardrail no-bloqueante de calidad del dump
+Definir backlog de skills internos + crear docs/http://skills-backlog.md
+Limpiar directorio anidado top-tenis-performance-academy/ (leftover de movimiento de archivos)
+Conectar el CMS (Content Delivery System) con el sitio público
+Fix CMS: cache de imágenes al reemplazar + relabel slot sede en Programas
+Scopear sincronización CMS ↔ landing (registro único de slots editables)
+Limpieza de datos dummy y usuarios (reset a trio de prueba)
+P&M — Rúbrica/skill: objetivos alineados a la filosofía de la academia
+P&M — Definir observaciones/objetivos de dimensiones numéricas (physical) + doc de scoping
+P&M — Rúbrica/skill: verificación de observaciones por dimensión
+P&M — Fix: diagnóstico/objetivo nunca usan nombre del atleta ni tono crítico
+P&M — Fix: no re-identificar focos si el dump no cambió
+P&M — Fix: identify no depende de enumeración explícita en el dump
+"Fix: diagnóstico/objetivo no debe abrir con ""la atleta/el atleta"""
+"Feature (backlog, sin scope): ""Acciones"" — pasos concretos post-objetivo"
+Bug: AMTP Rankings Scraper falla en GH Actions (exit code 1)
+Fix: carryover incluye planes archivados (falta filtro de status)
+P&M — Evaluar consistencia (determinismo) de identify entre corridas repetidas
+Bug: focos identificados no persisten al volver (Caso 3)
+"Fix: textarea de observaciones muy chica (paso 2, Nuevo plan)"
+Feature: mostrar qué cambió al regenerar objetivos con feedback del coach
+Feature: cache de focos generados en revisión (no regenerar todo al cambiar selección)
+"Feature: chip ""en buen estado"" para sub-dimensiones que no son candidatas a foco"
+Redesign — política de merge cuando una dimensión se menciona 2+ veces en el dump
+Agentic system P&M — fit check: ¿agent + skills o pipeline ya scopeado?
+Fix: AMTP ranking no se muestra en perfil de atleta ni en Equipo
+Formato de cierre compartido para atleta / papá / coach
+Quitar constraint de asignación coach↔atleta (libre para cualquier coach)
+P&M — agregar outcome 'deprioritized' + deprioritized_at
+Reasignar coach de Ian Kleiman a Armando Tlacaelel
+P&M — Implementar rúbrica/skill: verificación de observaciones por dimensión
+Presentación de progreso + roadmap 6 meses para el equipo
+"Mejorar http://CLAUDE.md y flujo de skills (apertura/cierre de sesión, backlog)"
+Construir skill #1: feature-build-flow (rebanada de feature)
+"Sección de ""Mis Planes"" en el portal del atleta"
+Servicio de notas de voz/texto por atleta (context feed para reportes y planes)
+Decidir qué hacer con atletas que se van de la academia o se gradúan (ej. se van a USA)
+Scopear + diseñar skill #9: LLM/agent feature build flow
+Revisar http://scope-planning-measurement.md incorporando lo construido en Mi Plan
+Repensar liderazgo (score -2..+2 en report_character) y physical como dimensión de P&M
+P&M — prompt de anclas de tecnica: no debe asentarse en 'consistente en entrenamiento'
+P&M — ¿mantenimiento deberia tener outcome al cerrar el plan?
+P&M — botones 'mejorar' por objetivo en revision (reemplaza box unico de feedback)
+P&M — ciclo de vida de fechas del plan (closed_at / inicio de borrador / fecha de publicacion)
+P&M v2 — separar outcome en estado (logrado/parcial/fallido) + carryover (continúa/depriorizado)

@@ -4,7 +4,7 @@ Stack: Supabase (PostgreSQL + Auth + RLS)
 
 Versión: 1.0 — Phase 1 (Jun 2026)
 
-> ⚠️ Este archivo contiene credenciales. No subir a un repositorio público.
+> Este archivo documenta la conexión pero **nunca debe contener la contraseña real** — vive solo en `.env.local` (`SUPABASE_DB_PASSWORD_PROD`, gitignored). Ver `.env.example`.
 
 ## Conexión
 
@@ -13,7 +13,7 @@ Versión: 1.0 — Phase 1 (Jun 2026)
 | Project ID | `rrrwhwciggohwxslqlho` |
 | Organización | `agantoniolar-lgtm-org` |
 | Región | `us-east-1` (Virginia) |
-| DB Password | `DPQHVHdzJACYJES5ZWfU2BPR` |
+| DB Password | ver `SUPABASE_DB_PASSWORD_PROD` en `.env.local` (rotada 2026-07-17, la anterior quedó expuesta en este archivo desde el commit `bd7632f` — ver `SETUP_CHECKLIST.md` sección 4b) |
 
 ---
 Alcance: NuevoReporte con 4 secciones activas (On-Court, Physical, Character & Leadership, Athlete Voice). Mental y Nutrición se agregan en iteración posterior.
