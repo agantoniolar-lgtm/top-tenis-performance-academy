@@ -39,16 +39,3 @@ Active work only — status `in progress` or `in review`. Not-yet-started ideas 
 
 **Notas:**
 CONSTRUIDO en 4 rebanadas (14-15 Jul 2026, commits ed706c6/7c92db6/869d7a6/4a36e3a). Cierre manual por foco + wiring de prior_bundle + scores/notas del trimestre en el cierre (como palabras via OC_LABEL) + pre-seleccion de focos 'continua' + salto automatico a crear el plan siguiente. Retrospectiva del coach quitada de la UI por ahora. Dummy data de Test Athlete (2 trimestres) corregida. Lint+110 tests OK, todo comiteado. PRIMERA CORRIDA EN VIVO (15 Jul 2026, docs/scope-close-quarterly-plan.md §16): confirmados C1-C11 + A1-A6 de docs/qa-guia-cierre-plan-trimestral.md. Salieron 2 bugs/gaps reales: (1) mantenimiento nunca tiene outcome -- confirmado, no bug, ver §16.1/16.6; (2) carryover 'continua' no se propaga al draft siguiente si no se re-menciona en el dump nuevo -- bug real, ver §16.2. Decision grande de Marco: el modelo de outcome se separa en estado final (logrado/parcial/fallido) x carryover (continua/depriorizado) independientes -- hoy son excluyentes y no deberian serlo (§16.3). Este cambio + el fix del bug de carryover quedan como task nuevo separado ('P&M v2 -- separar outcome en estado + carryover'), igual que fechas de ciclo de vida del plan, botones 'mejorar' por objetivo, y el ajuste de prompt de anclas de tecnica -- todos Backlog, todos referenciados en §16. Fixes triviales de copy/UI (calco->copia directa, warnings en caja amarilla) ya aplicados directo, sin task aparte. Este task master se queda en In Progress -- no Done -- hasta que el nuevo modelo de outcome se construya, porque el bug de carryover es parte central del loop que este task prometia resolver.
-
-## In Review
-
-### T156-pm-v2-separar-outcome-carryover — P&M v2 — separar outcome en estado (logrado/parcial/fallido) + carryover (continúa/depriorizado)
-- category: Dev
-- type: Feature
-- epic: Phase 2 — Analytics
-- priority: High
-- status: in review
-- created: 2026-07-15
-
-**Notas:**
-CONSTRUIDO 15 Jul 2026, todo comiteado (29f0f07 + aad9365). Migracion outcome/carryover + UI de 2 controles + fix de carryover (29f0f07). Fix de 4 bugs de la revision en vivo con Marco Damian: placeholder de 'Logrado' corregido, bloque de scores/anclas con fallback explicito cuando no hay datos, formatObjetivoMotivo robusto a separador (aad9365). Lint+112 tests OK en ambos commits. Detalle en docs/scope-close-quarterly-plan.md §16.3/§16.3.1. PENDIENTE: Marco hace git push, y probar en vivo con Test Athlete (que si tiene reportes) para confirmar highlight/badges con datos reales antes de Done.

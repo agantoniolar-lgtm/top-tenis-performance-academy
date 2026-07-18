@@ -41,6 +41,8 @@ Completed tasks, moved here the moment a task reaches `done` (by the `commit` sk
 | T147-seccion-mis-planes-portal-atleta | Sección de "Mis Planes" en el portal del atleta | Dev | 2026-07-09 |
 | T151-revisar-scope-planning-measurement | Revisar scope-planning-measurement.md incorporando lo construido en Mi Plan | Dev | 2026-07-14 |
 | T153-pm-mantenimiento-outcome-cierre | P&M — ¿mantenimiento deberia tener outcome al cerrar el plan? | Dev | 2026-07-15 |
+| T156-pm-v2-separar-outcome-carryover | P&M v2 — separar outcome en estado (logrado/parcial/fallido) + carryover (continúa/depriorizado) | Dev | 2026-07-15 |
+| T157-migrar-skills-kit-generico | Migrar flujo de construcción a skills genéricos del kit y limpiar referencias a feature-build-flow | Dev | 2026-07-18 |
 
 ## Full entries
 
@@ -420,3 +422,31 @@ Update coach_id en tabla athletes: Ian Kleiman (iankleiman2009@icloud.com) pasa 
 
 **Notas:**
 Decidido 15 Jul 2026 (docs/scope-close-quarterly-plan.md §16.6): mantenimiento se queda como esta, deliberadamente ligero — sin outcome, sin friccion de cierre. Si algo relevante pasa ahi, se sube a foco en el plan del siguiente trimestre. Sin cambios de codigo, es el comportamiento actual confirmado a proposito.
+
+### T156-pm-v2-separar-outcome-carryover — P&M v2 — separar outcome en estado (logrado/parcial/fallido) + carryover (continúa/depriorizado)
+- category: Dev
+- type: Feature
+- epic: Phase 2 — Analytics
+- priority: High
+- status: done
+- done: 2026-07-18
+- created: 2026-07-15
+
+**Notas:**
+CONSTRUIDO 15 Jul 2026, todo comiteado (29f0f07 + aad9365). Migracion outcome/carryover + UI de 2 controles + fix de carryover (29f0f07). Fix de 4 bugs de la revision en vivo con Marco Damian: placeholder de 'Logrado' corregido, bloque de scores/anclas con fallback explicito cuando no hay datos, formatObjetivoMotivo robusto a separador (aad9365). Lint+112 tests OK en ambos commits. Detalle en docs/scope-close-quarterly-plan.md §16.3/§16.3.1.
+- 2026-07-18: Marco confirmó git push hecho y prueba en vivo con Test Athlete (que sí tiene reportes) exitosa — highlight/badges con datos reales OK. Movido a done.
+
+### T157-migrar-skills-kit-generico — Migrar flujo de construcción a skills genéricos del kit y limpiar referencias a feature-build-flow
+- category: Dev
+- type: Chore
+- epic: —
+- priority: Medium
+- status: done
+- done: 2026-07-18
+- created: 2026-07-18
+
+**Notas:**
+- 2026-07-18: Se detectó (vía `ListSkills`) que el registro de skills de Cowork estaba desincronizado del repo en ambas direcciones — mostraba duplicados obsoletos (`commit-kanban-sync`, `session-open-close`) y le faltaban skills genéricos del kit ya presentes en `.claude/skills/` (`build`, `design`, `verify-tests`, `verify-evals`, `verify-ui`). Refrescar la sesión movió el problema pero no lo resolvió limpio.
+- 2026-07-18: Se empaquetaron (`skill-creator` + `package_skill.py`, sin reescribir contenido) los 5 skills genéricos ya existentes en `.claude/skills/` y se presentaron vía tarjeta "Save skill" — Marco los instaló a nivel cuenta.
+- 2026-07-18: Se confirmó que el kit ya se auto-orquesta (cada skill declara a quién le entrega después: `scope`→`design`→`build`→`verify-tests`/`verify-evals`/`verify-ui`→`commit`), por lo que `feature-build-flow` como orquestador central dejó de ser necesario. Decisión de Marco: dejar `feature-build-flow/SKILL.md` donde estaba pero quitar las referencias activas hacia él. Se editaron `CLAUDE.md` (regla 6), `COWORK_PROJECT_INSTRUCTIONS.md` (paso 2, re-pegado por Marco en Cowork Settings) y `.claude/skills/commit/SKILL.md` (descripción + "Cuándo se usa"); `SETUP_CHECKLIST.md` actualizado para reflejar el estado nuevo. Historial (`docs/scope-*.md`, `BACKLOG.md`, `docs/skills-backlog.md`, `notion/`, backups, entradas ya escritas de `TASKS_ARCHIVE.md`/`STATUS.md`) dejado intacto a propósito — son registro de decisiones pasadas, no instrucciones vivas.
+- 2026-07-18: Marco generalizó por su cuenta `schema-rls-verification` como `verify-rls` (mismo patrón, instalado en Cowork) y decidió borrar tanto `.claude/skills/feature-build-flow/SKILL.md` como `.claude/skills/schema-rls-verification/SKILL.md` del repo — confirmado explícitamente como intencional. Ambos borrados comiteados junto con el cierre de esta sesión.
