@@ -264,9 +264,9 @@ Verificado contra `quarterly_plan_objectives.anchors` reales en Supabase (no sol
 
 **Fix propuesto (pendiente de aprobación de Marco antes de deployar):** agregar una regla explícita anti-mezcla justo después del bloque "EJES DE LAS ANCLAS" en el prompt: *"REGLA ANTI-MEZCLA DE EJES (estricta): las anclas de técnica y táctica NUNCA deben usar vocabulario del eje de carácter ('entrenamiento', 'sin recordatorio', 'torneo', 'lo modela para otros'). Usa siempre drill → sparring/sets → partido bajo presión."* Es un cambio de prompt (Tier B — no determinista), así que antes de deployar hace falta generar 3-4 ejemplos con el prompt ajustado y que Marco los revise, en vez de confiar en un solo caso.
 
-### 16.9 UI — scores del trimestre en badges en vez de texto plano
+### 16.9 UI — scores del trimestre en badges en vez de texto plano — construido
 
-Confirmado por Marco: el formato actual (`"Scores del trimestre: Estancado · Rezagado · Superado"`, texto plano) pasa a badges — mismo lenguaje visual que ya usan `OUTCOME_OPTIONS`/`UrgenciaChip` en el resto del archivo. No construido todavía.
+Confirmado por Marco: el formato actual (`"Scores del trimestre: Estancado · Rezagado · Superado"`, texto plano) pasa a badges — mismo lenguaje visual que ya usan `OUTCOME_OPTIONS`/`UrgenciaChip` en el resto del archivo. Construido junto con el redesign de outcome/carryover de §16.3 (ver ese build) — esta nota quedó desactualizada ("no construido todavía") hasta la corrección del 2026-07-18, verificada contra `PlanesCoach.jsx` líneas 1170-1197.
 
 ### 16.10 Mobile-first — no está gateado en `feature-build-flow`
 

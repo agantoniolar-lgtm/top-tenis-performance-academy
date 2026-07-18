@@ -43,6 +43,8 @@ Completed tasks, moved here the moment a task reaches `done` (by the `commit` sk
 | T153-pm-mantenimiento-outcome-cierre | P&M — ¿mantenimiento deberia tener outcome al cerrar el plan? | Dev | 2026-07-15 |
 | T156-pm-v2-separar-outcome-carryover | P&M v2 — separar outcome en estado (logrado/parcial/fallido) + carryover (continúa/depriorizado) | Dev | 2026-07-15 |
 | T157-migrar-skills-kit-generico | Migrar flujo de construcción a skills genéricos del kit y limpiar referencias a feature-build-flow | Dev | 2026-07-18 |
+| T086-landing-reescribir-home-jsx | Landing — reescribir Home.jsx con nueva arquitectura | Dev | 2026-06-23 |
+| T102-pm-v2-close-quarterly-plan | P&M v2 — close-quarterly-plan + retrospectives + handoff periodo→periodo | Dev | 2026-06-26 |
 
 ## Full entries
 
@@ -450,3 +452,29 @@ CONSTRUIDO 15 Jul 2026, todo comiteado (29f0f07 + aad9365). Migracion outcome/ca
 - 2026-07-18: Se empaquetaron (`skill-creator` + `package_skill.py`, sin reescribir contenido) los 5 skills genéricos ya existentes en `.claude/skills/` y se presentaron vía tarjeta "Save skill" — Marco los instaló a nivel cuenta.
 - 2026-07-18: Se confirmó que el kit ya se auto-orquesta (cada skill declara a quién le entrega después: `scope`→`design`→`build`→`verify-tests`/`verify-evals`/`verify-ui`→`commit`), por lo que `feature-build-flow` como orquestador central dejó de ser necesario. Decisión de Marco: dejar `feature-build-flow/SKILL.md` donde estaba pero quitar las referencias activas hacia él. Se editaron `CLAUDE.md` (regla 6), `COWORK_PROJECT_INSTRUCTIONS.md` (paso 2, re-pegado por Marco en Cowork Settings) y `.claude/skills/commit/SKILL.md` (descripción + "Cuándo se usa"); `SETUP_CHECKLIST.md` actualizado para reflejar el estado nuevo. Historial (`docs/scope-*.md`, `BACKLOG.md`, `docs/skills-backlog.md`, `notion/`, backups, entradas ya escritas de `TASKS_ARCHIVE.md`/`STATUS.md`) dejado intacto a propósito — son registro de decisiones pasadas, no instrucciones vivas.
 - 2026-07-18: Marco generalizó por su cuenta `schema-rls-verification` como `verify-rls` (mismo patrón, instalado en Cowork) y decidió borrar tanto `.claude/skills/feature-build-flow/SKILL.md` como `.claude/skills/schema-rls-verification/SKILL.md` del repo — confirmado explícitamente como intencional. Ambos borrados comiteados junto con el cierre de esta sesión.
+
+### T086-landing-reescribir-home-jsx — Landing — reescribir Home.jsx con nueva arquitectura
+- category: Dev
+- type: Feature
+- epic: —
+- priority: High
+- status: done
+- done: 2026-07-18
+- created: 2026-06-23
+
+**Notas:**
+10 secciones: Hero (nuevo copy, 1 CTA), Stats (4° stat = 15+ universidades), El método TTPA (4 pilares), Lo que medimos (mock SwingVision + UTR sparkline + eval coach), Portal preview (tabla de períodos), Armando (nombre real + bio real), Para cada persona (atletas/padres/recruiters), Sede, Testimonios (placeholder), CTA (sin cambios). También fix nombre Alejandro→Armando en Nosotros.jsx.
+- 2026-07-18: Confirmado ya construido y comiteado — commit ff343bf (2026-06-22) implementa las 10 secciones exactas del scope, con iteraciones posteriores (4d681c4 design polish, 402585b CMS) sobre el mismo archivo. `Nosotros.jsx` verificado sin ningún rastro de "Alejandro". Marco confirmó en apertura de sesión que no falta nada — movido a done sin cambios de código.
+
+### T102-pm-v2-close-quarterly-plan — P&M v2 — close-quarterly-plan + retrospectives + handoff periodo→periodo
+- category: Dev
+- type: Feature
+- epic: Phase 2 — Analytics
+- priority: Medium
+- status: done
+- done: 2026-07-18
+- created: 2026-06-26
+
+**Notas:**
+CONSTRUIDO en 4 rebanadas (14-15 Jul 2026, commits ed706c6/7c92db6/869d7a6/4a36e3a). Cierre manual por foco + wiring de prior_bundle + scores/notas del trimestre en el cierre (como palabras via OC_LABEL) + pre-seleccion de focos 'continua' + salto automatico a crear el plan siguiente. Retrospectiva del coach quitada de la UI por ahora. Dummy data de Test Athlete (2 trimestres) corregida. Lint+110 tests OK, todo comiteado. PRIMERA CORRIDA EN VIVO (15 Jul 2026, docs/scope-close-quarterly-plan.md §16): confirmados C1-C11 + A1-A6 de docs/qa-guia-cierre-plan-trimestral.md. Salieron 2 bugs/gaps reales: (1) mantenimiento nunca tiene outcome -- confirmado, no bug, ver §16.1/16.6; (2) carryover 'continua' no se propaga al draft siguiente si no se re-menciona en el dump nuevo -- bug real, ver §16.2. Decision grande de Marco: el modelo de outcome se separa en estado final (logrado/parcial/fallido) x carryover (continua/depriorizado) independientes -- hoy son excluyentes y no deberian serlo (§16.3). Este cambio + el fix del bug de carryover quedan como task nuevo separado (T156, ya done), igual que fechas de ciclo de vida del plan (T155), botones 'mejorar' por objetivo (T154), y el ajuste de prompt de anclas de tecnica (T158) -- todos Backlog, todos referenciados en §16. Fixes triviales de copy/UI (calco->copia directa, warnings en caja amarilla) ya aplicados directo, sin task aparte.
+- 2026-07-18: Blocker resuelto — T156 (separar outcome en estado + carryover) confirmado done, con push y prueba en vivo exitosa. Verificado en apertura de sesión que el resto de §16 ya está cubierto: §16.9 (badges de scores) confirmado construido en el código (`PlanesCoach.jsx` líneas 1170-1197) pese a que la nota del scope doc decía "no construido todavía" — corregida esa nota. §16.4/§16.7/§16.8 ya estaban separados como tasks de backlog (no bloquean el cierre de este master). §16.10 (mobile-first) resuelto vía regla 6 de `CLAUDE.md`. Marco confirmó cerrar T102 como done — el loop de cierre de plan trimestral que este task prometía resolver está completo y probado en vivo.
