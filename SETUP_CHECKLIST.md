@@ -82,19 +82,21 @@ Orden de prioridad real:
 4. ~~Pegar `COWORK_PROJECT_INSTRUCTIONS.md` en Cowork~~ — **resuelto** (sección 8).
 5. ~~Migrar Notion → `TASKS.md`~~ — **resuelto 2026-07-17** (sección 6).
 6. ~~Gitleaks: scan de historial completo, hook de pre-commit, backstop de CI~~ — **resuelto 2026-07-20** (sección 4b). Historial escaneado con `gitleaks git .`: 3 hallazgos, los 3 ya conocidos y remediados (service_role/anon JWT legacy de producción, rotadas 2026-07-16; publishable key del sandbox, pública por diseño) — documentados con fingerprint en `.gitleaks.toml`. Hook instalado en `.husky/pre-commit` (probado: bloquea un secreto de prueba). CI en `.github/workflows/gitleaks.yml`.
-7. **Abierto, prioridad alta ahora que `maturity: live-users`** — el ambiente de pruebas real de la app (no solo la DB) no existe todavía: ver "Ambiente de pruebas — gap encontrado" abajo.
+7. ~~Ambiente de pruebas real de la app (no solo la DB)~~ — **resuelto 2026-07-20** (`T160`, ver "Ambiente de pruebas — gap encontrado y resuelto" abajo).
 8. Backlog no bloqueante, sin fecha: warnings de Supabase Advisors (sección 3), branch-per-task (sección 2), decisión de typing (sección 3).
 
-**Setup queda cerrado en lo técnico salvo el punto 7** — es el único trabajo real pendiente del asistente; el resto (sección 8) es backlog sin fecha, a discreción de Marco.
+**Setup queda cerrado en lo técnico** — lo único abierto es el backlog sin fecha de la sección 8, a discreción de Marco.
 
-## Ambiente de pruebas — gap encontrado (2026-07-20)
+## Ambiente de pruebas — gap encontrado y resuelto (2026-07-20, `T160`)
 
-Al responder la pregunta de Marco sobre cómo está conectada la plataforma al sandbox, se encontró que **el sandbox de base de datos es real y está bien aislado a nivel DB/CLI, pero la app en sí no tiene manera de apuntar a él**:
+Al responder la pregunta de Marco sobre cómo está conectada la plataforma al sandbox, se encontró que **el sandbox de base de datos era real y estaba bien aislado a nivel DB/CLI, pero la app en sí no tenía manera de apuntar a él**:
 
-- `src/lib/supabase.js` tiene la URL y la publishable key de **producción** (`rrrwhwciggohwxslqlho`) escritas directamente en el código fuente — no las lee de una variable de entorno.
-- `supabase/config.toml` también tiene `project_id = "rrrwhwciggohwxslqlho"` (producción) como el proyecto vinculado por default.
-- `.env.local` hoy solo tiene los invite codes y las variables de service key/db password para scripts — nada que la app use para elegir entre sandbox y producción.
-- Consecuencia concreta: correr `npm run dev` localmente, o hacer un walkthrough de `verify-ui`, **siempre habla contra la base de producción real** — incluyendo los 10 atletas ya subidos. No hay forma de apuntar la app corriendo al sandbox sin editar el código fuente a mano (y arriesgar dejarlo así por error, o comitearlo).
-- Lo que sí funciona bien y no cambia: los cambios de schema/RLS se prueban con migraciones aplicadas primero al proyecto sandbox vía Supabase CLI/MCP (`supabase/migrations/`, seed, reset script) — eso es real, reproducible, y ya lo confirma la sección 3b/4 de este archivo. El gap es específicamente la capa de la app (frontend + cualquier llamada desde ahí), no la capa de schema.
+- `src/lib/supabase.js` tenía la URL y la publishable key de **producción** (`rrrwhwciggohwxslqlho`) escritas directamente en el código fuente — no las leía de una variable de entorno.
+- `.env.local` solo tenía los invite codes y las variables de service key/db password para scripts — nada que la app usara para elegir entre sandbox y producción.
+- Consecuencia concreta: correr `npm run dev` localmente, o hacer un walkthrough de `verify-ui`, siempre hablaba contra la base de producción real — incluyendo los 10 atletas ya subidos.
 
-**Propuesta (pendiente de que Marco decida si se hace ahora o se scopea como task aparte):** mover `SUPABASE_URL`/`SUPABASE_ANON` de `src/lib/supabase.js` a variables `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` leídas de `import.meta.env` (mismo patrón que ya usan `VITE_COACH_INVITE_CODE`/`VITE_CONTENT_INVITE_CODE`), con `.env.local` apuntando al sandbox por default para desarrollo local, y las variables de producción configuradas solo en Vercel (deploy real) — nunca en un archivo del repo. Esto es justo el tipo de cambio que la regla de `CLAUDE.md` de "task antes de trabajar" exige scopear primero, dado que toca cómo arranca toda la app; no se implementó todavía como parte de este retrofit de `/setup`.
+**Resuelto el mismo día (`T160`, ver `TASKS_ARCHIVE.md`):**
+- `src/lib/supabase.js` ahora lee `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` de `import.meta.env`, sin fallback hardcodeado — falla fuerte si faltan. `.env.local` apunta al sandbox por default; verificado con `npm run build` que el bundle solo contiene la ref del sandbox. Producción se configura solo en Vercel (confirmado por Marco: env vars agregadas, deploy en vivo probado y cargando bien).
+- `scripts/check-migrations-schema-only.mjs` — bloquea DML mezclado con schema en migraciones nuevas, hook local (`.husky/pre-commit`) + backstop en CI (`.github/workflows/ci.yml`).
+- `supabase/PROD_MIGRATIONS_LOG.md` — log de cada push a producción.
+- Regla documentada en `CLAUDE.md` (regla 7, "Ambiente de pruebas air-tight").
