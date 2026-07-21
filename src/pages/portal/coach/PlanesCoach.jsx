@@ -29,6 +29,9 @@ const SUB_LABEL = {
   puntos_clave:          'Puntos clave',
   adaptacion_tactica:    'Adaptación táctica',
   transferencia_partido: 'Transferencia al partido',
+  // Nombres viejos (T152, 21 Jul 2026): quarterly_plan_objectives ya tiene objetivos reales
+  // guardados con estas keys — generate-quarterly-plan todavía no se actualizó al protocolo
+  // nuevo (fuera de alcance de T152), así que se mantienen vivos hasta que eso pase.
   sprint_20m:            'Velocidad / Sprint 20m',
   beep_test:             'Resistencia / Beep test',
   salto_vertical:        'Potencia / Salto vertical',
@@ -36,6 +39,14 @@ const SUB_LABEL = {
   fms:                   'Movilidad / FMS',
   fuerza_inferior:       'Fuerza tren inferior',
   fuerza_superior:       'Fuerza tren superior',
+  // Nombres del protocolo RAC (T152) — para cuando generate-quarterly-plan los empiece a usar.
+  velocidad_2377m:       'Velocidad',
+  agilidad_5_lineas_seg: 'Agilidad',
+  abdominales_30s:       'Abdominales',
+  salto_vertical_cm:     'Salto vertical',
+  lanzamiento_balon_mts: 'Lanzamiento de balón',
+  flexibilidad_banco_pass: 'Flexibilidad',
+  tiempo_1km_seg:        '1000m',
   etica_trabajo:         'Ética de trabajo',
   coachabilidad:         'Coachabilidad',
   liderazgo:             'Liderazgo',

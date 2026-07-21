@@ -84,14 +84,15 @@ function SectionCell({ data, type, noReport }) {
       title={`Character avg · ${date}`} />;
   }
   if (type === 'physical') {
-    const done = [data.sprint_20m, data.salto_vertical_cm, data.spider_drill_seg,
-                  data.sentadillas_1min, data.lagartijas_1min, data.beep_test_nivel]
+    const done = [data.velocidad_2377m, data.agilidad_5_lineas_seg, data.abdominales_30s,
+                  data.salto_vertical_cm, data.lanzamiento_balon_mts, data.tiempo_1km_seg,
+                  data.flexibilidad_banco_pass]
                  .filter(v => v != null).length;
-    const colors = done >= 4 ? { bg: 'rgba(22,163,74,.12)', text: '#15803d' }
+    const colors = done >= 5 ? { bg: 'rgba(22,163,74,.12)', text: '#15803d' }
                  : done >= 2 ? { bg: 'rgba(249,213,77,.18)', text: '#92650a' }
                  :             { bg: 'var(--cream)', text: 'var(--ink-mute)' };
-    return <ScoreBadge value={done} colors={colors} fmt={v => `${v}/6`}
-      title={`${done} de 6 tests · ${date}`} />;
+    return <ScoreBadge value={done} colors={colors} fmt={v => `${v}/7`}
+      title={`${done} de 7 tests · ${date}`} />;
   }
   return null;
 }
@@ -206,8 +207,8 @@ export default function ReportesPorPeriodo() {
           report_on_court ( completed_at, serve, forehand, backhand, volea, devolucion,
             footwork, seleccion_golpe, manejo_riesgo, puntos_clave, adaptacion_tactica,
             transferencia_partido ),
-          report_physical ( completed_at, sprint_20m, salto_vertical_cm, spider_drill_seg,
-            sentadillas_1min, lagartijas_1min, beep_test_nivel ),
+          report_physical ( completed_at, velocidad_2377m, agilidad_5_lineas_seg, abdominales_30s,
+            salto_vertical_cm, lanzamiento_balon_mts, tiempo_1km_seg, flexibilidad_banco_pass ),
           report_character ( completed_at, etica_trabajo, coachabilidad ),
           report_athlete_voice ( completed_at )
         `)

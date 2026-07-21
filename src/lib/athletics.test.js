@@ -343,7 +343,7 @@ describe('winLossRecord', () => {
 
 import {
   formatCoachRetrospective, focosSinOutcome, buildPriorBundle, nextPeriodStartFor,
-  monthlyScoresForFoco, preselectFocos,
+  monthlyScoresForFoco, preselectFocos, physicalTestScore, physicalScoreSeries,
 } from './athletics.js';
 
 describe('preselectFocos', () => {
@@ -379,6 +379,84 @@ describe('preselectFocos', () => {
   });
 });
 
+describe('physicalTestScore', () => {
+  it('sin baseline (null) devuelve 0, sin importar el valor', () => {
+    expect(physicalTestScore('velocidad_2377m', null, 3.5)).toBe(0);
+  });
+  it('valor null devuelve 0', () => {
+    expect(physicalTestScore('velocidad_2377m', 3.5, null)).toBe(0);
+  });
+  it('baseline 0 devuelve 0 (evita dividir entre cero)', () => {
+    expect(physicalTestScore('abdominales_30s', 0, 10)).toBe(0);
+  });
+
+  describe('prueba de tiempo (menos es mejor) — velocidad_2377m', () => {
+    it('mejora exactamente 15% → +2', () => {
+      expect(physicalTestScore('velocidad_2377m', 4.0, 3.4)).toBe(2); // -15%
+    });
+    it('mejora exactamente 10% → +1', () => {
+      expect(physicalTestScore('velocidad_2377m', 4.0, 3.6)).toBe(1); // -10%
+    });
+    it('mejora exactamente 5% → 0 (buen camino, no llega a adelantado)', () => {
+      expect(physicalTestScore('velocidad_2377m', 4.0, 3.8)).toBe(0); // -5%
+    });
+    it('sin cambio → 0', () => {
+      expect(physicalTestScore('velocidad_2377m', 4.0, 4.0)).toBe(0);
+    });
+    it('empeora exactamente 5% → -1', () => {
+      expect(physicalTestScore('velocidad_2377m', 4.0, 4.2)).toBe(-1); // +5%
+    });
+    it('empeora exactamente 10% → todavía -1 (el corte es "más del 10%", no "10% o más")', () => {
+      expect(physicalTestScore('velocidad_2377m', 4.0, 4.4)).toBe(-1); // +10%
+    });
+    it('empeora más de 10% → -2', () => {
+      expect(physicalTestScore('velocidad_2377m', 4.0, 4.41)).toBe(-2); // +10.25%
+    });
+  });
+
+  describe('prueba de distancia/reps (más es mejor) — dirección invertida', () => {
+    it('abdominales_30s: sube 15% → +2', () => {
+      expect(physicalTestScore('abdominales_30s', 20, 23)).toBe(2); // +15%
+    });
+    it('salto_vertical_cm: baja 10% → -1', () => {
+      expect(physicalTestScore('salto_vertical_cm', 40, 36)).toBe(-1); // -10%
+    });
+    it('lanzamiento_balon_mts: baja más de 10% → -2', () => {
+      expect(physicalTestScore('lanzamiento_balon_mts', 10, 8.9)).toBe(-2); // -11%
+    });
+  });
+
+  describe('flexibilidad_banco_pass — booleano, sin baseline/porcentaje', () => {
+    it('pasa → 0, sin importar el baseline', () => {
+      expect(physicalTestScore('flexibilidad_banco_pass', null, true)).toBe(0);
+      expect(physicalTestScore('flexibilidad_banco_pass', true, true)).toBe(0);
+    });
+    it('no pasa → -2', () => {
+      expect(physicalTestScore('flexibilidad_banco_pass', null, false)).toBe(-2);
+    });
+  });
+});
+
+describe('physicalScoreSeries', () => {
+  it('el primer valor no nulo define el baseline y siempre puntúa 0', () => {
+    const out = physicalScoreSeries('velocidad_2377m', [4.0, 3.4]); // baseline 4.0, luego -15%
+    expect(out).toEqual([0, 2]);
+  });
+  it('null en el medio de la serie no rompe ni cuenta como baseline', () => {
+    const out = physicalScoreSeries('velocidad_2377m', [null, 4.0, null, 3.4]);
+    expect(out).toEqual([null, 0, null, 2]);
+  });
+  it('serie vacía o toda null devuelve solo nulls/vacío', () => {
+    expect(physicalScoreSeries('velocidad_2377m', [])).toEqual([]);
+    expect(physicalScoreSeries('velocidad_2377m', [null, null])).toEqual([null, null]);
+    expect(physicalScoreSeries('velocidad_2377m', null)).toEqual([]);
+  });
+  it('flexibilidad_banco_pass: cada valor se puntúa independiente, sin baseline', () => {
+    const out = physicalScoreSeries('flexibilidad_banco_pass', [false, true, false]);
+    expect(out).toEqual([-2, 0, -2]);
+  });
+});
+
 describe('monthlyScoresForFoco', () => {
   it('técnica: junta los scores de los 3 meses y la nota compartida de dimensión (la más reciente)', () => {
     const reports = [
@@ -402,15 +480,29 @@ describe('monthlyScoresForFoco', () => {
     expect(out.scores).toEqual([1]);
     expect(out.lastNote).toBe('constante');
   });
-  it('liderazgo: sin columna de score, pero sí toma la nota', () => {
-    const reports = [{ report_character: { liderazgo_nota: 'mejor esta semana' } }];
+  it('liderazgo: ya tiene columna de score (T152) y funciona igual que las demás de character', () => {
+    const reports = [{ report_character: { liderazgo: 1, liderazgo_nota: 'mejor esta semana' } }];
     const out = monthlyScoresForFoco({ dimension: 'character', sub_dimension: 'liderazgo' }, reports);
-    expect(out.scores).toEqual([]);
+    expect(out.scores).toEqual([1]);
     expect(out.lastNote).toBe('mejor esta semana');
   });
-  it('physical: devuelve vacío en vez de inventar un mapeo de columna', () => {
-    const out = monthlyScoresForFoco({ dimension: 'physical', sub_dimension: 'sprint_20m' }, [{ report_physical: { sprint_20m: 3.2 } }]);
-    expect(out).toEqual({ scores: [], lastNote: null });
+  it('physical: usa physicalScoreSeries sobre los valores crudos, sin nota (no tiene *_nota)', () => {
+    // baseline 3.5, luego 3.325 (-5% en una prueba de tiempo = mejora del 5% = 0)
+    const reports = [
+      { report_physical: { velocidad_2377m: 3.5 } },
+      { report_physical: { velocidad_2377m: 3.325 } },
+    ];
+    const out = monthlyScoresForFoco({ dimension: 'physical', sub_dimension: 'velocidad_2377m' }, reports);
+    expect(out).toEqual({ scores: [0, 0], lastNote: null });
+  });
+  it('physical: ignora meses sin ese campo capturado', () => {
+    const reports = [
+      { report_physical: { velocidad_2377m: 3.5 } },
+      { report_physical: { velocidad_2377m: null } },
+      { report_physical: { velocidad_2377m: 2.975 } }, // -15% = mejora 15% = +2
+    ];
+    const out = monthlyScoresForFoco({ dimension: 'physical', sub_dimension: 'velocidad_2377m' }, reports);
+    expect(out.scores).toEqual([0, 2]);
   });
   it('maneja reportes sin la sub-tabla (fila null) y arrays anidados de Supabase', () => {
     const reports = [{ report_on_court: null }, { report_on_court: [{ forehand: -2 }] }];

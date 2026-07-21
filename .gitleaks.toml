@@ -30,3 +30,9 @@ description = "Publishable key del sandbox — por valor, no por commit, porque 
 regexes = [
   "sb_publishable_A7kK_tXIZ3goBQDIGUku7g_8mGCcf8i",
 ]
+
+[[allowlists]]
+description = "Falso positivo de la regla generic-api-key: 'velocidad_2377m' es el nombre de un campo de report_physical (protocolo de pruebas físicas RAC, T152), no un secreto — la mezcla de letras+dígitos dispara la heurística de entropía."
+regexes = [
+  "velocidad_2377m",
+]

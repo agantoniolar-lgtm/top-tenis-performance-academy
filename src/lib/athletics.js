@@ -298,24 +298,90 @@ export function focosSinOutcome(objectives) {
 }
 
 /**
+ * Pruebas físicas (`report_physical`) donde bajar el valor es la mejora (tiempo). Las que no
+ * están acá (`abdominales_30s`, `salto_vertical_cm`, `lanzamiento_balon_mts`) mejoran subiendo.
+ * `flexibilidad_banco_pass` no aplica — es booleano, ver `physicalTestScore`.
+ */
+export const PHYSICAL_LOWER_IS_BETTER = new Set(['velocidad_2377m', 'agilidad_5_lineas_seg', 'tiempo_1km_seg']);
+
+/**
+ * Score -2..+2 de una prueba física, comparando `value` contra su `baseline` (protocolo RAC,
+ * definido por Marco 21 Jul 2026 — ver TASKS.md T152). `baseline` es siempre el primer valor no
+ * nulo que el atleta registró para esa prueba (fijo, nunca la corrida inmediata anterior).
+ * Bandas (pct = mejora firmada; negativo = empeora): ≥15% mejora → +2, ≥10% → +1, resto hasta
+ * -5% (exclusivo) → 0, hasta -10% (inclusivo) → -1, peor que -10% → -2. Los límites son asimétricos
+ * a propósito porque así los dio Marco: "10%"/"15%" de mejora son inclusive-igual-o-mejor, pero
+ * "más del 10%" de empeoramiento es estrictamente peor que 10% (a exactamente -10% todavía es -1).
+ * `flexibilidad_banco_pass` es especial: booleano sin baseline/porcentaje — pasa=0, no pasa=-2.
+ * @param {string} field nombre de columna en report_physical
+ * @param {number|null} baseline primer valor no nulo del atleta para este campo (null = sin baseline aún)
+ * @param {number|boolean|null} value valor a puntuar
+ * @returns {number} score -2..+2
+ */
+export function physicalTestScore(field, baseline, value) {
+  if (field === 'flexibilidad_banco_pass') return value ? 0 : -2;
+  if (baseline == null || value == null || baseline === 0) return 0;
+  const rawPct = (value - baseline) / Math.abs(baseline);
+  const signedPct = PHYSICAL_LOWER_IS_BETTER.has(field) ? -rawPct : rawPct;
+  // Redondeo a 6 decimales: evita que el ruido de punto flotante (ej. 4.4-4.0 → 0.39999999999999947)
+  // empuje un valor que debería caer justo en un límite (5%/10%/15%) al lado equivocado.
+  const pct = Math.round(signedPct * 1e6) / 1e6;
+  if (pct >= 0.15) return 2;
+  if (pct >= 0.10) return 1;
+  if (pct > -0.05) return 0;
+  if (pct >= -0.10) return -1;
+  return -2;
+}
+
+/**
+ * Serie de scores -2..+2 para una prueba física, a partir de sus valores crudos ordenados
+ * cronológicamente (ascendente). El primer valor no nulo define el baseline del atleta para esa
+ * prueba y siempre puntúa 0 (no hay nada contra qué comparar todavía); los siguientes se comparan
+ * contra ese baseline fijo vía `physicalTestScore`. `flexibilidad_banco_pass` no tiene baseline —
+ * cada valor se puntúa de forma independiente (pasa/no pasa).
+ * @param {string} field nombre de columna en report_physical
+ * @param {(number|boolean|null)[]|null} rawValues valores crudos ordenados por period ascendente
+ * @returns {(number|null)[]} mismo largo que rawValues; null donde el valor era null
+ */
+export function physicalScoreSeries(field, rawValues) {
+  let baseline = null;
+  return (rawValues ?? []).map(v => {
+    if (v == null) return null;
+    const score = physicalTestScore(field, baseline, v);
+    if (baseline == null && field !== 'flexibilidad_banco_pass') baseline = v;
+    return score;
+  });
+}
+
+/**
  * Scores mensuales (-2..+2) y último comentario del coach para un foco, a partir de los reportes
  * mensuales del periodo — para mostrarlos en la vista de cierre (docs/scope-close-quarterly-plan.md
  * §13, "vista de cierre: falta contexto de scores/comentarios"). Técnica/táctica leen de
  * `report_on_court` (la nota es compartida por dimensión: `tecnica_nota`/`tactica_nota`, no por
  * sub-dimensión); carácter lee de `report_character` (nota específica `${sub_dimension}_nota`,
- * `liderazgo` no tiene columna de score, solo nota). `physical` no tiene mapeo limpio a
- * `report_physical` (catálogo de baselines pendiente, ver backlog) — devuelve vacío a propósito
- * en vez de inventar una columna.
+ * incluyendo `liderazgo` desde que tiene columna de score — T152, 21 Jul 2026). `physical` usa
+ * `physicalScoreSeries` sobre los valores crudos de `report_physical` — el baseline usado es el
+ * primer valor **dentro de este slice de `monthlyReports`**, no necesariamente el baseline
+ * histórico completo del atleta (esta función solo ve los reportes que le pasan, igual que las
+ * otras dimensiones); para un baseline atleta-wide real, ver T166 (backlog).
  * @param {{dimension: string, sub_dimension: string}} foco
- * @param {{report_on_court?: object|object[], report_character?: object|object[]}[]|null} monthlyReports ordenados por period ascendente
+ * @param {{report_on_court?: object|object[], report_character?: object|object[], report_physical?: object|object[]}[]|null} monthlyReports ordenados por period ascendente
  * @returns {{ scores: number[], lastNote: string|null }}
  */
 export function monthlyScoresForFoco(foco, monthlyReports) {
   const firstRow = (x) => Array.isArray(x) ? (x[0] ?? null) : (x ?? null);
   const table = foco?.dimension === 'tecnica' || foco?.dimension === 'tactica' ? 'report_on_court'
               : foco?.dimension === 'character' ? 'report_character'
+              : foco?.dimension === 'physical' ? 'report_physical'
               : null;
   if (!table || !foco?.sub_dimension) return { scores: [], lastNote: null };
+
+  if (table === 'report_physical') {
+    const rawValues = (monthlyReports ?? []).map(r => firstRow(r?.report_physical)?.[foco.sub_dimension] ?? null);
+    const scores = physicalScoreSeries(foco.sub_dimension, rawValues).filter(s => s != null);
+    return { scores, lastNote: null };
+  }
+
   const noteKey = foco.dimension === 'tecnica' ? 'tecnica_nota'
                 : foco.dimension === 'tactica' ? 'tactica_nota'
                 : `${foco.sub_dimension}_nota`;

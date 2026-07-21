@@ -16,3 +16,4 @@ Registro append-only: una fila por cada vez que una migración de `supabase/migr
 
 | fecha | migración | aplicó | verificado en sandbox | confirmó Marco | notas |
 |---|---|---|---|---|---|
+| 2026-07-21 | `20260721205436_physical_protocol_rac_and_liderazgo_score.sql` | Claude (MCP) | Sí — schema confirmado igual a lo diseñado; policies de `report_physical`/`report_character` verificadas idénticas byte-a-byte antes/después (ninguna referencia los campos tocados por nombre); grants de columna uniformes en las 15/13 columnas de cada tabla, sin restricción por columna | Sí | T152. Verificación activa por rol (queries reales como coach/atleta) **no se pudo correr** — el sandbox no tiene ningún `auth.users` real, los coaches/atletas seed tienen `user_id = NULL`. Gap preexistente, no introducido por esta migración — ver T165 (backlog) para sembrar un coach/atleta real en sandbox y poder hacer esta verificación de verdad a futuro. |

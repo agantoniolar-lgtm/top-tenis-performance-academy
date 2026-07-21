@@ -21,28 +21,21 @@ const TACTICS = [
   { key: 'transferencia_partido',label: 'Transferencia al partido' },
 ].map(t => ({ ...t, desc: TACTIC_DESCS[t.key] }));
 
-// ─── Physical fields ────────────────────────────────────────────────────────
+// ─── Physical fields (Protocolo Pruebas Físicas Academia de Tenis RAC) ────────
 const PHYSICAL_NUM = [
-  { key: 'sprint_20m',         label: 'Sprint 20m (seg)', placeholder: '3.14' },
-  { key: 'salto_vertical_cm',  label: 'Salto vertical (cm)', placeholder: '42' },
-  { key: 'spider_drill_seg',   label: 'Spider drill (seg)', placeholder: '4.62' },
-  { key: 'sentadillas_1min',   label: 'Sentadillas 1 min (reps)', placeholder: '30' },
-  { key: 'lagartijas_1min',    label: 'Lagartijas 1 min (reps)', placeholder: '20' },
-  { key: 'beep_test_nivel',    label: 'Beep test nivel', placeholder: '8' },
-  { key: 'beep_test_rep',      label: 'Beep test rep', placeholder: '5' },
-];
-const FMS_FIELDS = [
-  { key: 'fms_squat',      label: 'Squat' },
-  { key: 'fms_lunge_izq',  label: 'Lunge izq.' },
-  { key: 'fms_lunge_der',  label: 'Lunge der.' },
-  { key: 'fms_hombro_izq', label: 'Hombro izq.' },
-  { key: 'fms_hombro_der', label: 'Hombro der.' },
+  { key: 'velocidad_2377m',        label: 'Velocidad 23.77m (seg)', placeholder: '3.60' },
+  { key: 'agilidad_5_lineas_seg',  label: 'Agilidad 5 líneas (seg)', placeholder: '5.20' },
+  { key: 'abdominales_30s',        label: 'Abdominales 30s (reps)', placeholder: '22' },
+  { key: 'salto_vertical_cm',      label: 'Salto vertical (cm)', placeholder: '42' },
+  { key: 'lanzamiento_balon_mts',  label: 'Lanzamiento balón 3kg (mts)', placeholder: '6.50' },
+  { key: 'tiempo_1km_seg',         label: '1000m / 1km (seg)', placeholder: '240' },
 ];
 
 // ─── Character fields ───────────────────────────────────────────────────────
 const CHAR_SCORES = [
   { key: 'etica_trabajo', label: 'Ética de trabajo' },
   { key: 'coachabilidad', label: 'Coachabilidad' },
+  { key: 'liderazgo',     label: 'Liderazgo' },
 ];
 
 const defScores = (fields, def = 0) => Object.fromEntries(fields.map(f => [f.key, def]));
@@ -75,8 +68,8 @@ export default function NuevoReporte() {
   const [tacNota,  setTacN]  = useState('');
 
   // Physical state
-  const [phys,     setPhys]  = useState(Object.fromEntries(PHYSICAL_NUM.map(f => [f.key, ''])));
-  const [fms,      setFms]   = useState(Object.fromEntries(FMS_FIELDS.map(f => [f.key, false])));
+  const [phys,      setPhys]      = useState(Object.fromEntries(PHYSICAL_NUM.map(f => [f.key, ''])));
+  const [flexBanco, setFlexBanco] = useState(false);
 
   // Character state
   const [charScores, setChar] = useState(defScores(CHAR_SCORES, 0));
@@ -106,10 +99,9 @@ export default function NuevoReporte() {
         report_on_court ( serve, forehand, backhand, volea, devolucion, footwork,
           seleccion_golpe, manejo_riesgo, puntos_clave, adaptacion_tactica, transferencia_partido,
           utr, tecnica_nota, tactica_nota, completed_at ),
-        report_physical ( sprint_20m, salto_vertical_cm, spider_drill_seg,
-          sentadillas_1min, lagartijas_1min, beep_test_nivel, beep_test_rep,
-          fms_squat, fms_lunge_izq, fms_lunge_der, fms_hombro_izq, fms_hombro_der, completed_at ),
-        report_character ( etica_trabajo, coachabilidad, liderazgo_nota, conducta_log, completed_at )
+        report_physical ( velocidad_2377m, salto_vertical_cm, agilidad_5_lineas_seg,
+          abdominales_30s, lanzamiento_balon_mts, flexibilidad_banco_pass, tiempo_1km_seg, completed_at ),
+        report_character ( etica_trabajo, coachabilidad, liderazgo, liderazgo_nota, conducta_log, completed_at )
       `)
       .eq('athlete_id', athleteId)
       .eq('period', period)
@@ -132,22 +124,19 @@ export default function NuevoReporte() {
         const ph = Array.isArray(data.report_physical) ? data.report_physical[0] : data.report_physical;
         if (ph) {
           setPhys({
-            sprint_20m:        ph.sprint_20m        != null ? String(ph.sprint_20m)        : '',
-            salto_vertical_cm: ph.salto_vertical_cm != null ? String(ph.salto_vertical_cm) : '',
-            spider_drill_seg:  ph.spider_drill_seg  != null ? String(ph.spider_drill_seg)  : '',
-            sentadillas_1min:  ph.sentadillas_1min  != null ? String(ph.sentadillas_1min)  : '',
-            lagartijas_1min:   ph.lagartijas_1min   != null ? String(ph.lagartijas_1min)   : '',
-            beep_test_nivel:   ph.beep_test_nivel   != null ? String(ph.beep_test_nivel)   : '',
-            beep_test_rep:     ph.beep_test_rep     != null ? String(ph.beep_test_rep)     : '',
+            velocidad_2377m:        ph.velocidad_2377m       != null ? String(ph.velocidad_2377m)       : '',
+            salto_vertical_cm:      ph.salto_vertical_cm     != null ? String(ph.salto_vertical_cm)     : '',
+            agilidad_5_lineas_seg:  ph.agilidad_5_lineas_seg != null ? String(ph.agilidad_5_lineas_seg) : '',
+            abdominales_30s:        ph.abdominales_30s       != null ? String(ph.abdominales_30s)       : '',
+            lanzamiento_balon_mts:  ph.lanzamiento_balon_mts != null ? String(ph.lanzamiento_balon_mts) : '',
+            tiempo_1km_seg:         ph.tiempo_1km_seg        != null ? String(ph.tiempo_1km_seg)        : '',
           });
-          setFms({ fms_squat: ph.fms_squat ?? false, fms_lunge_izq: ph.fms_lunge_izq ?? false,
-                   fms_lunge_der: ph.fms_lunge_der ?? false, fms_hombro_izq: ph.fms_hombro_izq ?? false,
-                   fms_hombro_der: ph.fms_hombro_der ?? false });
+          setFlexBanco(ph.flexibilidad_banco_pass ?? false);
           if (ph.completed_at) setSaved(s => ({ ...s, physical: true }));
         }
         const ch = Array.isArray(data.report_character) ? data.report_character[0] : data.report_character;
         if (ch) {
-          setChar({ etica_trabajo: ch.etica_trabajo ?? 0, coachabilidad: ch.coachabilidad ?? 0 });
+          setChar({ etica_trabajo: ch.etica_trabajo ?? 0, coachabilidad: ch.coachabilidad ?? 0, liderazgo: ch.liderazgo ?? 0 });
           setLide(ch.liderazgo_nota ?? '');
           setCond(ch.conducta_log ?? '');
           if (ch.completed_at) setSaved(s => ({ ...s, character: true }));
@@ -217,7 +206,7 @@ export default function NuevoReporte() {
     setSav(true); setErr(null);
     try {
       const reportId = await ensureReport();
-      const payload = { report_id: reportId, ...fms };
+      const payload = { report_id: reportId, flexibilidad_banco_pass: flexBanco };
       PHYSICAL_NUM.forEach(f => { if (phys[f.key]) payload[f.key] = parseFloat(phys[f.key]); });
       const { error } = await supabase.from('report_physical')
         .upsert({ ...payload, completed_at: new Date().toISOString(), completed_by: user.coach_id },
@@ -262,7 +251,7 @@ export default function NuevoReporte() {
                   className="px-4 py-2 text-[12px] font-semibold uppercase tracking-wide hairline hover:bg-[var(--cream)] transition">
             Ver atletas
           </button>
-          <button onClick={() => { setDone(false); setAtId(''); setUtr(''); setStr(defScores(STROKES, 0)); setTac(defScores(TACTICS, 0)); setPhys(Object.fromEntries(PHYSICAL_NUM.map(f=>[f.key,'']))); setChar(defScores(CHAR_SCORES, 0)); setSaved({oncourt:false,physical:false,character:false}); setTab('oncourt'); }}
+          <button onClick={() => { setDone(false); setAtId(''); setUtr(''); setStr(defScores(STROKES, 0)); setTac(defScores(TACTICS, 0)); setPhys(Object.fromEntries(PHYSICAL_NUM.map(f=>[f.key,'']))); setFlexBanco(false); setChar(defScores(CHAR_SCORES, 0)); setSaved({oncourt:false,physical:false,character:false}); setTab('oncourt'); }}
                   className="px-4 py-2 text-[12px] font-semibold uppercase tracking-wide text-white hover:opacity-90"
                   style={{ background: 'var(--accent)' }}>
             Nuevo reporte
@@ -348,19 +337,33 @@ export default function NuevoReporte() {
         {/* Physical */}
         {tab === 'physical' && (
           <div className="space-y-6">
-            {/* Objetivos del plan trimestral — physical */}
-            {['sprint_20m','beep_test','salto_vertical','spider_drill','fms','fuerza_inferior','fuerza_superior'].some(k => planObjectives[k]) && (
+            {/* Objetivos del plan trimestral — physical. Incluye las keys viejas (sprint_20m,
+                beep_test, etc.) porque generate-quarterly-plan todavía no se actualizó al
+                protocolo RAC (T152, 21 Jul 2026) — hay objetivos reales guardados con esos
+                nombres y no deben desaparecer de este preview. */}
+            {[
+              'velocidad_2377m','agilidad_5_lineas_seg','abdominales_30s','salto_vertical_cm',
+              'lanzamiento_balon_mts','flexibilidad_banco_pass','tiempo_1km_seg',
+              'sprint_20m','beep_test','salto_vertical','spider_drill','fms','fuerza_inferior','fuerza_superior',
+            ].some(k => planObjectives[k]) && (
               <div className="px-4 py-3 hairline" style={{ background: 'rgba(var(--accent-rgb, 22 101 52),.04)' }}>
                 <p className="eyebrow !text-[9px] mb-1.5" style={{ color: 'var(--accent)' }}>Objetivos Q · Physical</p>
                 <div className="space-y-1">
                   {[
-                    { key: 'sprint_20m',      label: 'Velocidad' },
-                    { key: 'beep_test',       label: 'Resistencia' },
-                    { key: 'salto_vertical',  label: 'Potencia' },
-                    { key: 'spider_drill',    label: 'Agilidad' },
-                    { key: 'fms',             label: 'Movilidad' },
-                    { key: 'fuerza_inferior', label: 'Fuerza inf.' },
-                    { key: 'fuerza_superior', label: 'Fuerza sup.' },
+                    { key: 'velocidad_2377m',         label: 'Velocidad' },
+                    { key: 'agilidad_5_lineas_seg',   label: 'Agilidad' },
+                    { key: 'abdominales_30s',         label: 'Abdominales' },
+                    { key: 'salto_vertical_cm',       label: 'Salto vertical' },
+                    { key: 'lanzamiento_balon_mts',   label: 'Lanzamiento de balón' },
+                    { key: 'flexibilidad_banco_pass', label: 'Flexibilidad' },
+                    { key: 'tiempo_1km_seg',          label: '1000m' },
+                    { key: 'sprint_20m',      label: 'Velocidad (protocolo anterior)' },
+                    { key: 'beep_test',       label: 'Resistencia (protocolo anterior)' },
+                    { key: 'salto_vertical',  label: 'Potencia (protocolo anterior)' },
+                    { key: 'spider_drill',    label: 'Agilidad (protocolo anterior)' },
+                    { key: 'fms',             label: 'Movilidad (protocolo anterior)' },
+                    { key: 'fuerza_inferior', label: 'Fuerza inf. (protocolo anterior)' },
+                    { key: 'fuerza_superior', label: 'Fuerza sup. (protocolo anterior)' },
                   ].filter(f => planObjectives[f.key]).map(f => (
                     <p key={f.key} className="text-[11px]" style={{ color: 'var(--ink-mute)' }}>
                       <span className="font-semibold" style={{ color: 'var(--ink)' }}>{f.label}:</span>{' '}{planObjectives[f.key]}
@@ -383,21 +386,16 @@ export default function NuevoReporte() {
               </div>
             </div>
             <div>
-              <p className="eyebrow !text-[10px] mb-1 text-[var(--ink-mute)]">FMS simplificado (Pass / Fail)</p>
+              <p className="eyebrow !text-[10px] mb-1 text-[var(--ink-mute)]">Flexibilidad en banco</p>
               <p className="text-[11px] mb-3" style={{ color: 'var(--ink-mute)', lineHeight: 1.5 }}>
-                Marca <b>Pass</b> (✓) si el atleta completa el patrón de movimiento sin compensaciones, restricciones ni dolor.
-                Si hay cualquiera de las tres, es <b>Fail</b> (sin marcar).
+                Marca <b>Pasa</b> (✓) si el atleta mantiene la posición 3 segundos sin hacer jalones.
               </p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {FMS_FIELDS.map(f => (
-                  <label key={f.key} className="flex items-center gap-2 cursor-pointer text-[13px]">
-                    <input type="checkbox" checked={fms[f.key]}
-                           onChange={e => setFms(p => ({ ...p, [f.key]: e.target.checked }))}
-                           className="w-4 h-4 accent-[var(--accent)]" />
-                    {f.label}
-                  </label>
-                ))}
-              </div>
+              <label className="flex items-center gap-2 cursor-pointer text-[13px]">
+                <input type="checkbox" checked={flexBanco}
+                       onChange={e => setFlexBanco(e.target.checked)}
+                       className="w-4 h-4 accent-[var(--accent)]" />
+                Pasa
+              </label>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setTab('oncourt')} className="px-4 py-2 text-[12px] font-semibold uppercase tracking-wide hairline hover:bg-[var(--cream)] transition">← Volver</button>
