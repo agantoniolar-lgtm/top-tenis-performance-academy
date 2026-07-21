@@ -16,7 +16,11 @@
       "Bash(brew list:*)",
       "Bash(git remote:*)",
       "Bash(git push:*)",
-      "WebFetch(domain:top-tenis-performance-academy-4ghy3qz91.vercel.app)"
+      "WebFetch(domain:top-tenis-performance-academy-4ghy3qz91.vercel.app)",
+      "Bash(cd *)",
+      "Bash(node scripts/check-migrations-schema-only.mjs)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(git reset *)"
     ]
   }
 }

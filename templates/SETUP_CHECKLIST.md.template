@@ -2,37 +2,63 @@
 
 This file is the source of truth for whether this project's guardrails are actually in place. The agent re-reads this file rather than relying on conversation memory — especially after a long session, or at the start of any new session, if there's any doubt. Every box must be checked before feature work begins in earnest. For a retrofit of an existing project, this file instead reflects what's currently missing and doubles as the to-do list to close the gap.
 
+## 0. Stack maturity — what applies now, what's deferred
+
+Not every project has every piece of the stack from day one — a project that's "barely getting started" may genuinely have no database, no typed language, no test framework, and no UI yet. That's a legitimate state, not a gap to force-fill during setup. For each optional piece below, mark its actual status:
+
+- Database / backend with persistence: [ ] Not applicable   [ ] Deferred   [ ] Active — which: ___
+- Per-user or per-role access control (RLS or equivalent): [ ] Not applicable   [ ] Deferred   [ ] Active
+- Typed language / strict typing mechanism: [ ] Not applicable   [ ] Deferred   [ ] Active — which: ___
+- Automated test framework: [ ] Not applicable   [ ] Deferred   [ ] Active — which: ___
+- UI: [ ] Not applicable   [ ] Deferred   [ ] Active
+- AI-native (model-call) feature: [ ] Not applicable   [ ] Deferred   [ ] Active
+
+**Not applicable requires the project owner's explicit confirmation that this project will never need the piece — never mark it on inferred judgment alone.** "Deferred" is the default for anything genuinely not built yet, and it's not the same as "missing" — a box under a Deferred section stays unchecked without that being a problem to fix today.
+
+**The trigger, for anything marked Deferred:** the first commit that actually introduces that piece — the first migration, the first typed file, the first test file, the first table with an owner column, the first UI component — is itself a setup event, not just a feature commit. Before that commit lands: flip the status above from Deferred to Active, then satisfy the relevant section below *first*, not retrofitted after the fact once code depending on it already exists. This is `setup` run in miniature, scoped to just that one piece — see `CLAUDE.md` rule 11.
+
 ## 1. Law and rules
 - [ ] `CLAUDE.md` generated and present at repo root
 - [ ] Plan-first rule confirmed in `CLAUDE.md`
 - [ ] Architectural pattern stated (what it is: ___)
 
 ## 2. Git discipline
-- [ ] Branch protection / convention confirmed: one branch per task, named from task ID
-- [ ] Commit template (WHAT/WHY/RISK) confirmed as standing rule
+- [ ] Branch policy confirmed and recorded in `CLAUDE.md` → Git conventions (branch-per-task, or this project's actual direct-to-main convention — which: ___)
+- [ ] Commit message format confirmed and recorded in `CLAUDE.md` → Git conventions (WHAT/WHY/RISK, or this project's actual existing convention — which: ___)
 - [ ] `index.lock` handling procedure present in the `commit` skill
 
 ## 3. Structure locks
-- [ ] {{STRICT_TYPING_MECHANISM}} enabled and verified (e.g. `tsconfig.json` has `"strict": true`, or `mypy`/Pydantic configured)
+- [ ] {{STRICT_TYPING_MECHANISM}} enabled and verified (e.g. `tsconfig.json` has `"strict": true`, or `mypy`/Pydantic configured) — if section 0 marks typed language as Deferred, this box stays unchecked until that trigger fires; it does not apply to a project with no code yet
 - [ ] Lint configured and passing on a clean checkout
-- [ ] {{RLS_OR_EQUIVALENT}} verification skill present, if this project has per-user or per-role data access
+- [ ] `verify-rls` skill present and reflects this project's actual role model, if this project has per-user or per-role data access ({{RLS_OR_EQUIVALENT}}) — see section 0's access-control status; Not applicable or Deferred both leave this unchecked legitimately
 
-## 4. Sandbox
+## 3b. Schema versioning (Supabase projects — prerequisite for section 4, applies once section 0 marks the database as Active)
+- [ ] `supabase/migrations/` folder and `config.toml` exist
+- [ ] Migrations reflect the actual current production schema — **(retrofit only)** if schema was ever built ad hoc (changes applied directly via dashboard/SQL editor, never captured in git — check by comparing the count of applied migrations in the Supabase dashboard against what's in `supabase/migrations/` locally), baseline it now: `supabase init` → `supabase link --project-ref <ref>` → `supabase db pull`. The individual history of prior ad hoc changes is not recoverable — the pulled baseline becomes the new starting point, and that's an acceptable one-time cost.
+- [ ] Confirmed going forward every schema change is a migration file (`supabase migration new <name>`), never SQL run directly against any database by hand
+- [ ] **Do not check any box in section 4 (Sandbox) until this section is fully checked** — a reproducible sandbox requires reproducible migrations; without this, "sandbox" setup degrades into manually eyeballing two databases, which is the fragile process this framework exists to avoid
+
+## 4. Sandbox (applies once section 0 marks the database/backend as Active)
 {{SANDBOX_CHECKLIST_BLOCK}}
 
 ## 4b. Secrets hygiene
-- [ ] `.env.example` copied in, real values filled into `.env.dev` (or `.env.local`), never `.env.example` itself
-- [ ] `.env*` (except `.env.example`) confirmed present in `.gitignore`
+- [ ] `.env.example` copied in, real values filled into `.env.local` (the actual convention this stack's tooling auto-loads and treats as git-ignorable — never invent a name like `.env.dev`), never into `.env.example` itself, and never into a bare `.env` either
+- [ ] `.env*` (except `.env.example`) confirmed present in `.gitignore` — explicitly check both `.env` and `.env.local` are listed, not just one
 - [ ] Confirmed no API key, password, or connection string exists in `CLAUDE.md`, `SETUP_CHECKLIST.md`, `TASKS.md`, or any file under `.claude/skills/`
+- [ ] **(retrofit only, mandatory before anything else in this section counts as done)** Ran a real content-scanning tool across the full git history — `gitleaks git .` (not just a filename grep like `git log -- .env` — a real leak was found once already sitting in a plain `docs/*.md` file, which a filename-based check would never catch, since secrets can hide in *any* tracked file: docs, READMEs, comments, seed scripts, not just conventional env/key files). **If `gitleaks` itself can't be installed in the current execution environment** (e.g. a cloud agent sandbox with restricted network access to GitHub/the Go proxy — confirmed to happen), an equivalent full-content scanner across the same full history (`detect-secrets` plus a manual regex sweep of the complete diff, for example) satisfies this requirement equally — the bar is a real content scan across every commit, not the specific binary. **If anything turns up: the credential must be rotated or disabled at its source immediately.** Untracking the file or editing it out afterward is cleanup, not remediation — it does not undo the exposure. A warning comment written next to a secret ("don't commit this") is not a safeguard and does not count as mitigation. Do not check this box until rotation/disabling is confirmed done, not just scheduled.
+- [ ] `gitleaks` (or equivalent) installed as a pre-commit hook (via Husky or the `pre-commit` framework — `gitleaks protect --staged` on every commit) so a secret is blocked *before* it lands on a branch, not caught later in a periodic scan. This is the first structural fix; the scan above is the one-time catch-up for history that already exists.
+- [ ] `gitleaks-workflow.yml.template` copied to `.github/workflows/gitleaks.yml` — the CI backstop that catches anything the local hook misses (unhooked clone, `--no-verify`, a direct push), visible as a pass/fail check on every PR. Runs on GitHub's own runners, so it's unaffected by any network restriction in whatever environment ran the one-time history scan above. Not a replacement for the pre-commit hook above; both matter, since either one alone can be bypassed.
 
 ## 5. Verification
-- [ ] At least one deterministic test exists and passes
-- [ ] Eval harness present, if this project has any AI-native (model-call) feature: ___
-- [ ] UI walkthrough step confirmed in `verify-ui`, if this project has a UI
+- [ ] At least one deterministic test exists and passes — if section 0 marks the test framework as Deferred (no code to test yet), this stays unchecked legitimately; it becomes due the moment the first test-worthy code is written, per the section 0 trigger
+- [ ] Eval harness present, if this project has any AI-native (model-call) feature: ___ — see section 0's AI-native status
+- [ ] UI walkthrough step confirmed in `verify-ui`, if this project has a UI — see section 0's UI status
 
 ## 6. Task tracking
-- [ ] `TASKS.md` exists and is empty or seeded with current work
+- [ ] `TASKS.md` exists and is empty or seeded with current `in progress`/`in review` work
+- [ ] `BACKLOG.md` exists (holds not-yet-started ideas as one-liners, no size cap)
 - [ ] `TASKS_ARCHIVE.md` exists (can start empty)
+- [ ] `TASKS_ARCHIVE_INDEX.md` exists (can start empty — only gets a row once `TASKS_ARCHIVE.md` first reaches its 50-entry split, at which point the split file lives under a `tasks-archive/` subfolder, not the project root)
 - [ ] `/logs/` directory exists
 - [ ] `STATUS.md` exists with a `maturity:` field set
 
@@ -46,14 +72,14 @@ This file is the source of truth for whether this project's guardrails are actua
 
 ---
 
-**When every box above is checked, setup is done.** Modifying project specifics after this point (adding a new table, a new skill, changing the stack) does not require re-running the full setup interview — just update the relevant section of this checklist and the affected files directly.
+**When every box above is checked (or legitimately unchecked as Not applicable / Deferred per section 0), setup is done.** Modifying project specifics after this point (adding a new table, a new skill, changing the stack) does not require re-running the full setup interview — just update the relevant section of this checklist and the affected files directly. Flipping a section 0 status from Deferred to Active does require satisfying that piece's section before the triggering commit lands (see section 0 and `CLAUDE.md` rule 11).
 
 ## Supabase free-tier sandbox — reference block
 
 Use this exact block in section 4 for any Supabase project on the free tier (branching requires a paid plan):
 
 ```
-- [ ] Sandbox: second Supabase project created (name: ___, URL/keys in .env.dev)
+- [ ] Sandbox: second Supabase project created (name: ___, URL/keys in .env.local)
 - [ ] Sandbox: dev project seeded with fake data
 - [ ] Sandbox: reset script written and tested (path: ___)
 - [ ] Sandbox: prod credentials confirmed absent from dev environment entirely

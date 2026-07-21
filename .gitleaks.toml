@@ -1,0 +1,32 @@
+title = "gitleaks config — Top Tennis Performance Academy"
+
+# Extiende el ruleset default de gitleaks; solo agregamos un allowlist encima.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Hallazgos verificados: ya remediados en el pasado, o secretos públicos por diseño — no re-flaguear en cada scan de CI/pre-commit."
+commits = [
+  # Legacy SUPABASE service_role JWT de producción (ref rrrwhwciggohwxslqlho), commiteada en
+  # .env el 2026-06-24. Rotada y desactivada en el Supabase Dashboard el 2026-07-16 (commit
+  # 9636250) al migrar a las nuevas Default publishable/secret keys. Key legacy inerte, .env
+  # ya fuera de git tracking. Ver SETUP_CHECKLIST.md sección 4b.
+  "7cacbd460f3787ff452809f6aede4ba67ac5d327",
+
+  # Legacy SUPABASE anon JWT de producción (mismo ref), hardcodeada en src/lib/supabase.js
+  # el 2026-06-07. Reemplazada en código por la nueva publishable key (sb_publishable_...) el
+  # 2026-07-16; la key JWT vieja fue desactivada en el mismo evento de rotación de arriba.
+  "bd7632fd44ac6fb756fa3453a8048c6aa8af9210",
+
+  # Publishable key del proyecto Supabase SANDBOX (ref xchdawwajmnnhkncikig, free tier,
+  # $0/mes) en .env.example. Las publishable/anon keys son públicas por diseño — la
+  # protección real es RLS, no el secreto de esta key. Documentado en SETUP_CHECKLIST.md
+  # sección 4 y en el propio .env.example.
+  "6d6879746ee823b89ac65277dd01f6b9451cdb83",
+]
+
+[[allowlists]]
+description = "Publishable key del sandbox — por valor, no por commit, porque aparece en más de un lugar de .env.example (VITE_SUPABASE_ANON_KEY y SUPABASE_PUBLISHABLE_KEY_SANDBOX son la misma key). Pública por diseño, protegida por RLS."
+regexes = [
+  "sb_publishable_A7kK_tXIZ3goBQDIGUku7g_8mGCcf8i",
+]

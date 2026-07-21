@@ -1,0 +1,2 @@
+gitleaks protect --staged --config .gitleaks.toml -v
+node scripts/check-migrations-schema-only.mjs

@@ -1,5 +1,27 @@
 # Tasks archive — {{PROJECT_NAME}}
 
-Completed tasks, moved here from `TASKS.md` to keep the active file small. Same entry format, unchanged — this is a historical record, not a place to edit.
+Completed tasks, moved here the moment a task reaches `done` (by the `commit` skill, not at session close). Same entry format as `TASKS.md`, plus a `done:` date — this is a historical record, not a place to edit.
+
+Always check this file first when looking for a recently completed task — it's the current, most-recent archive. Once it reaches 50 entries, it gets split: moved into `tasks-archive/TASKS_ARCHIVE_{start-date}_{end-date}.md` (covering the `done:` date range of the entries it holds at that point, creating the `tasks-archive/` folder the first time this happens), logged as a row in `TASKS_ARCHIVE_INDEX.md`, and a fresh empty `TASKS_ARCHIVE.md` takes over collecting new completions at the project root. Splits live in their own folder rather than the project root so a project with years of history doesn't end up with a dozen loose dated files cluttering the top-level directory listing. Only dig into `TASKS_ARCHIVE_INDEX.md` — and whichever file under `tasks-archive/` it points to — if what you need isn't in this current file.
+
+## Index (quick scan)
+
+| id | title | category | done |
+|---|---|---|---|
+
+## Full entries
+
+<!--
+### {{task-id}} — {{short title}}
+- category: {{feature | fix | doc | decision | research | bug-bash | review}}
+- status: done
+- created: {{YYYY-MM-DD}}
+- updated: {{YYYY-MM-DD}}
+- done: {{YYYY-MM-DD}}
+- branch: {{ai/{{task-id}}-{{slug}} or "direct-to-main"}}
+
+**Description (what, when, how):**
+- {{YYYY-MM-DD}}: {{what happened}}
+-->
 
 <!-- No archived tasks yet. -->

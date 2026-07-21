@@ -13,6 +13,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -28,3 +30,13 @@ jobs:
 
       - name: Tests
         run: npm test
+
+      - name: Migraciones nuevas deben ser solo-schema (backstop de .husky/pre-commit)
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch origin "${{ github.base_ref }}" --depth=1
+            BASE=$(git merge-base "origin/${{ github.base_ref }}" HEAD)
+          else
+            BASE="${{ github.event.before }}"
+          fi
+          node scripts/check-migrations-schema-only.mjs --diff-against "$BASE"

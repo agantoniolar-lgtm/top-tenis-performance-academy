@@ -1,0 +1,26 @@
+# Backstop de CI para el hook de pre-commit local (.husky/pre-commit) — el hook bloquea un
+# secreto antes de que se comitee; esto atrapa lo que se le escape (clone sin hook, --no-verify,
+# push directo) y se ve como check pass/fail en el PR. Usa el mismo .gitleaks.toml del repo
+# (allowlist de los 2 leaks históricos ya rotados + la publishable key del sandbox).
+#
+# Licencia: gratis, sin key, porque este repo pertenece a una cuenta personal de GitHub
+# (no una Organization) — si eso cambia, sacar licencia gratis en gitleaks.io y guardarla
+# como secret GITLEAKS_LICENSE, o cambiar gitleaks/gitleaks-action@v3 por gacts/gitleaks@v1.
+
+name: gitleaks
+
+on: [push, pull_request]
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+          # Solo necesaria si este repo pasa a pertenecer a una GitHub Organization:
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}

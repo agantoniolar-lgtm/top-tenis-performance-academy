@@ -85,6 +85,15 @@ Coaches usan el portal en cancha; atletas, desde el teléfono. No es un check au
 
 Se hace durante el paso `build` del componente React (ver la secuencia de skills abajo), **antes** de pasar a `verify-tests`+`commit`: cualquier componente React nuevo, o cambio visual no trivial a uno existente, se revisa en viewport móvil (~375px) — layout, botones alcanzables, texto sin desbordar — antes de considerar ese paso terminado. Si el cambio es puramente de lógica/datos sin superficie visual nueva, este paso no aplica.
 
+### 7. Ambiente de pruebas air-tight — la app nunca habla con producción por accidente, y las migraciones nunca mezclan schema con datos
+
+Agregada 2026-07-20 (`T160`), a partir de un gap real encontrado: hasta esa fecha `src/lib/supabase.js` tenía la URL/key de producción hardcodeadas, así que correr `npm run dev` local siempre tocaba datos reales de atletas.
+
+- **Conexión de la app:** `src/lib/supabase.js` lee `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` de `import.meta.env`, sin fallback hardcodeado — si faltan, la app falla fuerte al arrancar en vez de conectarse silenciosamente a algo inesperado. En local, `.env.local` apunta siempre al proyecto **sandbox** (`xchdawwajmnnhkncikig`) por default. Producción (`rrrwhwciggohwxslqlho`) solo se configura como variable de entorno en Vercel — nunca en un archivo del repo.
+- **Migraciones son solo schema (DDL), nunca datos (DML).** Un archivo en `supabase/migrations/` no debe mezclar `ALTER`/`CREATE` con `INSERT`/`UPDATE`/`DELETE`/`TRUNCATE` sobre filas reales — probar una migración así contra el sandbox no garantiza nada, porque el sandbox tiene datos distintos a producción (el mismo archivo puede no tener efecto ahí y sí ser destructivo en prod, o viceversa). Un fix de datos de una sola vez es un script aparte, fuera de `supabase/migrations/`, corrido explícitamente y confirmado por Marco — nunca agregado a una migración versionada que se puede re-aplicar. Se hace cumplir con `scripts/check-migrations-schema-only.mjs`, corrido en `.husky/pre-commit` (bloquea el commit) y como backstop en `.github/workflows/ci.yml` (bloquea el push/PR) — igual que el patrón de `gitleaks` para secretos. Escape hatch documentado: una línea `-- ALLOW-DML: <razón>` en el archivo, para el caso raro y revisado a propósito.
+- **Todo push de una migración a producción se documenta en `supabase/PROD_MIGRATIONS_LOG.md`**, en el momento en que se aplica — no después. Ver ese archivo para el procedimiento completo (aplicar y verificar en sandbox primero, confirmación explícita de Marco, recién entonces producción).
+- Esto es la misma disciplina que ya pedía `verify-rls` (sandbox primero, producción como paso deliberado) — esta regla la hace exigible con herramientas, no solo con la instrucción escrita.
+
 ---
 
 ## Convenciones de Git

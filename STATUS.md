@@ -1,6 +1,8 @@
 # Project status — Top Tennis Performance Academy
 
-maturity: pre-users
+maturity: live-users
+
+<!-- Cambiado de pre-users a live-users el 2026-07-20 (confirmado por Marco): 10 atletas ya se subieron a la plataforma. -->
 
 <!--
 Solo Marco cambia el campo de arriba, y solo cuando el estado real del proyecto cambia.

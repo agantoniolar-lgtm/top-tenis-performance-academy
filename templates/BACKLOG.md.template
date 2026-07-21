@@ -1,0 +1,10 @@
+# Backlog — {{PROJECT_NAME}}
+
+Ideas and not-yet-started work, one line each — no accumulating description, no size cap. This file is meant to hold everything that isn't actively being worked, however large it grows; that's the point of splitting it out from `TASKS.md`.
+
+When a task is actually picked up, the `scope` skill removes its row here and creates the full tracked entry in `TASKS.md`. To add something without starting it, just add a row below — no skill needed for that.
+
+| id | title | category | added | note |
+|---|---|---|---|---|
+
+<!-- No backlog items yet. Add a row above when an idea comes up that isn't being started right now. -->

@@ -1,0 +1,9 @@
+# Tasks archive index — {{PROJECT_NAME}}
+
+One row per split archive file, oldest first, each living under `tasks-archive/` (not the project root, so old splits don't clutter the top-level directory as they accumulate). The current `TASKS_ARCHIVE.md` itself (the most recent, still-collecting file, at the project root) is never listed here — check it first before consulting this index.
+
+| file | start date | end date | entries |
+|---|---|---|---|
+
+<!-- No splits yet. This file stays empty until TASKS_ARCHIVE.md first reaches 50 entries — see the commit skill for the split procedure. Once it does, the first row will look like: | tasks-archive/TASKS_ARCHIVE_2026-01-01_2026-03-15.md | 2026-01-01 | 2026-03-15 | 50 | -->
+

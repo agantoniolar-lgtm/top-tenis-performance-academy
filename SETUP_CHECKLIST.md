@@ -1,10 +1,21 @@
 # Setup checklist — Top Tennis Performance Academy
 
-Retrofit de un proyecto ya corriendo. Este archivo refleja el estado real detectado el 2026-07-16, no un rubber stamp — cada casilla marcada fue verificada (leyendo el repo, git, y Supabase), no asumida.
+Retrofit de un proyecto ya corriendo. Este archivo refleja el estado real detectado el 2026-07-16, y actualizado el 2026-07-20 al sincronizar con una versión más nueva del kit `ae-setup` (sección 0, 3b, y el backstop de gitleaks) — no un rubber stamp, cada casilla marcada fue verificada (leyendo el repo, git, y Supabase), no asumida.
+
+## 0. Stack maturity — qué aplica hoy, qué está diferido
+
+Todas las piezas opcionales del stack ya están construidas y en uso en este proyecto (no es un proyecto recién arrancado) — todo se marca `Active`.
+
+- Base de datos / backend con persistencia: [x] Active — cuál: Supabase (Postgres)
+- Control de acceso por usuario/rol (RLS o equivalente): [x] Active
+- Lenguaje tipado / mecanismo de tipado estricto: [x] Active — cuál: ninguno todavía (JS puro + ESLint; ver sección 3, decisión pendiente sobre JSDoc/PropTypes)
+- Framework de tests automatizados: [x] Active — cuál: Vitest
+- UI: [x] Active
+- Feature AI-nativa (model call): [x] Active — Edge Function `generate-quarterly-plan` (OpenAI)
 
 ## 1. Law and rules
 - [x] `CLAUDE.md` generado y presente en la raíz — es un sistema **propio** con tracking en `TASKS.md` (migrado desde Notion el 2026-07-17). El flujo end-to-end de construcción usa los skills genéricos del kit (`scope`, `design`, `build`, `verify-tests`/`verify-evals`/`verify-ui`, `commit`, `session-log`), cada uno auto-encadenado — no hay un orquestador central. `feature-build-flow` (el skill a medida original) se queda en `.claude/skills/` sin que nada más lo referencie (decisión de Marco, 2026-07-18: dejarlo donde está pero quitar las referencias hacia él, ya que el kit se auto-orquesta sin necesitar un director de flujo aparte). Los skills a medida equivalentes de commit/sesión (`commit-kanban-sync`, `session-open-close`) se consolidaron dentro de los del kit el 2026-07-17 para no mantener dos versiones de lo mismo.
-- [x] Regla de "task antes de trabajar" confirmada — existe, vía kanban de Notion (regla 1 de CLAUDE.md), equivalente al plan-first de este kit.
+- [x] Regla de "task antes de trabajar" confirmada — regla 1 de `CLAUDE.md`, equivalente al plan-first de este kit. Actualizada el 2026-07-17: ya no vive en el kanban de Notion, sino en `TASKS.md` (activos) + `BACKLOG.md` (ideas sin empezar) + `TASKS_ARCHIVE.md`/`tasks-archive/` (terminados). Notion queda solo como respaldo histórico sin actualizarse (export crudo en `notion/`).
 - [x] Patrón arquitectónico declarado: SPA React + Vite, backend Supabase (Postgres + RLS + Edge Functions Deno), scraper Python vía GitHub Actions cron.
 
 ## 2. Git discipline
@@ -15,8 +26,13 @@ Retrofit de un proyecto ya corriendo. Este archivo refleja el estado real detect
 ## 3. Structure locks
 - [ ] Strict typing — **no aplica tal cual**: proyecto es JS puro (sin TypeScript, sin `jsconfig.json`/`tsconfig.json`). El guardrail real hoy es ESLint. Decisión pendiente: ¿adoptar JSDoc/PropTypes o dejarlo como está?
 - [x] Lint configurado y pasando en checkout limpio — `eslint.config.js` presente, corre en CI (`.github/workflows/ci.yml`).
-- [x] Skill de verificación de RLS presente — `schema-rls-verification` ya existe en `.claude/skills/`.
-- [ ] RLS/seguridad activamente verificada — Supabase Advisors reporta 8 warnings abiertos (funciones con `search_path` mutable, bucket público `public-media` permite listing, función `sync_utr_to_athlete` es `SECURITY DEFINER` ejecutable por `anon`/`authenticated`, leaked password protection desactivada). No es bloqueante para cerrar setup, pero queda como backlog de seguridad — candidato a task en el kanban.
+- [x] Skill de verificación de RLS presente — `verify-rls` (genérico del kit) desde 2026-07-18, reemplaza a `schema-rls-verification` (retirado, ver `CLAUDE.md` → Skills retirados).
+- [ ] RLS/seguridad activamente verificada — Supabase Advisors reporta 8 warnings abiertos (funciones con `search_path` mutable, bucket público `public-media` permite listing, función `sync_utr_to_athlete` es `SECURITY DEFINER` ejecutable por `anon`/`authenticated`, leaked password protection desactivada). No es bloqueante para cerrar setup, pero queda como backlog de seguridad — candidato a task en `BACKLOG.md`.
+
+## 3b. Schema versioning (proyectos Supabase — prerequisito de la sección 4)
+- [x] Carpeta `supabase/migrations/` y `config.toml` existen — 55 migraciones.
+- [x] Migraciones reflejan el schema real de producción — reconstruidas y baseline hechas el 2026-07-17 (ver sección 4). Verificado: 21 tablas en ambos proyectos (prod y sandbox), mismos nombres, RLS habilitado.
+- [x] Confirmado que todo cambio de schema desde entonces es un archivo de migración (`supabase migration new <nombre>`), nunca SQL directo a mano — regla escrita en `verify-rls` (sección 2, "Schema and policy changes are migration files, sandbox first") y en `CLAUDE.md` (particularidad del proyecto: `design` + `verify-rls` corren y cierran antes de construir la UI que depende de esos datos).
 
 ## 4. Sandbox
 - [x] **Segundo proyecto Supabase creado** (patrón free-tier, confirmado — la org está en plan free, Preview Branches no disponible). Nombre `top-tennis-performance-academy-sandbox`, ref `xchdawwajmnnhkncikig`, us-east-1, mismo org que producción, costo $0/mes.
@@ -48,7 +64,7 @@ Retrofit de un proyecto ya corriendo. Este archivo refleja el estado real detect
 - [x] **Skills genéricos del kit completados en Cowork (2026-07-18).** `build`, `design`, `verify-tests`, `verify-evals` y `verify-ui` no estaban disponibles como skills de Cowork aunque ya existían en `.claude/skills/` — se empaquetaron con el contenido exacto del repo y se presentaron para instalar vía "Save skill". `feature-build-flow` se deja donde está (project-local, sin registrar en Cowork) pero se removieron las referencias activas hacia él en `CLAUDE.md`, `COWORK_PROJECT_INSTRUCTIONS.md` y `.claude/skills/commit/SKILL.md` — el kit ya se auto-encadena (cada skill indica a quién le entrega después) sin necesitar un orquestador central.
 
 ## 7. Maturity
-- [x] `maturity: pre-users` — confirmado explícitamente por Marco, no inferido del código.
+- [x] `maturity: live-users` — confirmado explícitamente por Marco 2026-07-20 (10 atletas ya se subieron a la plataforma), no inferido del código. Antes `pre-users` desde 2026-07-16. El cambio a `live-users` sube el rigor esperado de sandbox: ver la sección "Ambiente de pruebas — gap encontrado" al final de este archivo, abierta el mismo día por este motivo.
 
 ## 8. Cowork native loading
 - [x] `COWORK_PROJECT_INSTRUCTIONS.md` generado.
@@ -64,7 +80,21 @@ Orden de prioridad real:
 2. ~~Sandbox: proyecto, schema, seed, reset~~ — **resuelto 2026-07-17** (sección 4).
 3. ~~`docs/db-schema.md` con contraseña real expuesta~~ — **resuelto 2026-07-17** (sección 4b).
 4. ~~Pegar `COWORK_PROJECT_INSTRUCTIONS.md` en Cowork~~ — **resuelto** (sección 8).
-5. Decidir si migrar Notion → `TASKS.md` ahora o después (sección 6) — pendiente, a propósito, decisión de Marco.
-6. Backlog no bloqueante, sin fecha: warnings de Supabase Advisors (sección 3), branch-per-task (sección 2), decisión de typing (sección 3).
+5. ~~Migrar Notion → `TASKS.md`~~ — **resuelto 2026-07-17** (sección 6).
+6. ~~Gitleaks: scan de historial completo, hook de pre-commit, backstop de CI~~ — **resuelto 2026-07-20** (sección 4b). Historial escaneado con `gitleaks git .`: 3 hallazgos, los 3 ya conocidos y remediados (service_role/anon JWT legacy de producción, rotadas 2026-07-16; publishable key del sandbox, pública por diseño) — documentados con fingerprint en `.gitleaks.toml`. Hook instalado en `.husky/pre-commit` (probado: bloquea un secreto de prueba). CI en `.github/workflows/gitleaks.yml`.
+7. **Abierto, prioridad alta ahora que `maturity: live-users`** — el ambiente de pruebas real de la app (no solo la DB) no existe todavía: ver "Ambiente de pruebas — gap encontrado" abajo.
+8. Backlog no bloqueante, sin fecha: warnings de Supabase Advisors (sección 3), branch-per-task (sección 2), decisión de typing (sección 3).
 
-**Setup queda cerrado en lo técnico** — lo único abierto son decisiones de Marco (migración de Notion, y si vale la pena el backlog de la sección 6), no trabajo pendiente del asistente.
+**Setup queda cerrado en lo técnico salvo el punto 7** — es el único trabajo real pendiente del asistente; el resto (sección 8) es backlog sin fecha, a discreción de Marco.
+
+## Ambiente de pruebas — gap encontrado (2026-07-20)
+
+Al responder la pregunta de Marco sobre cómo está conectada la plataforma al sandbox, se encontró que **el sandbox de base de datos es real y está bien aislado a nivel DB/CLI, pero la app en sí no tiene manera de apuntar a él**:
+
+- `src/lib/supabase.js` tiene la URL y la publishable key de **producción** (`rrrwhwciggohwxslqlho`) escritas directamente en el código fuente — no las lee de una variable de entorno.
+- `supabase/config.toml` también tiene `project_id = "rrrwhwciggohwxslqlho"` (producción) como el proyecto vinculado por default.
+- `.env.local` hoy solo tiene los invite codes y las variables de service key/db password para scripts — nada que la app use para elegir entre sandbox y producción.
+- Consecuencia concreta: correr `npm run dev` localmente, o hacer un walkthrough de `verify-ui`, **siempre habla contra la base de producción real** — incluyendo los 10 atletas ya subidos. No hay forma de apuntar la app corriendo al sandbox sin editar el código fuente a mano (y arriesgar dejarlo así por error, o comitearlo).
+- Lo que sí funciona bien y no cambia: los cambios de schema/RLS se prueban con migraciones aplicadas primero al proyecto sandbox vía Supabase CLI/MCP (`supabase/migrations/`, seed, reset script) — eso es real, reproducible, y ya lo confirma la sección 3b/4 de este archivo. El gap es específicamente la capa de la app (frontend + cualquier llamada desde ahí), no la capa de schema.
+
+**Propuesta (pendiente de que Marco decida si se hace ahora o se scopea como task aparte):** mover `SUPABASE_URL`/`SUPABASE_ANON` de `src/lib/supabase.js` a variables `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` leídas de `import.meta.env` (mismo patrón que ya usan `VITE_COACH_INVITE_CODE`/`VITE_CONTENT_INVITE_CODE`), con `.env.local` apuntando al sandbox por default para desarrollo local, y las variables de producción configuradas solo en Vercel (deploy real) — nunca en un archivo del repo. Esto es justo el tipo de cambio que la regla de `CLAUDE.md` de "task antes de trabajar" exige scopear primero, dado que toca cómo arranca toda la app; no se implementó todavía como parte de este retrofit de `/setup`.

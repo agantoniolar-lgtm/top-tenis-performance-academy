@@ -1,17 +1,19 @@
 # Tasks — {{PROJECT_NAME}}
 
-Active tasks only. Completed tasks move to `TASKS_ARCHIVE.md`. One entry per task, in the format below. Status values: `backlog`, `in progress`, `in review`, `done`.
+Active work only — status `in progress` or `in review`. This file should stay short by construction: not-yet-started ideas live in `BACKLOG.md` instead, and a task moves out to `TASKS_ARCHIVE.md` the instant it reaches `done` (not at session end). If this file is getting long, either too much is being worked in parallel, or `done` tasks aren't being archived promptly — either way, worth noticing.
+
+One entry per task, in the format below. Status values in this file: `backlog` (transiently, right when `scope` creates the entry, before the blueprint is approved), `in progress`, `in review`.
 
 <!--
 ### {{task-id}} — {{short title}}
 - category: {{feature | fix | doc | decision | research | bug-bash | review}}
-- status: {{backlog | in progress | in review | done}}
+- status: {{backlog | in progress | in review}}
 - created: {{YYYY-MM-DD}}
 - updated: {{YYYY-MM-DD}}
-- branch: {{ai/{{task-id}}-{{slug}} or none yet}}
+- branch: {{ai/{{task-id}}-{{slug}} or none yet, or "direct-to-main" if this project doesn't branch per task}}
 
 **Description (accumulates as work happens — what, when, how):**
 - {{YYYY-MM-DD}}: {{what happened}}
 -->
 
-<!-- No active tasks yet. Copy the block above to add the first one. -->
+<!-- No active tasks right now. New work starts as a one-liner in BACKLOG.md, then the scope skill promotes it to a full entry here once work actually begins. -->
