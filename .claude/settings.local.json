@@ -29,7 +29,8 @@
       "Bash(npm test *)",
       "Bash(git commit -m 'fix: pinnear gitleaks-action a v8.30.1 \\(default hardcodeado 8.24.3 no aplica allowlists globales\\) *)",
       "Bash(git restore *)",
-      "Bash(git commit -m 'chore: cerrar T160 — ambiente de pruebas air-tight confirmado en vivo *)"
+      "Bash(git commit -m 'chore: cerrar T160 — ambiente de pruebas air-tight confirmado en vivo *)",
+      "Bash(git commit -m 'chore: cerrar sesión 2026-07-20 — log de progreso + STATUS.md *)"
     ]
   }
 }
