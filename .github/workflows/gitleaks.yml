@@ -22,5 +22,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_CONFIG: .gitleaks.toml
+          # El default de gitleaks-action@v3 si no se fija esto es 8.24.3 hardcodeado (no la
+          # última versión real) — esa versión tiene un bug donde un [[allowlists]] global no
+          # suprime hallazgos de reglas heredadas vía `extend.useDefault = true` (confirmado
+          # 2026-07-20: la publishable key del sandbox, ya allowlisteada, se seguía marcando).
+          # Arreglado en 8.30.1, que es lo que corre localmente vía brew — pinneado acá para
+          # que CI y el hook de pre-commit se comporten igual. Verificar antes de subir esta
+          # versión si algún día se actualiza.
+          GITLEAKS_VERSION: 8.30.1
           # Solo necesaria si este repo pasa a pertenecer a una GitHub Organization:
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
