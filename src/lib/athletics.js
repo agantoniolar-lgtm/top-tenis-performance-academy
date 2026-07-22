@@ -249,6 +249,83 @@ export function winLossRecord(rows) {
 }
 
 /**
+ * Días transcurridos entre dos fechas ISO (YYYY-MM-DD). Positivo si `today` es posterior a `dateISO`.
+ * @param {string} dateISO
+ * @param {string} todayISO
+ * @returns {number}
+ */
+export function daysSince(dateISO, todayISO) {
+  const a = new Date(dateISO + 'T00:00:00');
+  const b = new Date(todayISO + 'T00:00:00');
+  return Math.round((b - a) / 86400000);
+}
+
+/**
+ * Días de gracia antes de considerar "pendiente" un PTF sin llenar (T161 Parte 2, digest por
+ * email) — le da tiempo al atleta de llenarlo solo tras el torneo antes de generar ruido.
+ * Los flags en-app (Equipo.jsx/AlumnoDetalle.jsx, Parte 1) NO usan gracia — muestran el estado
+ * real ahora mismo, igual que el badge "Reclutamiento pendiente" ya existente.
+ */
+export const PTF_GRACE_DAYS = 3;
+/** Días de gracia post-alta antes de incluir reclutamiento/papás/baseline físico en el digest (T161 Parte 2). */
+export const ONBOARDING_GRACE_DAYS = 5;
+
+/**
+ * ¿Tiene el atleta al menos un torneo con PTF sin llenar? Un torneo cuenta si ya pasó su
+ * `fecha` (+ `graceDays` opcional) y no tiene un PTF ligado (`post_tournament_forms.athlete_tournament_id`).
+ * Sin `graceDays` (default 0) refleja el estado real ahora — usado por los flags en-app (T161 Parte 1).
+ * Con `graceDays=PTF_GRACE_DAYS` es la regla que usará el digest semanal (T161 Parte 2).
+ * @param {{fecha: string|null, hasForm: boolean}[]|null} tournaments
+ * @param {string} today ISO date (YYYY-MM-DD)
+ * @param {number} [graceDays]
+ * @returns {boolean}
+ */
+export function hasPendingPTF(tournaments, today, graceDays = 0) {
+  return (tournaments ?? []).some(t => {
+    if (!t?.fecha || t.hasForm) return false;
+    return daysSince(t.fecha, today) >= graceDays;
+  });
+}
+
+/**
+ * Gaps de onboarding pendientes de un atleta — usado por los flags del coach (`Equipo.jsx`,
+ * `AlumnoDetalle.jsx`, T161 Parte 1) y por el propio dashboard del atleta (`Inicio.jsx`), para no
+ * duplicar la misma lógica de "¿está completo esto?" en dos lugares. No aplica períodos de gracia
+ * (eso es del digest semanal, T161 Parte 2, vía `hasPendingPTF`/`ONBOARDING_GRACE_DAYS`) — cada gap
+ * acá refleja el estado real en este momento. El orden de salida ya es el de prioridad (más urgente
+ * primero): perfil → PTF → baseline físico → papás/tutor → reclutamiento.
+ * @param {object} params
+ * @param {{altura_cm?: number, peso_kg?: number, escuela?: string, fecha_nacimiento?: string|null, nombre_padre?: string, telefono_padre?: string, email_padre?: string}|null} params.athlete
+ * @param {{division_objetivo?: string, grad_year?: string, english_level?: string}|null} [params.recruitment]
+ * @param {boolean} [params.pendingPTF] — true si tiene ≥1 torneo con PTF sin llenar (ver `hasPendingPTF`)
+ * @param {boolean} [params.hasPhysicalBaseline] — true si ya tiene al menos un `report_physical` con `completed_at`
+ * @returns {{key: string, label: string}[]}
+ */
+export function onboardingGaps({ athlete, recruitment = null, pendingPTF = false, hasPhysicalBaseline = true } = {}) {
+  const gaps = [];
+  const edad = calcEdad(athlete?.fecha_nacimiento);
+
+  const profileComplete = !!(athlete?.altura_cm && athlete?.peso_kg && athlete?.escuela);
+  if (!profileComplete) gaps.push({ key: 'perfil', label: 'Perfil incompleto' });
+
+  if (pendingPTF) gaps.push({ key: 'ptf', label: 'PTF pendiente' });
+
+  if (!hasPhysicalBaseline) gaps.push({ key: 'baseline_fisico', label: 'Baseline físico pendiente' });
+
+  const esMenor = edad !== null && edad < 18;
+  const tutorComplete = !!(athlete?.nombre_padre || athlete?.telefono_padre || athlete?.email_padre);
+  if (esMenor && !tutorComplete) gaps.push({ key: 'papas', label: 'Papás/tutor pendiente' });
+
+  const showAdvancedRec = edad == null || edad >= 17;
+  const recruitmentApplies  = isRecruitmentRelevant(athlete?.fecha_nacimiento);
+  const recruitmentComplete = !!(recruitment?.division_objetivo && recruitment?.grad_year &&
+    (!showAdvancedRec || recruitment?.english_level));
+  if (recruitmentApplies && !recruitmentComplete) gaps.push({ key: 'reclutamiento', label: 'Reclutamiento pendiente' });
+
+  return gaps;
+}
+
+/**
  * Inicio del periodo siguiente a partir del `period_end` de un plan — el día después. Usado al
  * confirmar el cierre de un plan para prellenar el atleta+periodo del plan siguiente
  * (docs/scope-close-quarterly-plan.md §13, "post-cierre").

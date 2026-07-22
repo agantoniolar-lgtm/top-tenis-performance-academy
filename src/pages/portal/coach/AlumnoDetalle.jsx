@@ -9,6 +9,7 @@ import {
   TACTIC_LABELS,
   TACTIC_DESCS,
   OC_LABEL,
+  onboardingGaps, hasPendingPTF,
 } from '../../../lib/athletics.js';
 
 const OC_ALL_KEYS = [...OC_STROKE_KEYS, ...OC_TACTIC_KEYS];
@@ -31,6 +32,9 @@ export default function AlumnoDetalle() {
   const [avMap,   setAvMap] = useState({});
   const [record,  setRec]   = useState({ w: 0, l: 0, total: 0 });
   const [amtp,    setAmtp]  = useState([]);   // últimos 2 períodos, desc
+  const [recruitment,          setRecruitment]          = useState(null);
+  const [pendingPTF,           setPendingPTF]           = useState(false);
+  const [hasPhysicalBaseline,  setHasPhysicalBaseline]  = useState(true);
   const [loading, setLoad]  = useState(true);
   const [error,   setErr]   = useState(null);
 
@@ -42,22 +46,41 @@ export default function AlumnoDetalle() {
       // 1. Athlete
       const { data: ath, error: e1 } = await supabase
         .from('athletes')
-        .select('id, nombre, apellido, segundo_apellido, fecha_nacimiento, mano_dominante, tipo_reves, altura_cm, peso_kg, email, telefono, nombre_padre, telefono_padre, escuela, grado_escolar, fecha_ingreso, utr_actual, activo, coach_id')
+        .select('id, nombre, apellido, segundo_apellido, fecha_nacimiento, mano_dominante, tipo_reves, altura_cm, peso_kg, email, telefono, nombre_padre, telefono_padre, email_padre, escuela, grado_escolar, fecha_ingreso, utr_actual, activo, coach_id')
         .eq('id', id).single();
       if (e1) { setErr(e1.message); setLoad(false); return; }
 
-      // 2. Reports (last 6) + record de torneos + AMTP últimos 2 períodos
-      const [{ data: reps, error: e2 }, { data: tourns }, { data: amtpData }] = await Promise.all([
+      // 2. Reports (last 6) + record de torneos (con fecha/PTF, T161) + AMTP últimos 2 períodos
+      //    + perfil de reclutamiento + todos los report ids (para saber si ya hay baseline físico, T166)
+      const [{ data: reps, error: e2 }, { data: tourns }, { data: amtpData }, { data: rec }, { data: allReps }] = await Promise.all([
         supabase.from('reports').select('id, period, created_at')
           .eq('athlete_id', id).order('period', { ascending: false }).limit(6),
-        supabase.from('athlete_tournaments').select('victoria, partidos_jugados').eq('athlete_id', id),
+        supabase.from('athlete_tournaments')
+          .select('victoria, partidos_jugados, tournaments(fecha), post_tournament_forms(id)').eq('athlete_id', id),
         supabase.from('amtp_rankings').select('posicion, puntos, periodo')
           .eq('athlete_id', id).order('periodo', { ascending: false }).limit(2),
+        supabase.from('athlete_recruitment_profile')
+          .select('division_objetivo, grad_year, english_level').eq('athlete_id', id).maybeSingle(),
+        supabase.from('reports').select('id').eq('athlete_id', id),
       ]);
       if (e2) { setErr(e2.message); setLoad(false); return; }
-      if (!cancelled) setRec(winLossRecord(tourns));
+      if (!cancelled) {
+        setRec(winLossRecord(tourns));
+        setRecruitment(rec ?? null);
+        setPendingPTF(hasPendingPTF(
+          (tourns ?? []).map(t => ({ fecha: t.tournaments?.fecha ?? null, hasForm: (t.post_tournament_forms?.length ?? 0) > 0 })),
+          new Date().toISOString().slice(0, 10),
+        ));
+      }
 
       const repIds = (reps ?? []).map(r => r.id);
+      const allRepIds = (allReps ?? []).map(r => r.id);
+
+      // Baseline físico (T166): sobre TODO el historial, no solo los últimos 6 reportes mostrados.
+      const { data: physBaseline } = allRepIds.length > 0
+        ? await supabase.from('report_physical').select('report_id').in('report_id', allRepIds).not('completed_at', 'is', null).limit(1)
+        : { data: [] };
+      if (!cancelled) setHasPhysicalBaseline((physBaseline ?? []).length > 0);
 
       if (repIds.length === 0) {
         if (!cancelled) { setAth(ath); setRep([]); setAmtp(amtpData ?? []); setLoad(false); }
@@ -125,6 +148,8 @@ export default function AlumnoDetalle() {
   const amtpPrev    = amtp[1] ?? null;
   const amtpDeltaPos = amtpCur && amtpPrev ? amtpPrev.posicion - amtpCur.posicion : null;
 
+  const gaps = onboardingGaps({ athlete, recruitment, pendingPTF, hasPhysicalBaseline });
+
   return (
     <Shell>
       {/* Header */}
@@ -185,6 +210,20 @@ export default function AlumnoDetalle() {
           </button>
         </div>
       </div>
+
+      {/* Onboarding pendiente (T161) — desglose completo, sin cap (a diferencia de Equipo.jsx) */}
+      {gaps.length > 0 && (
+        <div className="hairline p-4 mb-6 flex flex-wrap gap-2" style={{ background: '#FFF6D6' }}>
+          <span className="text-[11px] font-semibold shrink-0" style={{ color: '#8A6D00' }}>
+            Onboarding pendiente:
+          </span>
+          {gaps.map(g => (
+            <span key={g.key} className="tag text-[9px]" style={{ background: '#FFF0B3', color: '#8A6D00' }}>
+              {g.label}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Headline metrics */}
       <div className="grid grid-cols-2 md:grid-cols-6 gap-px hairline bg-[var(--line)] mb-6">

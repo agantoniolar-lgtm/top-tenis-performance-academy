@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
-import { calcCat, calcEdad, isRecruitmentRelevant, fmtPeriodLong } from '../../../lib/athletics.js';
+import { calcCat, calcEdad, fmtPeriodLong, onboardingGaps } from '../../../lib/athletics.js';
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -134,21 +134,15 @@ export default function AtletaInicio() {
 
   if (loading) return <Shell><p style={{ color: 'var(--ink-mute)', fontSize: 13 }}>Cargando…</p></Shell>;
 
-  const profileComplete    = !!(athlete?.altura_cm && athlete?.peso_kg && athlete?.escuela);
   const edad = calcEdad(athlete?.fecha_nacimiento);
-  const showAdvancedRec = edad == null || edad >= 17;
-  // El reclutamiento solo aplica para atletas de cierta edad (16U/18U) y nunca
-  // bloquea el acceso al dashboard — se muestra como aviso, no como gate.
-  const recruitmentApplies  = isRecruitmentRelevant(athlete?.fecha_nacimiento);
-  const recruitmentComplete = !!(recruitment?.division_objetivo && recruitment?.grad_year &&
-    (!showAdvancedRec || recruitment?.english_level));
-  const recruitmentPending  = recruitmentApplies && !recruitmentComplete;
-
-  // Padre/tutor: solo aplica a menores de edad. Se muestra después de resolver
-  // reclutamiento (o si reclutamiento no aplica) — no se amontonan los avisos.
-  const esMenor      = edad !== null && edad < 18;
-  const tutorComplete = !!(athlete?.nombre_padre || athlete?.telefono_padre || athlete?.email_padre);
-  const tutorPending  = esMenor && !tutorComplete && !recruitmentPending;
+  // Misma lógica de "¿está completo esto?" que usan los flags del coach en Equipo.jsx/
+  // AlumnoDetalle.jsx (T161) — un solo lugar para no duplicarla en dos vistas.
+  const gaps = onboardingGaps({ athlete, recruitment });
+  const profileComplete    = !gaps.some(g => g.key === 'perfil');
+  // El reclutamiento nunca bloquea el acceso al dashboard — se muestra como aviso, no como gate.
+  const recruitmentPending = gaps.some(g => g.key === 'reclutamiento');
+  // Padre/tutor: se muestra después de resolver reclutamiento (o si no aplica) — no se amontonan los avisos.
+  const tutorPending = gaps.some(g => g.key === 'papas') && !recruitmentPending;
 
   const cat  = calcCat(athlete?.fecha_nacimiento);
 

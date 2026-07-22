@@ -8,6 +8,7 @@ Completed tasks, moved here the moment a task reaches `done` (by the `commit` sk
 
 | id | title | category | created |
 |---|---|---|---|
+| T168-fix-rls-report-physical-cross-coach | Fix: RLS de report_physical no permite lectura cross-coach (gap heredado de T140) | Dev | 2026-07-22 |
 | T160-ambiente-pruebas-app-y-migraciones-schema-only | Ambiente de pruebas air-tight: app apunta a sandbox por default, migraciones solo-schema, log de pushes a prod | Dev | 2026-07-20 |
 | T093-cds-bloque6-highlights-por-atleta | CDS — Bloque 6: Highlights por atleta (fotos + videos) | Dev | 2026-06-23 |
 | T094-vista-equipo-summary-view | feat: vista Equipo — summary view multi-atleta para coaches | Dev | 2026-06-24 |
@@ -493,6 +494,30 @@ CONSTRUIDO en 4 rebanadas (14-15 Jul 2026, commits ed706c6/7c92db6/869d7a6/4a36e
 - 2026-07-20: Abierto a partir de una pregunta de Marco sobre cómo está conectada la plataforma al sandbox. Encontrado: `src/lib/supabase.js` tenía la URL/key de **producción** hardcodeadas — correr `npm run dev` local, o cualquier `verify-ui` walkthrough, siempre hablaba contra producción real (10 atletas ya subidos). Además, se confirmó que varias migraciones históricas mezclan DDL con DML de datos reales hardcodeados (`.../20260608213016_reassign_all_remove_marco_reyes.sql`, `.../20260630185839_add_coach_profile_fields.sql`, `.../20260715233355_split_outcome_state_and_carryover.sql`, entre otras) — riesgo concreto: una migración probada contra sandbox (con datos distintos a prod) puede comportarse distinto/destructivamente al aplicarse a prod si mezcla schema y datos.
 - 2026-07-20: Construido. (a) `src/lib/supabase.js` lee `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` de `import.meta.env`, sin fallback hardcodeado — falla fuerte si faltan. `.env.local` apunta al sandbox (`xchdawwajmnnhkncikig`) por default; verificado con `npm run build` que el bundle solo contiene la ref del sandbox. (b) `scripts/check-migrations-schema-only.mjs` — bloquea DML top-level en migraciones nuevas (filtra correctamente DML dentro de cuerpos de función/trigger y sintaxis `CREATE POLICY ... FOR UPDATE/INSERT/...`, escape hatch `-- ALLOW-DML: <razón>`); `--staged` en `.husky/pre-commit`, `--diff-against <ref>` como backstop en `.github/workflows/ci.yml`. (c) `supabase/PROD_MIGRATIONS_LOG.md` creado. Regla documentada en `CLAUDE.md` (regla 7) y referencia rota corregida en `verify-rls/SKILL.md`. `.env.example` actualizado. gitleaks: escaneado el historial completo (3 hallazgos, los 3 ya remediados, documentados en `.gitleaks.toml`), hook de pre-commit + backstop en `.github/workflows/gitleaks.yml`.
 - 2026-07-20: Push a producción (`ba2a013..f02d338`). Primer push reveló que `gitleaks-action@v3` usa 8.24.3 por default (hardcodeado, no "latest") — esa versión tiene un bug real donde un `[[allowlists]]` global no suprime hallazgos de reglas heredadas vía `extend.useDefault = true`, lo que hizo fallar el check de CI marcando la publishable key del sandbox pese a estar allowlisteada. Reproducido localmente contra el binario 8.24.3 real, confirmado arreglado en 8.30.1. Fix: `GITLEAKS_VERSION: 8.30.1` pinneado en el workflow (`9d6d456`). Ambos checks de CI (`CI` y `gitleaks`) verdes tras el fix. Marco agregó las env vars de producción en Vercel y confirmó que el sitio en vivo carga correctamente. Cerrado.
+
+### T168-fix-rls-report-physical-cross-coach — Fix: RLS de report_physical no permite lectura cross-coach (gap heredado de T140)
+- category: Dev
+- type: Bug
+- epic: Infra / seguridad
+- priority: High
+- status: done
+- created: 2026-07-22
+- done: 2026-07-22
+- branch: direct-to-main
+
+**Notas:**
+- 2026-07-22: Encontrado haciendo `verify-ui` de T161 Parte 1 (flags de onboarding) — la card de Santiago Herrera mostraba "Baseline físico pendiente" en `Equipo.jsx` pese a tener 2 pruebas físicas completadas (confirmado por SQL directo). Causa raíz: `report_physical` nunca recibió la policy `coaches_select_all_*` (lectura abierta a cualquier coach autenticado) que sí se agregó a `report_on_court`, `report_character` y `report_athlete_voice` cuando T140 abrió la visibilidad "cualquier coach ve a cualquier atleta" — quedó con la policy vieja `coaches_all_physical`, que solo permite ver reportes que el propio coach abrió (`reports.coach_id`). `docs/db-schema.md` dice "Lee de cualquiera" para esta tabla, pero eso es incorrecto desde T140 — no se había notado porque nada leía `report_physical` cross-coach hasta este task.
+  - Confirmado en sandbox (`xchdawwajmnnhkncikig`): logueado como `tlaca@toptenis.mx` (coach), Santiago (reportes abiertos por el coach "Jesús") no muestra sus 2 `report_physical.completed_at` — via service role sí se ven, via la sesión del coach (RLS real) no.
+  - Fix: agregar la policy faltante, mismo patrón exacto ya usado 3 veces:
+    ```sql
+    CREATE POLICY "coaches_select_all_physical"
+      ON public.report_physical FOR SELECT
+      USING (EXISTS (SELECT 1 FROM coaches WHERE coaches.user_id = auth.uid()));
+    ```
+  - Solo agrega una policy `SELECT` nueva — no toca `coaches_all_physical` (que sigue gobernando INSERT/UPDATE/DELETE, sin cambios) ni la policy de atletas. Puramente aditivo, sin riesgo de exponer nada que las otras 3 tablas hermanas ya no expongan.
+  - Migración `supabase/migrations/20260722214102_coaches_select_all_physical.sql` — pasa `check-migrations-schema-only.mjs`. Aplicada a sandbox (`xchdawwajmnnhkncikig`) vía MCP. Verificación estructural: la policy nueva quedó idéntica en forma a `coaches_select_all_on_court`/`_character`/`_voice`; `coaches_all_physical` y `athletes_select_completed_physical` sin cambios.
+  - **Verificación activa por rol**: logueado en sandbox como coach `tlaca@toptenis.mx` (password reseteada temporalmente vía SQL para esta verificación, ver nota en T161), la card de Santiago Herrera pasó de mostrar "Baseline físico pendiente" (incorrecto) a no mostrarlo tras el fix — confirmado con screenshots antes/después. Fernanda y Camila (mismo caso) mostraron el mismo comportamiento correcto post-fix.
+  - Marco confirmó aplicar a producción (`rrrwhwciggohwxslqlho`) — aplicada y verificada estructuralmente. Registrada en `supabase/PROD_MIGRATIONS_LOG.md`.
 
 ---
 
