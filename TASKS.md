@@ -18,17 +18,3 @@ Active work only — status `in progress` or `in review`. Not-yet-started ideas 
 
 ## In Progress
 
-### T171-verificar-envio-real-digest-onboarding — Verificar envío real del digest de onboarding (T161 Parte 2)
-- category: Dev
-- type: Chore
-- epic: Phase 1 — Core Features
-- priority: Medium
-- status: in progress
-- created: 2026-07-22
-- branch: direct-to-main
-
-**Notas:**
-- 2026-07-22: T161 (flags en-app) ya confirmado y archivado por Marco. Queda pendiente el último paso de la Parte 2 (digest): nunca se probó un envío real por Resend (solo dry-run contra sandbox). Marco pidió mandar un envío de prueba real a `mdamian.aguilar@gmail.com` en vez de a todos los coaches.
-  - Agregado `DIGEST_TEST_TO` (env var) a `scripts/onboarding_digest.mjs` — si está seteada, el digest se manda solo a esa dirección en vez de a todos los coaches. Nuevo input `test_to` en `.github/workflows/onboarding-digest-cron.yml` (`workflow_dispatch`), pasado como `DIGEST_TEST_TO`. `.env.example` documentado.
-  - Se dispara vía GitHub Actions (no tengo `RESEND_API_KEY` en local) con `test_to=mdamian.aguilar@gmail.com`, `dry_run=false` — un envío real, a un solo destinatario, con permiso explícito de Marco.
-
