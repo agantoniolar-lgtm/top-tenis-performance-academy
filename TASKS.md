@@ -72,14 +72,3 @@ Active work only — status `in progress` or `in review`. Not-yet-started ideas 
   - De paso, se confirmó que el check "Supabase Preview" (`Remote migration versions not found in local migrations directory`) ya fallaba desde el commit `6e0481c` (21 Jul) — preexistente, no relacionado a este incidente, no bloquea el deploy de Vercel (es un check independiente). Sin task todavía — candidato para BACKLOG.md si Marco quiere investigarlo.
   - Falta: que Marco haga `git push` de este fix.
 
-### T167-actualizar-generate-quarterly-plan-taxonomia-rac — Actualizar generate-quarterly-plan a la taxonomía RAC de physical (deuda técnica post-T152)
-- category: Dev
-- type: Feature
-- epic: Phase 2 — Analytics
-- priority: Medium
-- status: in progress
-- created: 2026-07-22
-- branch: direct-to-main
-
-**Notas:**
-- 2026-07-22: Creado a partir de la deuda técnica identificada durante `build` de T152 (2026-07-21, ya `done`): `supabase/functions/generate-quarterly-plan/index.ts` sigue generando objetivos de `dimension='physical'` con el esquema viejo de sub-dimensiones (`sprint_20m`, `beep_test`, `fuerza_inferior`, etc.), no con el protocolo real de 7 pruebas RAC migrado en T152. Como parche temporal, `MiPlan.jsx`/`PlanesCoach.jsx`/`NuevoReporte.jsx` hoy soportan ambos esquemas de labels en paralelo. Objetivo: que la Edge Function genere objetivos cuantitativos de `physical` usando las keys reales (`velocidad_2377m`, `agilidad_5_lineas_seg`, `abdominales_30s`, `salto_vertical_cm`, `lanzamiento_balon_mts`, `flexibilidad_banco_pass`, `tiempo_1km_seg`). Nota: esto toca el output de un modelo LLM (`SUB_DIMENSIONS.physical` es parte del prompt) — al llegar a `verify-evals`, la convención Tier B todavía no está definida en este proyecto (ver T150); no inventarla en silencio, parar y scopear con Marco. Arranca `scope`.

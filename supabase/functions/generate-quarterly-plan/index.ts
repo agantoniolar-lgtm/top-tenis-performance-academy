@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-const PROMPT_VERSION = 'pm-v4.0-2026-07-09';
+const PROMPT_VERSION = 'pm-v4.1-2026-07-22';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -26,14 +26,17 @@ const SUB_DIMENSIONS = {
     { key: 'adaptacion_tactica',    label: 'Adaptación táctica' },
     { key: 'transferencia_partido', label: 'Transferencia al partido' },
   ],
+  // Protocolo RAC de 7 pruebas físicas (T152, 2026-07-21) — keys idénticas a las columnas
+  // reales de report_physical, porque physicalTestScore/monthlyScoresForFoco (athletics.js)
+  // leen report_physical[sub_dimension] directo para calcular el score -2..+2.
   physical: [
-    { key: 'sprint_20m',      label: 'Velocidad / Sprint 20m' },
-    { key: 'beep_test',       label: 'Resistencia aeróbica / Beep test' },
-    { key: 'salto_vertical',  label: 'Potencia de piernas / Salto vertical' },
-    { key: 'spider_drill',    label: 'Agilidad / Spider drill' },
-    { key: 'fms',             label: 'Movilidad y control postural / FMS' },
-    { key: 'fuerza_inferior', label: 'Fuerza tren inferior / Sentadillas' },
-    { key: 'fuerza_superior', label: 'Fuerza tren superior / Lagartijas' },
+    { key: 'velocidad_2377m',       label: 'Velocidad (23.77m)' },
+    { key: 'agilidad_5_lineas_seg', label: 'Agilidad (5 líneas)' },
+    { key: 'abdominales_30s',       label: 'Resistencia abdominal (30s)' },
+    { key: 'salto_vertical_cm',     label: 'Potencia de piernas / Salto vertical' },
+    { key: 'lanzamiento_balon_mts', label: 'Potencia de tren superior / Lanzamiento de balón (3kg)' },
+    { key: 'flexibilidad_banco_pass', label: 'Flexibilidad en banco' },
+    { key: 'tiempo_1km_seg',        label: 'Resistencia aeróbica (1km)' },
   ],
   character: [
     { key: 'etica_trabajo', label: 'Ética de trabajo' },
@@ -66,13 +69,13 @@ ADVERTENCIA — el error más común: identificar bien la sub-dimensión NO es l
 EJEMPLOS DE CALIBRACIÓN — estas frases son SOLO JUICIO (observacion_suficiente: false), aunque nombren la sub-dimensión con claridad:
 - "Su volea es muy floja." → sub_dimension "volea": false. No dice QUÉ hace floja la volea (¿le falta swing? ¿llega tarde? ¿le pega plano?) — "floja" es una etiqueta de resultado, no un mecanismo.
 - "La devolución también necesita mejorar bastante." → sub_dimension "devolucion": false. "Necesita mejorar" no describe ninguna conducta; podría ser cualquier cosa.
-- "Físicamente le falta fuerza en las piernas, se le nota." → sub_dimension "fuerza_inferior": false. "Se le nota" es una conclusión, no una descripción de qué se observó (¿en qué gesto? ¿en qué momento del partido?).
+- "Físicamente le falta velocidad, se le nota." → sub_dimension "velocidad_2377m": false. "Se le nota" es una conclusión, no una descripción de qué se observó (¿en qué gesto? ¿en qué momento del partido?).
 - "El manejo de riesgo en general no está bien, a veces se pasa de arriesgado y a veces juega muy conservador, le falta consistencia ahí." → sub_dimension "manejo_riesgo": false. Nombra el patrón (oscila entre extremos) pero no dice EN QUÉ SITUACIÓN pasa cada cosa — sin ese contexto es una etiqueta de inconsistencia, no una conducta ubicable. OJO: esta categoría (manejo_riesgo, y en general las de táctica sobre "criterio" o "decisiones") es donde más se confunde patrón general con mecanismo — exige la misma vara que a técnica o físico.
 - "En liderazgo le falta ser más líder con el grupo, ahorita es bastante callado." → sub_dimension "liderazgo": false. "Es callado" es un rasgo/etiqueta de personalidad, no una conducta observable con una condición asociada. OJO: las sub-dimensiones de character (etica_trabajo, coachabilidad, liderazgo) son donde el modelo con más frecuencia acepta un juicio de personalidad como si fuera suficiente — aplica la misma exigencia de mecanismo + condición que en técnica.
 CONTRASTE — estas SÍ tienen mecanismo (observacion_suficiente: true):
 - "Se le abre demasiado la preparación y termina golpeando con el brazo suelto, sin transferencia de peso, cuando la pelota le llega con mucha altura." → sub_dimension "forehand": true. Describe el QUÉ (se abre la preparación, brazo suelto, sin transferencia de peso) y el CUÁNDO (pelota con altura).
 - "En puntos clave, en vez de jugar su patrón normal, se pone conservadora justo cuando más necesita ejecutar, y termina regalando el punto con un error no forzado por jugar demasiado seguro." → sub_dimension "puntos_clave": true. Describe el QUÉ (se pone conservadora, no juega su patrón, error no forzado por exceso de seguridad) y el CUÁNDO (puntos clave).
-- "Aguanta bien los primeros dos sets pero para el tercero baja el ritmo de piernas y empieza a llegar tarde a bolas que en el primer set sí llegaba." → sub_dimension "beep_test": true. Describe el QUÉ (baja el ritmo de piernas, llega tarde a bolas) y el CUÁNDO (a partir del tercer set, en contraste con el primero).
+- "Aguanta bien los primeros dos sets pero para el tercero baja el ritmo de piernas y empieza a llegar tarde a bolas que en el primer set sí llegaba." → sub_dimension "tiempo_1km_seg": true. Describe el QUÉ (baja el ritmo de piernas, llega tarde a bolas) y el CUÁNDO (a partir del tercer set, en contraste con el primero).
 - "Le doy una corrección puntual en la sesión, la aplica ese mismo día, pero a la sesión siguiente regresa al patrón viejo." → sub_dimension "coachabilidad": true. Describe el QUÉ (aplica la corrección y luego regresa al patrón viejo) y el CUÁNDO (se sostiene el día de la sesión pero no en la siguiente).
 
 CONVENCIÓN DE TONO (ESTRICTA — PROHIBICIÓN ABSOLUTA DE NOMBRE PROPIO): el "read_corto" NUNCA contiene el nombre del atleta, en ninguna posición de la oración, bajo ninguna circunstancia. Ni siquiera cuando el dump del coach usa el nombre como sujeto ("Fulano no tiene término medio", "Fulano se pone mal"). Esta prohibición es mecánica, no depende de si hay o no juicio directo: aplica siempre, en las 21 sub-dimensiones.
@@ -191,7 +194,7 @@ EJES DE LAS ANCLAS (los 5 peldaños -2..+2 se construyen sobre el eje de su dime
     -2 sin avance (igual que al inicio) · -1 solo en drill aislado · 0 consistente en drill controlado, empieza a aparecer en punto · +1 consistente en sparring/sets · +2 lo sostiene en partido bajo presión
 - carácter → FRECUENCIA del comportamiento:
     -2 sin cambio · -1 solo con recordatorio del coach · 0 consistente en entrenamiento · +1 consistente en partido sin recordatorio · +2 lo sostiene en torneo y lo modela para otros
-- physical → BANDAS NUMÉRICAS alrededor del target (si hay baseline/target/unit). Si no hay números, descríbelo cualitativamente sobre el eje de mejora.
+- physical → MEJORA CUALITATIVA sobre el eje de la prueba (no tienes el valor numérico del baseline del atleta ni sus corridas — no inventes cifras ni porcentajes): describe progresión observable de peor a mejor en el gesto/desempeño de esa prueba física, igual de monótona y excluyente que los otros ejes.
 
 Las anclas deben ser: monótonas (cada peldaño más exigente que el anterior), mutuamente excluyentes (sin solape), y observables (el coach puede asignar el nivel sin adivinar).
 
