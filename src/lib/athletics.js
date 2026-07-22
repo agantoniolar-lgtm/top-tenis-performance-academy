@@ -326,6 +326,25 @@ export function onboardingGaps({ athlete, recruitment = null, pendingPTF = false
 }
 
 /**
+ * Filtra los gaps de `onboardingGaps()` para el digest semanal por email (T161 Parte 2) — a
+ * diferencia de los flags en-app (inmediatos), el digest le da tiempo al atleta antes de generar
+ * ruido: "perfil" y "ptf" ya vienen resueltos en el momento en que se arma `gaps` (perfil no tiene
+ * gracia; "ptf" debe calcularse con `hasPendingPTF(..., PTF_GRACE_DAYS)` antes de llamar acá).
+ * Esta función solo aplica la gracia de `ONBOARDING_GRACE_DAYS` (post-alta) a los 3 gaps restantes:
+ * baseline físico, papás/tutor y reclutamiento.
+ * @param {{key: string, label: string}[]} gaps salida de `onboardingGaps()`
+ * @param {string|null} fechaIngreso `athletes.fecha_ingreso`
+ * @param {string} today ISO date (YYYY-MM-DD)
+ * @param {number} [graceDays]
+ * @returns {{key: string, label: string}[]}
+ */
+const DIGEST_GRACE_KEYS = new Set(['baseline_fisico', 'papas', 'reclutamiento']);
+export function filterGapsForDigest(gaps, fechaIngreso, today, graceDays = ONBOARDING_GRACE_DAYS) {
+  const pastGrace = !fechaIngreso || daysSince(fechaIngreso, today) >= graceDays;
+  return (gaps ?? []).filter(g => !DIGEST_GRACE_KEYS.has(g.key) || pastGrace);
+}
+
+/**
  * Inicio del periodo siguiente a partir del `period_end` de un plan — el día después. Usado al
  * confirmar el cierre de un plan para prellenar el atleta+periodo del plan siguiente
  * (docs/scope-close-quarterly-plan.md §13, "post-cierre").

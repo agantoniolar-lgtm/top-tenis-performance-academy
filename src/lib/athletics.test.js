@@ -607,7 +607,7 @@ describe('buildPriorBundle', () => {
   });
 });
 
-import { daysSince, hasPendingPTF, onboardingGaps } from './athletics.js';
+import { daysSince, hasPendingPTF, onboardingGaps, filterGapsForDigest } from './athletics.js';
 
 describe('daysSince', () => {
   it('cuenta días entre dos fechas', () => {
@@ -654,7 +654,7 @@ describe('hasPendingPTF', () => {
 describe('onboardingGaps', () => {
   // calcCat es solo por año calendario (edad<=14 → 12U/14U, no dispara reclutamiento) — ver calcCat.
   const athleteBase = {
-    fecha_nacimiento: (new Date().getFullYear() - 12) + '-01-01', // 12 años → 12U, reclutamiento no aplica
+    fecha_nacimiento: (new Date().getFullYear() - 12) + '-06-15', // 12 años → 12U, reclutamiento no aplica
     altura_cm: 170, peso_kg: 60, escuela: 'Prepa X',
     nombre_padre: null, telefono_padre: null, email_padre: null,
   };
@@ -680,30 +680,43 @@ describe('onboardingGaps', () => {
   });
 
   it('papás/tutor pendiente solo si es menor de edad y no tiene ningún dato de contacto', () => {
-    const menor = { ...athleteBase, fecha_nacimiento: new Date().getFullYear() - 15 + '-01-01' };
+    const menor = { ...athleteBase, fecha_nacimiento: new Date().getFullYear() - 15 + '-06-15' };
     const gapsMenor = onboardingGaps({ athlete: menor, hasPhysicalBaseline: true });
     expect(gapsMenor.some(g => g.key === 'papas')).toBe(true);
 
     const menorConPapa = { ...menor, nombre_padre: 'Juan' };
     expect(onboardingGaps({ athlete: menorConPapa, hasPhysicalBaseline: true }).some(g => g.key === 'papas')).toBe(false);
 
-    const mayor = { ...athleteBase, fecha_nacimiento: new Date().getFullYear() - 20 + '-01-01' };
+    const mayor = { ...athleteBase, fecha_nacimiento: new Date().getFullYear() - 20 + '-06-15' };
     expect(onboardingGaps({ athlete: mayor, hasPhysicalBaseline: true }).some(g => g.key === 'papas')).toBe(false);
   });
 
-  it('reclutamiento pendiente solo aplica a 16U/18U y requiere division_objetivo + grad_year (+ english_level si >=17)', () => {
-    const atleta16 = { ...athleteBase, fecha_nacimiento: new Date().getFullYear() - 16 + '-01-01' };
-    expect(onboardingGaps({ athlete: atleta16, hasPhysicalBaseline: true }).some(g => g.key === 'reclutamiento')).toBe(true);
+  it('reclutamiento pendiente aplica a 16U (edad 16) y NO requiere english_level ahí', () => {
+    const atleta16 = { ...athleteBase, fecha_nacimiento: new Date().getFullYear() - 16 + '-06-15' };
+    const sinDatos = onboardingGaps({ athlete: atleta16, hasPhysicalBaseline: true });
+    expect(sinDatos.some(g => g.key === 'reclutamiento')).toBe(true);
+
+    const conDivisionYGradYear = onboardingGaps({
+      athlete: atleta16,
+      recruitment: { division_objetivo: 'D1', grad_year: '2028' }, // sin english_level — a los 16 no se pide
+      hasPhysicalBaseline: true,
+    });
+    expect(conDivisionYGradYear.some(g => g.key === 'reclutamiento')).toBe(false);
+  });
+
+  it('reclutamiento pendiente a 18U (edad >=17) SÍ requiere english_level además de division_objetivo + grad_year', () => {
+    const atleta17 = { ...athleteBase, fecha_nacimiento: new Date().getFullYear() - 17 + '-06-15' };
+    expect(onboardingGaps({ athlete: atleta17, hasPhysicalBaseline: true }).some(g => g.key === 'reclutamiento')).toBe(true);
 
     const conRecruitmentIncompleto = onboardingGaps({
-      athlete: atleta16,
+      athlete: atleta17,
       recruitment: { division_objetivo: 'D1', grad_year: '2028' }, // sin english_level, edad >=17
       hasPhysicalBaseline: true,
     });
     expect(conRecruitmentIncompleto.some(g => g.key === 'reclutamiento')).toBe(true);
 
     const conRecruitmentCompleto = onboardingGaps({
-      athlete: atleta16,
+      athlete: atleta17,
       recruitment: { division_objetivo: 'D1', grad_year: '2028', english_level: 'Avanzado' },
       hasPhysicalBaseline: true,
     });
@@ -711,15 +724,51 @@ describe('onboardingGaps', () => {
   });
 
   it('atleta 12U no dispara reclutamiento pendiente aunque no tenga perfil de reclutamiento', () => {
-    const atleta12 = { ...athleteBase, fecha_nacimiento: new Date().getFullYear() - 11 + '-01-01' };
+    const atleta12 = { ...athleteBase, fecha_nacimiento: new Date().getFullYear() - 11 + '-06-15' };
     expect(onboardingGaps({ athlete: atleta12, hasPhysicalBaseline: true }).some(g => g.key === 'reclutamiento')).toBe(false);
   });
 
   it('orden de salida es por prioridad: perfil, ptf, baseline, papas, reclutamiento', () => {
-    const menorSinNada = { fecha_nacimiento: new Date().getFullYear() - 16 + '-01-01' };
+    const menorSinNada = { fecha_nacimiento: new Date().getFullYear() - 16 + '-06-15' };
     const gaps = onboardingGaps({
       athlete: menorSinNada, pendingPTF: true, hasPhysicalBaseline: false,
     });
     expect(gaps.map(g => g.key)).toEqual(['perfil', 'ptf', 'baseline_fisico', 'papas', 'reclutamiento']);
+  });
+});
+
+describe('filterGapsForDigest', () => {
+  const allGaps = [
+    { key: 'perfil', label: 'Perfil incompleto' },
+    { key: 'ptf', label: 'PTF pendiente' },
+    { key: 'baseline_fisico', label: 'Baseline físico pendiente' },
+    { key: 'papas', label: 'Papás/tutor pendiente' },
+    { key: 'reclutamiento', label: 'Reclutamiento pendiente' },
+  ];
+
+  it('perfil y ptf nunca se filtran (ya vienen resueltos antes de llamar)', () => {
+    const out = filterGapsForDigest(allGaps, '2026-07-20', '2026-07-20'); // recién dado de alta, sin gracia cumplida
+    expect(out.map(g => g.key)).toContain('perfil');
+    expect(out.map(g => g.key)).toContain('ptf');
+  });
+
+  it('baseline/papas/reclutamiento se ocultan antes de cumplirse la gracia', () => {
+    const out = filterGapsForDigest(allGaps, '2026-07-20', '2026-07-22'); // 2 días, gracia default de 5
+    expect(out.map(g => g.key)).toEqual(['perfil', 'ptf']);
+  });
+
+  it('baseline/papas/reclutamiento aparecen al cumplirse la gracia (inclusive)', () => {
+    const out = filterGapsForDigest(allGaps, '2026-07-17', '2026-07-22', 5); // exacto 5 días
+    expect(out.map(g => g.key)).toEqual(allGaps.map(g => g.key));
+  });
+
+  it('sin fecha_ingreso, no se filtra nada (mejor pasar de largo que esconder de más)', () => {
+    const out = filterGapsForDigest(allGaps, null, '2026-07-22');
+    expect(out.map(g => g.key)).toEqual(allGaps.map(g => g.key));
+  });
+
+  it('respeta un graceDays custom', () => {
+    const out = filterGapsForDigest(allGaps, '2026-07-20', '2026-07-21', 1); // 1 día, gracia de 1
+    expect(out.map(g => g.key)).toEqual(allGaps.map(g => g.key));
   });
 });
