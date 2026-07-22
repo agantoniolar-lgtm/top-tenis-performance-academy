@@ -18,6 +18,21 @@ Active work only — status `in progress` or `in review`. Not-yet-started ideas 
 
 ## In Progress
 
+### T170-fix-amtp-scraper-409-conflict-y-duplicado-ian-kleiman — Fix: AMTP Rankings Scraper falla con 409 Conflict + duplicado de Ian Kleiman en producción
+- category: Dev
+- type: Bug
+- epic: Infra / seguridad
+- priority: High
+- status: in progress
+- created: 2026-07-22
+- branch: direct-to-main
+
+**Notas:**
+- 2026-07-22: Marco pidió revisar el cron de GH del scraper de AMTP (falla con exit code 1) y por separado reportó que "Ian Kleiman" aparece duplicado en `/portal/equipo` en producción — ambos se investigaron juntos porque el log del scraper mostraba el nombre duplicado en la lista de atletas de la plataforma.
+  - **Duplicado de Ian Kleiman confirmado en `athletes` (producción)**: 2 filas — `e08e0cdc...` (creada 2 Jul, coach asignado, **2 quarterly_plans + 1 fila en amtp_rankings**, datos reales) y `8ae44f1a...` (creada 20 Jul, sin coach, **cero datos en cualquier tabla** — probable cuenta duplicada, dado de alta dos veces). Confirmado con Marco: desactivada (`activo=false`) la fila vacía `8ae44f1a...`, mismo patrón que T140 (nunca `DELETE`, baja reversible). No se tocó su `auth.users` asociado.
+  - **Causa real del 409 del scraper — NO era el duplicado de Ian Kleiman.** Reproducido el batch upsert exacto (5 filas: Emiliano Flores, Ricardo Benitez, Marco Damián, Ian Kleiman, Isabella Ramos) directo por SQL con `ON CONFLICT (nombre, genero, periodo) DO UPDATE` — funcionó sin error. El bug real: `scripts/amtp_scraper.py` hacía `POST {base}/amtp_rankings` con el header `Prefer: resolution=merge-duplicates` pero **sin el query param `on_conflict=nombre,genero,periodo`** — sin eso, PostgREST no sabe contra qué constraint resolver el upsert, usa la PK (`id`) por default (que nunca choca porque el payload no manda `id`), y termina haciendo un INSERT plano que revienta contra la unique constraint real (`nombre, genero, periodo`) en cuanto ya existe una fila para ese período — es decir, fallaba en **cualquier corrida que no fuera la primera del mes**. Confirmado: ya existían filas de julio 2026 para Ian Kleiman y Marco Damián desde una corrida anterior exitosa (3 Jul), por eso las corridas de hoy (22 Jul) chocaban.
+  - Fix: agregar `?on_conflict=nombre,genero,periodo` a la URL del POST. Un carácter de diferencia, alto impacto — el cron llevaba fallando así desde julio.
+  - Pendiente: verificar con una corrida real del workflow y hacer commit.
 ### T161-notificaciones-onboarding-incompleto — Notificaciones de onboarding incompleto (perfil, reclutamiento, datos de papás, post-torneo)
 - category: Dev
 - type: Feature

@@ -449,8 +449,17 @@ def upsert_to_supabase(rankings: dict, periodo: Optional[str] = None) -> None:
         log.warning("Ningún atleta de la plataforma apareció en el ranking AMTP.")
         return
 
-    # Upsert (merge-duplicates por unique constraint nombre+genero+periodo)
-    resp = requests.post(f"{base}/amtp_rankings", headers=headers, json=rows)
+    # Upsert (merge-duplicates por unique constraint nombre+genero+periodo).
+    # on_conflict es obligatorio: sin él, PostgREST no sabe contra qué constraint resolver
+    # el upsert (usa la PK por default, que nunca choca porque "id" no viene en el payload)
+    # y termina haciendo un INSERT plano que revienta contra la unique constraint real en
+    # cuanto ya existe una fila para ese (nombre, genero, periodo) — exactamente lo que pasaba
+    # en cualquier corrida que no fuera la primera del mes (bug real, no el duplicado de un
+    # atleta — encontrado y confirmado 22 Jul 2026 revisando el fallo de AMTP Rankings Scraper).
+    resp = requests.post(
+        f"{base}/amtp_rankings?on_conflict=nombre,genero,periodo",
+        headers=headers, json=rows,
+    )
     resp.raise_for_status()
     log.info(f"✓ Upsert completo: {len(rows)} registros para período {periodo}.")
 
