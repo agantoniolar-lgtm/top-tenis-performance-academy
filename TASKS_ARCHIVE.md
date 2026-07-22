@@ -8,6 +8,7 @@ Completed tasks, moved here the moment a task reaches `done` (by the `commit` sk
 
 | id | title | category | created |
 |---|---|---|---|
+| T170-fix-amtp-scraper-409-conflict-y-duplicado-ian-kleiman | Fix: AMTP Rankings Scraper falla con 409 Conflict + duplicado de Ian Kleiman en producción | Dev | 2026-07-22 |
 | T167-actualizar-generate-quarterly-plan-taxonomia-rac | Actualizar generate-quarterly-plan a la taxonomía RAC de physical (deuda técnica post-T152) | Dev | 2026-07-22 |
 | T168-fix-rls-report-physical-cross-coach | Fix: RLS de report_physical no permite lectura cross-coach (gap heredado de T140) | Dev | 2026-07-22 |
 | T160-ambiente-pruebas-app-y-migraciones-schema-only | Ambiente de pruebas air-tight: app apunta a sandbox por default, migraciones solo-schema, log de pushes a prod | Dev | 2026-07-20 |
@@ -495,6 +496,22 @@ CONSTRUIDO en 4 rebanadas (14-15 Jul 2026, commits ed706c6/7c92db6/869d7a6/4a36e
 - 2026-07-20: Abierto a partir de una pregunta de Marco sobre cómo está conectada la plataforma al sandbox. Encontrado: `src/lib/supabase.js` tenía la URL/key de **producción** hardcodeadas — correr `npm run dev` local, o cualquier `verify-ui` walkthrough, siempre hablaba contra producción real (10 atletas ya subidos). Además, se confirmó que varias migraciones históricas mezclan DDL con DML de datos reales hardcodeados (`.../20260608213016_reassign_all_remove_marco_reyes.sql`, `.../20260630185839_add_coach_profile_fields.sql`, `.../20260715233355_split_outcome_state_and_carryover.sql`, entre otras) — riesgo concreto: una migración probada contra sandbox (con datos distintos a prod) puede comportarse distinto/destructivamente al aplicarse a prod si mezcla schema y datos.
 - 2026-07-20: Construido. (a) `src/lib/supabase.js` lee `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` de `import.meta.env`, sin fallback hardcodeado — falla fuerte si faltan. `.env.local` apunta al sandbox (`xchdawwajmnnhkncikig`) por default; verificado con `npm run build` que el bundle solo contiene la ref del sandbox. (b) `scripts/check-migrations-schema-only.mjs` — bloquea DML top-level en migraciones nuevas (filtra correctamente DML dentro de cuerpos de función/trigger y sintaxis `CREATE POLICY ... FOR UPDATE/INSERT/...`, escape hatch `-- ALLOW-DML: <razón>`); `--staged` en `.husky/pre-commit`, `--diff-against <ref>` como backstop en `.github/workflows/ci.yml`. (c) `supabase/PROD_MIGRATIONS_LOG.md` creado. Regla documentada en `CLAUDE.md` (regla 7) y referencia rota corregida en `verify-rls/SKILL.md`. `.env.example` actualizado. gitleaks: escaneado el historial completo (3 hallazgos, los 3 ya remediados, documentados en `.gitleaks.toml`), hook de pre-commit + backstop en `.github/workflows/gitleaks.yml`.
 - 2026-07-20: Push a producción (`ba2a013..f02d338`). Primer push reveló que `gitleaks-action@v3` usa 8.24.3 por default (hardcodeado, no "latest") — esa versión tiene un bug real donde un `[[allowlists]]` global no suprime hallazgos de reglas heredadas vía `extend.useDefault = true`, lo que hizo fallar el check de CI marcando la publishable key del sandbox pese a estar allowlisteada. Reproducido localmente contra el binario 8.24.3 real, confirmado arreglado en 8.30.1. Fix: `GITLEAKS_VERSION: 8.30.1` pinneado en el workflow (`9d6d456`). Ambos checks de CI (`CI` y `gitleaks`) verdes tras el fix. Marco agregó las env vars de producción en Vercel y confirmó que el sitio en vivo carga correctamente. Cerrado.
+
+### T170-fix-amtp-scraper-409-conflict-y-duplicado-ian-kleiman — Fix: AMTP Rankings Scraper falla con 409 Conflict + duplicado de Ian Kleiman en producción
+- category: Dev
+- type: Bug
+- epic: Infra / seguridad
+- priority: High
+- status: done
+- created: 2026-07-22
+- done: 2026-07-22
+- branch: direct-to-main
+
+**Notas:**
+- 2026-07-22: Marco pidió revisar el cron de GH del scraper de AMTP (fallaba con exit code 1) y por separado reportó que "Ian Kleiman" aparecía duplicado en `/portal/equipo` en producción — investigados juntos porque el log del scraper mostraba el nombre duplicado en la lista de atletas de la plataforma.
+  - **Duplicado de Ian Kleiman confirmado en `athletes` (producción)**: 2 filas — una con coach asignado, 2 `quarterly_plans` + 1 fila en `amtp_rankings` (datos reales); otra sin coach, cero datos en cualquier tabla (cuenta duplicada, dada de alta dos veces). Confirmado con Marco: desactivada (`activo=false`) la fila vacía, mismo patrón que T140 (nunca `DELETE`, baja reversible). No se tocó su `auth.users` asociado.
+  - **Causa real del 409 del scraper — NO era el duplicado de Ian Kleiman.** Reproducido el batch upsert exacto (5 filas) directo por SQL con `ON CONFLICT (nombre, genero, periodo) DO UPDATE` — funcionó sin error. El bug real: `scripts/amtp_scraper.py` hacía `POST {base}/amtp_rankings` con `Prefer: resolution=merge-duplicates` pero sin el query param `on_conflict=nombre,genero,periodo` — sin eso, PostgREST resuelve el upsert contra la PK (`id`, que nunca choca porque el payload no la manda) y termina haciendo un INSERT plano que revienta contra la unique constraint real en cuanto ya existe una fila para ese período — fallaba en cualquier corrida que no fuera la primera del mes.
+  - Fix: agregar `?on_conflict=nombre,genero,periodo` a la URL del POST. Commiteado (`aab3654`), pusheado, deploy verde. Verificado con corrida real del workflow (`workflow_dispatch`, run 29966601499): `✓ Upsert completo: 5 registros para período 2026-07`, sin errores.
 
 ### T167-actualizar-generate-quarterly-plan-taxonomia-rac — Actualizar generate-quarterly-plan a la taxonomía RAC de physical (deuda técnica post-T152)
 - category: Dev
