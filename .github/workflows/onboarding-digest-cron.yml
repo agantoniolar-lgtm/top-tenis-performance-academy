@@ -10,6 +10,10 @@ on:
         description: 'Solo imprimir el digest, no enviar emails'
         type: boolean
         default: false
+      test_to:
+        description: 'Si se llena, manda el digest SOLO a este email (no a todos los coaches) — para probar un envío real'
+        type: string
+        default: ''
 
 jobs:
   digest:
@@ -33,4 +37,5 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           RESEND_FROM: ${{ secrets.RESEND_FROM }}
+          DIGEST_TEST_TO: ${{ inputs.test_to }}
         run: node scripts/onboarding_digest.mjs ${{ inputs.dry_run == true && '--dry-run' || '' }}

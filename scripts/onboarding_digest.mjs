@@ -13,7 +13,7 @@
 //
 // Uso:
 //   node scripts/onboarding_digest.mjs --dry-run   # imprime el digest sin enviar nada
-//   node scripts/onboarding_digest.mjs             # arma y envía el digest real
+//   node scripts/onboarding_digest.mjs             # arma y envía el digest real a todos los coaches
 //
 // Variables de entorno necesarias:
 //   SUPABASE_URL          → URL del proyecto de Top Tennis (no el de AMTP)
@@ -22,6 +22,9 @@
 //   RESEND_API_KEY        → API key de Resend
 //   RESEND_FROM           → remitente del digest (opcional, default 'onboarding@resend.dev' — el
 //                           sandbox de Resend, sirve para probar sin dominio verificado)
+//   DIGEST_TEST_TO        → (opcional) si está seteada, el digest se manda SOLO a esta dirección
+//                           en vez de a todos los coaches — para probar el envío real sin
+//                           mandarle un email de verdad a todo el equipo.
 
 import { createClient } from '@supabase/supabase-js';
 import {
@@ -152,6 +155,13 @@ async function main() {
   if (DRY_RUN) {
     console.log('\n--dry-run: no se envía ningún email. HTML generado:\n');
     console.log(html);
+    return;
+  }
+
+  const testTo = process.env.DIGEST_TEST_TO;
+  if (testTo) {
+    await sendDigest(testTo, html);
+    console.log(`Enviado (modo prueba, DIGEST_TEST_TO) a ${testTo}`);
     return;
   }
 
