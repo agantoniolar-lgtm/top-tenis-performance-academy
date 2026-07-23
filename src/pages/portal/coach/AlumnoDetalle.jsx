@@ -52,6 +52,7 @@ export default function AlumnoDetalle() {
   const [noteTournId, setNoteTournId] = useState('');
   const [noteSaving,  setNoteSaving]  = useState(false);
   const [noteErr,     setNoteErr]     = useState(null);
+  const [confirmDelId, setConfirmDelId] = useState(null); // id de la nota con borrado armado (confirmación en 2 pasos)
   const [nowMs]       = useState(() => Date.now()); // estable por render (regla de pureza), para fechas relativas
 
   // Grabación de voz (T148 fase 2a)
@@ -208,13 +209,16 @@ export default function AlumnoDetalle() {
 
   // ── Notas (T148 fase 1) ───────────────────────────────────────────────────
   const changeSegment = (seg) => {
+    // No se borra noteTournId al cambiar de segmento: si el coach toca otro segmento por error y
+    // vuelve a "Torneo", conserva su selección. El torneo solo se APLICA cuando el segmento es
+    // 'tournament' (ver los save handlers y noteValidationError); en otros segmentos se ignora.
     setNoteSegment(seg);
-    if (seg !== 'tournament') setNoteTournId(''); // torneo solo aplica al segmento 'tournament'
     setNoteErr(null);
   };
 
   const handleSaveNote = async () => {
-    const payload = { body: noteBody, segment: noteSegment, tournamentId: noteTournId || null };
+    const tournamentId = noteSegment === 'tournament' ? (noteTournId || null) : null;
+    const payload = { body: noteBody, segment: noteSegment, tournamentId };
     const err = noteValidationError(payload);
     if (err) { setNoteErr(err); return; }
     if (!user?.coach_id) { setNoteErr('No se pudo identificar al coach.'); return; }
@@ -227,7 +231,7 @@ export default function AlumnoDetalle() {
         coach_id: user.coach_id,
         kind: 'text',
         segment: noteSegment,
-        tournament_id: noteSegment === 'tournament' ? noteTournId : null,
+        tournament_id: tournamentId,
         body: noteBody.trim(),
       })
       .select('id, coach_id, segment, tournament_id, body, created_at, coaches(nombre), tournaments(nombre)')
@@ -241,6 +245,7 @@ export default function AlumnoDetalle() {
   const handleDeleteNote = async (noteId) => {
     const prev = notes;
     const deleted = prev.find(n => n.id === noteId);
+    setConfirmDelId(null);
     setNotes(prev.filter(n => n.id !== noteId)); // optimista
     const { error: e } = await supabase.from('athlete_notes').delete().eq('id', noteId);
     if (e) { setNotes(prev); setNoteErr('No se pudo borrar la nota.'); return; } // revertir si falla
@@ -295,7 +300,8 @@ export default function AlumnoDetalle() {
   };
 
   const handleSaveVoiceNote = async () => {
-    const payload = { body: 'voz', segment: noteSegment, tournamentId: noteTournId || null }; // body='voz' salta el check de vacío; la nota de voz no lleva body en fase 2a
+    const tournamentId = noteSegment === 'tournament' ? (noteTournId || null) : null;
+    const payload = { body: 'voz', segment: noteSegment, tournamentId }; // body='voz' salta el check de vacío; la nota de voz no lleva body en fase 2a
     const err = noteValidationError(payload);
     if (err && !/vac/i.test(err)) { setNoteErr(err); return; } // solo nos importa segmento/torneo acá
     if (!audioBlob) { setNoteErr('Graba una nota primero.'); return; }
@@ -310,7 +316,7 @@ export default function AlumnoDetalle() {
         coach_id: user.coach_id,
         kind: 'voice',
         segment: noteSegment,
-        tournament_id: noteSegment === 'tournament' ? noteTournId : null,
+        tournament_id: tournamentId,
         body: null,
         transcription_status: 'pending',
         audio_duration_seconds: recSeconds,
@@ -694,10 +700,26 @@ export default function AlumnoDetalle() {
                   <p className="text-[14px] whitespace-pre-wrap" style={{ color: 'var(--ink)' }}>{n.body}</p>
                 )}
                 {user?.coach_id === n.coach_id && (
-                  <button type="button" onClick={() => handleDeleteNote(n.id)}
-                    className="mt-2 text-[11px] font-mono uppercase hover:underline" style={{ color: 'var(--ink-mute)' }}>
-                    Borrar
-                  </button>
+                  confirmDelId === n.id ? (
+                    <div className="mt-2 flex items-center gap-3 flex-wrap">
+                      <span className="text-[11px]" style={{ color: 'var(--bad)' }}>
+                        Da click en Borrar otra vez para eliminar.
+                      </span>
+                      <button type="button" onClick={() => handleDeleteNote(n.id)}
+                        className="text-[11px] font-mono uppercase font-bold hover:underline" style={{ color: 'var(--bad)' }}>
+                        Borrar
+                      </button>
+                      <button type="button" onClick={() => setConfirmDelId(null)}
+                        className="text-[11px] font-mono uppercase hover:underline" style={{ color: 'var(--ink-mute)' }}>
+                        Cancelar
+                      </button>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => setConfirmDelId(n.id)}
+                      className="mt-2 text-[11px] font-mono uppercase hover:underline" style={{ color: 'var(--ink-mute)' }}>
+                      Borrar
+                    </button>
+                  )
                 )}
               </div>
             ))}
