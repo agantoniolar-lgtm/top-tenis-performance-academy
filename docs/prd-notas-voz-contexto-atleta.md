@@ -73,9 +73,16 @@ Cerrar las decisiones bloqueantes de §7, la convención de evals (T150), y apro
 - Verificación: `verify-rls` + `verify-tests` + `verify-ui` (móvil, el coach captura en cancha).
 
 ### Fase 2 — Captura de voz + transcripción
-- Grabación de audio desde el navegador (coach en cancha, móvil).
-- Subida del audio a storage (ver decisión §7).
-- Transcripción asíncrona (ver decisión §7) → llena `body` + `transcribed_at`, `transcription_status='done'`.
+**Decisiones de arranque (23 Jul 2026, Marco):** Storage = Supabase Storage (bucket `athlete-notes-audio`); STT = Whisper/OpenAI (reutiliza `OPENAI_API_KEY`). **Sin tope de duración** por ahora — Marco quiere ver cuánto graban los coaches en la práctica y después analizar la distribución para elegir un decil donde cortar; costo/subida no preocupan hoy (volumen bajo). **Implicación:** se guarda `audio_duration_seconds` en cada nota desde la captura, para tener los datos que ese análisis necesita. La UI muestra un contador en vivo pero no corta.
+
+**Sub-fases (cada una verificable y commiteable sola, como fase 1):**
+- **2a** — bucket + RLS + grabación en el navegador + upload + guardado durable. La nota de voz se guarda y el audio se reproduce; `transcription_status='pending'` (aún sin transcribir). Columna nueva `audio_duration_seconds`.
+- **2b** — Edge Function `transcribe-note` (Whisper) + estados de transcripción en el timeline.
+- **2c** — reintento (1 inmediato + barrida diaria vía GitHub Actions) + tope de `transcription_attempts`.
+
+- Grabación de audio desde el navegador (coach en cancha, móvil). `MediaRecorder` — tomar el mime real (`audio/mp4` en Safari iOS, `audio/webm` en Chrome), no asumir uno.
+- Subida del audio a Supabase Storage, bucket privado `athlete-notes-audio`, path `{note_id}.{ext}`.
+- Transcripción asíncrona (Whisper) → llena `body` + `transcribed_at`, `transcription_status='done'`.
 - **Garantía de durabilidad + reintento (requisito de Marco, 23 Jul 2026):**
   - La nota de voz se **guarda siempre**, aunque la transcripción falle — el audio nunca se pierde por un fallo de STT. (El schema ya lo permite: `body` nullable, `audio_path` guarda el audio.)
   - Al fallar la transcripción: `transcription_status='failed'`, se registra `transcription_error`, y se hace **1 reintento inmediato**.
@@ -98,9 +105,9 @@ Cerrar las decisiones bloqueantes de §7, la convención de evals (T150), y apro
 ## 7. Decisiones
 
 **Resueltas (23 Jul 2026, Marco):**
-1. **Orden de fases: texto primero.** ✅ Fase 1 = texto + timeline + modelo de datos + RLS; voz en fase 2. De-riesga probando el flujo completo antes de sumar audio/STT.
-2. **Storage del audio: se decide en fase 2.** ✅ No hace falta hasta que entre la voz; la fase 1 no lo toca. (Recomendación registrada: Supabase Storage, para no acoplar a la exploración abierta de T162.)
-3. **Proveedor de transcripción (STT): se decide en fase 2.** ✅ Mismo motivo — no bloquea el arranque. Candidatos: ElevenLabs (ya en el ecosistema, T015/T110), Whisper, Deepgram, Google STT; se evalúa costo + calidad en español de México antes de fase 2.
+1. **Orden de fases: texto primero.** ✅ Fase 1 = texto + timeline + modelo de datos + RLS (COMPLETADA, en prod, commit `3802930`); voz en fase 2.
+2. **Storage del audio: Supabase Storage.** ✅ (decidido al arrancar fase 2, 23 Jul). Ya existe en el proyecto (buckets + policies del CMS, `20260623224807_cds_storage_policies.sql`) — mismo patrón de RLS, cero acoplamiento nuevo. Bucket privado nuevo `athlete-notes-audio`. Se descarta Google Drive (T162 sigue exploratorio, acoplarse ahí sería prematuro).
+3. **Proveedor de transcripción (STT): Whisper (OpenAI).** ✅ (decidido al arrancar fase 2, 23 Jul). El proyecto YA usa OpenAI (`OPENAI_API_KEY`) en `generate-quarterly-plan` — reutiliza key y proveedor, sin vendor ni secret nuevos. Se descarta ElevenLabs (introduciría un proveedor nuevo sin necesidad).
 
 **Pendiente:**
 4. **Convención de evals (T150) — bloquea la fase 4, no las anteriores.** Antes de que cualquier agrupación/resumen asistida por modelo entre al plan, hay que definir la convención (dónde viven los evals, formato del dataset, quién es el grader). Se puede diferir hasta cerrar fase 3, pero debe resolverse antes de fase 4.

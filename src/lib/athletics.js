@@ -582,6 +582,48 @@ export function noteValidationError(note) {
 }
 
 /**
+ * Extensión de archivo a partir del mime de `MediaRecorder` (T148 fase 2). Safari iOS graba
+ * `audio/mp4`, Chrome `audio/webm` — no asumir uno. Ignora los parámetros del mime (`;codecs=…`).
+ * @param {string|null} mime
+ * @returns {string}
+ */
+export function mimeToExt(mime) {
+  if (!mime) return 'webm';
+  const base = mime.split(';')[0].trim().toLowerCase();
+  const map = {
+    'audio/webm': 'webm',
+    'audio/ogg': 'ogg',
+    'audio/mp4': 'm4a',
+    'audio/x-m4a': 'm4a',
+    'audio/mpeg': 'mp3',
+    'audio/wav': 'wav',
+  };
+  return map[base] ?? 'webm';
+}
+
+/**
+ * Path del audio de una nota dentro del bucket `athlete-notes-audio` (T148 fase 2). El nombre es
+ * el id de la nota para que sea único y trazable 1:1 con su fila.
+ * @param {string} noteId
+ * @param {string|null} mime
+ * @returns {string}
+ */
+export function noteAudioPath(noteId, mime) {
+  return `${noteId}.${mimeToExt(mime)}`;
+}
+
+/**
+ * Duración en `m:ss` para el contador de grabación y el timeline (T148 fase 2).
+ * @param {number|null} seconds
+ * @returns {string}
+ */
+export function fmtDuration(seconds) {
+  if (seconds == null || Number.isNaN(seconds) || seconds < 0) return '0:00';
+  const s = Math.floor(seconds);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+/**
  * Fecha de una nota en texto relativo corto para el timeline (T148): "hace un momento",
  * "hace N min", "hace N h", "hace N d"; a partir de 7 días, fecha absoluta corta ("14 jul").
  * Pura: recibe el "ahora" en ms como parámetro para poder testearla. Solo display — no decide

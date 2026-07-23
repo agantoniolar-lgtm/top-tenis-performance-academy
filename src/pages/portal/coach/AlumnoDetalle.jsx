@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
@@ -12,7 +12,10 @@ import {
   OC_LABEL,
   onboardingGaps, hasPendingPTF,
   NOTE_SEGMENTS, SEGMENT_LABELS, noteValidationError, fmtRelativeTime,
+  noteAudioPath, fmtDuration,
 } from '../../../lib/athletics.js';
+
+const AUDIO_BUCKET = 'athlete-notes-audio';
 
 const OC_ALL_KEYS = [...OC_STROKE_KEYS, ...OC_TACTIC_KEYS];
 
@@ -51,6 +54,18 @@ export default function AlumnoDetalle() {
   const [noteErr,     setNoteErr]     = useState(null);
   const [nowMs]       = useState(() => Date.now()); // estable por render (regla de pureza), para fechas relativas
 
+  // Grabación de voz (T148 fase 2a)
+  const [noteMode,   setNoteMode]   = useState('text'); // 'text' | 'voice'
+  const [recording,  setRecording]  = useState(false);
+  const [recSeconds, setRecSeconds] = useState(0);
+  const [audioBlob,  setAudioBlob]  = useState(null);
+  const [audioUrl,   setAudioUrl]   = useState(null);  // object URL para el preview antes de guardar
+  const [audioUrls,  setAudioUrls]  = useState({});    // note_id → signed URL, para reproducir en el timeline
+  const mediaRecRef = useRef(null);
+  const chunksRef   = useRef([]);
+  const streamRef   = useRef(null);
+  const timerRef    = useRef(null);
+
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
@@ -76,7 +91,7 @@ export default function AlumnoDetalle() {
           .select('division_objetivo, grad_year, english_level').eq('athlete_id', id).maybeSingle(),
         supabase.from('reports').select('id').eq('athlete_id', id),
         supabase.from('athlete_notes')
-          .select('id, coach_id, segment, tournament_id, body, created_at, coaches(nombre), tournaments(nombre)')
+          .select('id, coach_id, kind, segment, tournament_id, body, audio_path, audio_duration_seconds, transcription_status, created_at, coaches(nombre), tournaments(nombre)')
           .eq('athlete_id', id).order('created_at', { ascending: false }),
         supabase.from('athlete_tournaments')
           .select('tournaments(id, nombre, fecha)').eq('athlete_id', id),
@@ -90,6 +105,14 @@ export default function AlumnoDetalle() {
           new Date().toISOString().slice(0, 10),
         ));
         setNotes(notesData ?? []);
+        // Signed URLs para reproducir el audio de las notas de voz en el timeline (bucket privado).
+        const voiceWithAudio = (notesData ?? []).filter(n => n.kind === 'voice' && n.audio_path);
+        if (voiceWithAudio.length > 0) {
+          Promise.all(voiceWithAudio.map(async n => {
+            const { data } = await supabase.storage.from(AUDIO_BUCKET).createSignedUrl(n.audio_path, 3600);
+            return [n.id, data?.signedUrl ?? null];
+          })).then(pairs => { if (!cancelled) setAudioUrls(Object.fromEntries(pairs)); });
+        }
         // Torneos únicos del atleta, más reciente primero, para el dropdown del composer.
         const uniqTourns = Object.values(Object.fromEntries(
           (athTournData ?? [])
@@ -144,6 +167,12 @@ export default function AlumnoDetalle() {
     load().catch(e => { if (!cancelled) { setErr(e.message); setLoad(false); } });
     return () => { cancelled = true; };
   }, [id]);
+
+  // Limpieza de grabación al desmontar: cortar el micrófono y el timer si quedaron activos.
+  useEffect(() => () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+  }, []);
 
   if (loading) return <Shell><p className="text-[var(--ink-mute)] text-sm">Cargando…</p></Shell>;
   if (error)   return <Shell><p className="text-red-500 text-sm">Error: {error}</p></Shell>;
@@ -211,9 +240,105 @@ export default function AlumnoDetalle() {
 
   const handleDeleteNote = async (noteId) => {
     const prev = notes;
+    const deleted = prev.find(n => n.id === noteId);
     setNotes(prev.filter(n => n.id !== noteId)); // optimista
     const { error: e } = await supabase.from('athlete_notes').delete().eq('id', noteId);
-    if (e) { setNotes(prev); setNoteErr('No se pudo borrar la nota.'); } // revertir si falla
+    if (e) { setNotes(prev); setNoteErr('No se pudo borrar la nota.'); return; } // revertir si falla
+    // Borrar también el audio del bucket si era nota de voz (best-effort, no bloquea la UI).
+    if (deleted?.kind === 'voice' && deleted.audio_path) {
+      supabase.storage.from(AUDIO_BUCKET).remove([deleted.audio_path]).catch(() => {});
+    }
+  };
+
+  // ── Grabación de voz (T148 fase 2a) ────────────────────────────────────────
+  const resetRecording = () => {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
+    setRecording(false); setRecSeconds(0); setAudioBlob(null); setAudioUrl(null);
+    mediaRecRef.current = null; chunksRef.current = [];
+  };
+
+  const changeMode = (mode) => {
+    if (mode === 'text') resetRecording();
+    setNoteMode(mode); setNoteErr(null);
+  };
+
+  const startRecording = async () => {
+    setNoteErr(null);
+    if (!navigator.mediaDevices?.getUserMedia) { setNoteErr('Este navegador no permite grabar audio.'); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const rec = new MediaRecorder(stream);
+      chunksRef.current = [];
+      rec.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      rec.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' });
+        setAudioBlob(blob);
+        setAudioUrl(URL.createObjectURL(blob));
+        if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
+      };
+      mediaRecRef.current = rec;
+      rec.start();
+      setAudioBlob(null); setAudioUrl(null); setRecSeconds(0); setRecording(true);
+      timerRef.current = setInterval(() => setRecSeconds(s => s + 1), 1000);
+    } catch {
+      setNoteErr('No se pudo acceder al micrófono. Revisa los permisos.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    if (mediaRecRef.current && mediaRecRef.current.state !== 'inactive') mediaRecRef.current.stop();
+    setRecording(false);
+  };
+
+  const handleSaveVoiceNote = async () => {
+    const payload = { body: 'voz', segment: noteSegment, tournamentId: noteTournId || null }; // body='voz' salta el check de vacío; la nota de voz no lleva body en fase 2a
+    const err = noteValidationError(payload);
+    if (err && !/vac/i.test(err)) { setNoteErr(err); return; } // solo nos importa segmento/torneo acá
+    if (!audioBlob) { setNoteErr('Graba una nota primero.'); return; }
+    if (!user?.coach_id) { setNoteErr('No se pudo identificar al coach.'); return; }
+
+    setNoteSaving(true); setNoteErr(null);
+    // 1. Insertar la fila primero (checkpoint durable): pending, sin body, con duración.
+    const { data: inserted, error: e1 } = await supabase
+      .from('athlete_notes')
+      .insert({
+        athlete_id: id,
+        coach_id: user.coach_id,
+        kind: 'voice',
+        segment: noteSegment,
+        tournament_id: noteSegment === 'tournament' ? noteTournId : null,
+        body: null,
+        transcription_status: 'pending',
+        audio_duration_seconds: recSeconds,
+      })
+      .select('id, coach_id, kind, segment, tournament_id, body, audio_path, audio_duration_seconds, transcription_status, created_at, coaches(nombre), tournaments(nombre)')
+      .single();
+    if (e1) { setNoteSaving(false); setNoteErr(e1.message); return; }
+
+    // 2. Subir el audio con el id de la nota como nombre.
+    const path = noteAudioPath(inserted.id, audioBlob.type);
+    const { error: e2 } = await supabase.storage.from(AUDIO_BUCKET)
+      .upload(path, audioBlob, { contentType: audioBlob.type, upsert: true });
+    if (e2) {
+      // El audio no subió: la fila quedó sin audio_path. Borrarla para no dejar una nota huérfana.
+      await supabase.from('athlete_notes').delete().eq('id', inserted.id);
+      setNoteSaving(false); setNoteErr('No se pudo subir el audio. Intenta de nuevo.'); return;
+    }
+
+    // 3. Guardar audio_path en la fila (checkpoint durable completo).
+    await supabase.from('athlete_notes').update({ audio_path: path }).eq('id', inserted.id);
+
+    // 4. Firmar la URL para reproducir de inmediato y ponerla en el timeline.
+    const { data: signed } = await supabase.storage.from(AUDIO_BUCKET).createSignedUrl(path, 3600);
+    setAudioUrls(prev => ({ ...prev, [inserted.id]: signed?.signedUrl ?? null }));
+    setNotes(prev => [{ ...inserted, audio_path: path }, ...prev]);
+    setNoteSaving(false);
+    resetRecording();
+    setNoteMode('text'); setNoteSegment('general'); setNoteTournId('');
   };
 
   return (
@@ -423,14 +548,70 @@ export default function AlumnoDetalle() {
 
         {/* Composer */}
         <div className="hairline bg-[var(--paper)] p-4 mb-4">
-          <textarea
-            value={noteBody}
-            onChange={e => { setNoteBody(e.target.value); setNoteErr(null); }}
-            rows={3}
-            placeholder={`Escribe una nota sobre ${athlete.nombre}… lo que observaste en cancha, en un torneo o en entrenamiento.`}
-            className="w-full text-[14px] p-3 hairline bg-[var(--cream)] resize-y focus:outline-none"
-            style={{ color: 'var(--ink)' }}
-          />
+          {/* Toggle de modo: texto o voz */}
+          <div className="flex items-center gap-2 mb-3">
+            {[['text', 'Texto'], ['voice', 'Voz']].map(([m, label]) => {
+              const active = noteMode === m;
+              return (
+                <button key={m} type="button" onClick={() => changeMode(m)}
+                  className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] hairline transition"
+                  style={active
+                    ? { background: 'var(--ink)', color: '#fff', borderColor: 'var(--ink)' }
+                    : { color: 'var(--ink-soft)' }}>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          {noteMode === 'text' ? (
+            <textarea
+              value={noteBody}
+              onChange={e => { setNoteBody(e.target.value); setNoteErr(null); }}
+              rows={3}
+              placeholder={`Escribe una nota sobre ${athlete.nombre}… lo que observaste en cancha, en un torneo o en entrenamiento.`}
+              className="w-full text-[14px] p-3 hairline bg-[var(--cream)] resize-y focus:outline-none"
+              style={{ color: 'var(--ink)' }}
+            />
+          ) : (
+            <div className="hairline bg-[var(--cream)] p-4 flex flex-col items-center gap-3">
+              {!recording && !audioUrl && (
+                <button type="button" onClick={startRecording}
+                  className="px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-white hover:opacity-90 transition"
+                  style={{ background: 'var(--accent)' }}>
+                  ● Grabar
+                </button>
+              )}
+              {recording && (
+                <div className="flex flex-col items-center gap-2">
+                  <span className="font-num font-black text-[28px] tnum" style={{ color: 'var(--bad)' }}>
+                    {fmtDuration(recSeconds)}
+                  </span>
+                  <span className="text-[11px] flex items-center gap-1.5" style={{ color: 'var(--ink-mute)' }}>
+                    <span className="inline-block w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--bad)' }} />
+                    Grabando…
+                  </span>
+                  <button type="button" onClick={stopRecording}
+                    className="px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.08em] hairline transition hover:bg-[var(--paper)]">
+                    ■ Detener
+                  </button>
+                </div>
+              )}
+              {!recording && audioUrl && (
+                <div className="flex flex-col items-center gap-2 w-full">
+                  <audio src={audioUrl} controls className="w-full max-w-[320px]" />
+                  <div className="flex items-center gap-3">
+                    <span className="text-[11px]" style={{ color: 'var(--ink-mute)' }}>{fmtDuration(recSeconds)}</span>
+                    <button type="button" onClick={startRecording}
+                      className="text-[11px] font-mono uppercase hover:underline" style={{ color: 'var(--ink-mute)' }}>
+                      Volver a grabar
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center gap-2 mt-3">
             {NOTE_SEGMENTS.map(seg => {
               const active = noteSegment === seg;
@@ -456,7 +637,9 @@ export default function AlumnoDetalle() {
                 ))}
               </select>
             )}
-            <button type="button" onClick={handleSaveNote} disabled={noteSaving}
+            <button type="button"
+              onClick={noteMode === 'voice' ? handleSaveVoiceNote : handleSaveNote}
+              disabled={noteSaving || (noteMode === 'voice' && (recording || !audioBlob))}
               className="ml-auto px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-white hover:opacity-90 transition disabled:opacity-50"
               style={{ background: 'var(--accent)' }}>
               {noteSaving ? 'Guardando…' : 'Guardar nota'}
@@ -492,7 +675,24 @@ export default function AlumnoDetalle() {
                     {n.coaches?.nombre ? `${n.coaches.nombre} · ` : ''}{fmtRelativeTime(n.created_at, nowMs)}
                   </span>
                 </div>
-                <p className="text-[14px] whitespace-pre-wrap" style={{ color: 'var(--ink)' }}>{n.body}</p>
+                {n.kind === 'voice' ? (
+                  <div className="flex flex-col gap-1.5">
+                    {audioUrls[n.id]
+                      ? <audio src={audioUrls[n.id]} controls className="w-full max-w-[320px]" />
+                      : <span className="text-[12px]" style={{ color: 'var(--ink-mute)' }}>Cargando audio…</span>}
+                    <div className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--ink-mute)' }}>
+                      <span>🎙 {fmtDuration(n.audio_duration_seconds)}</span>
+                      {n.body
+                        ? null
+                        : n.transcription_status === 'failed'
+                          ? <span style={{ color: 'var(--bad)' }}>· No se pudo transcribir — reintentando</span>
+                          : <span>· Transcripción pendiente</span>}
+                    </div>
+                    {n.body && <p className="text-[14px] whitespace-pre-wrap mt-0.5" style={{ color: 'var(--ink)' }}>{n.body}</p>}
+                  </div>
+                ) : (
+                  <p className="text-[14px] whitespace-pre-wrap" style={{ color: 'var(--ink)' }}>{n.body}</p>
+                )}
                 {user?.coach_id === n.coach_id && (
                   <button type="button" onClick={() => handleDeleteNote(n.id)}
                     className="mt-2 text-[11px] font-mono uppercase hover:underline" style={{ color: 'var(--ink-mute)' }}>

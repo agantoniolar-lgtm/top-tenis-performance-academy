@@ -4,6 +4,7 @@ import {
   avg, ocTo5, ocAvgLabel, score5Color, fmtSign, fmtPeriod,
   SCORE5_LABEL, CHAR_LABEL,
   noteValidationError, fmtRelativeTime,
+  mimeToExt, noteAudioPath, fmtDuration,
 } from './athletics.js';
 
 // ─── calcCat ─────────────────────────────────────────────────────────────────
@@ -844,5 +845,41 @@ describe('fmtRelativeTime', () => {
   });
   it('iso inválido → cadena vacía (no NaN)', () => {
     expect(fmtRelativeTime('no-es-fecha', now)).toBe('');
+  });
+});
+
+// ─── mimeToExt / noteAudioPath / fmtDuration (T148 fase 2) ─────────────────────
+
+describe('mimeToExt', () => {
+  it('webm de Chrome', () => expect(mimeToExt('audio/webm')).toBe('webm'));
+  it('mp4 de Safari iOS → m4a', () => expect(mimeToExt('audio/mp4')).toBe('m4a'));
+  it('ignora los codecs del mime', () => expect(mimeToExt('audio/webm;codecs=opus')).toBe('webm'));
+  it('mpeg → mp3', () => expect(mimeToExt('audio/mpeg')).toBe('mp3'));
+  it('mime desconocido → webm (default seguro)', () => expect(mimeToExt('audio/exotico')).toBe('webm'));
+  it('null → webm', () => expect(mimeToExt(null)).toBe('webm'));
+  it('vacío → webm', () => expect(mimeToExt('')).toBe('webm'));
+});
+
+describe('noteAudioPath', () => {
+  it('usa el id de la nota + extensión del mime', () => {
+    expect(noteAudioPath('abc-123', 'audio/webm')).toBe('abc-123.webm');
+    expect(noteAudioPath('abc-123', 'audio/mp4')).toBe('abc-123.m4a');
+  });
+});
+
+describe('fmtDuration', () => {
+  it('formatea m:ss con cero-padding en segundos', () => {
+    expect(fmtDuration(0)).toBe('0:00');
+    expect(fmtDuration(5)).toBe('0:05');
+    expect(fmtDuration(65)).toBe('1:05');
+    expect(fmtDuration(125)).toBe('2:05');
+  });
+  it('trunca fracciones de segundo', () => {
+    expect(fmtDuration(9.8)).toBe('0:09');
+  });
+  it('null/NaN/negativo → 0:00', () => {
+    expect(fmtDuration(null)).toBe('0:00');
+    expect(fmtDuration(NaN)).toBe('0:00');
+    expect(fmtDuration(-3)).toBe('0:00');
   });
 });
