@@ -341,10 +341,28 @@ export default function AlumnoDetalle() {
     // 4. Firmar la URL para reproducir de inmediato y ponerla en el timeline.
     const { data: signed } = await supabase.storage.from(AUDIO_BUCKET).createSignedUrl(path, 3600);
     setAudioUrls(prev => ({ ...prev, [inserted.id]: signed?.signedUrl ?? null }));
-    setNotes(prev => [{ ...inserted, audio_path: path }, ...prev]);
+    // La nota entra al timeline en estado "transcribiendo" (flag de cliente _transcribing).
+    setNotes(prev => [{ ...inserted, audio_path: path, _transcribing: true }, ...prev]);
     setNoteSaving(false);
     resetRecording();
     setNoteMode('text'); setNoteSegment('general'); setNoteTournId('');
+
+    // 5. Transcribir (2b). Audio corto → invoke síncrono; el fallo/disconnect lo recupera 2c.
+    try {
+      const { data: tr, error: te } = await supabase.functions.invoke('transcribe-note', {
+        body: { note_id: inserted.id },
+      });
+      if (te || tr?.status !== 'done') {
+        setNotes(prev => prev.map(n => n.id === inserted.id
+          ? { ...n, _transcribing: false, transcription_status: 'failed' } : n));
+      } else {
+        setNotes(prev => prev.map(n => n.id === inserted.id
+          ? { ...n, _transcribing: false, transcription_status: 'done', body: tr.transcript } : n));
+      }
+    } catch {
+      setNotes(prev => prev.map(n => n.id === inserted.id
+        ? { ...n, _transcribing: false, transcription_status: 'failed' } : n));
+    }
   };
 
   return (
@@ -690,9 +708,11 @@ export default function AlumnoDetalle() {
                       <span>🎙 {fmtDuration(n.audio_duration_seconds)}</span>
                       {n.body
                         ? null
-                        : n.transcription_status === 'failed'
-                          ? <span style={{ color: 'var(--bad)' }}>· No se pudo transcribir — reintentando</span>
-                          : <span>· Transcripción pendiente</span>}
+                        : n._transcribing
+                          ? <span className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--accent)' }} />· Transcribiendo…</span>
+                          : n.transcription_status === 'failed'
+                            ? <span style={{ color: 'var(--bad)' }}>· No se pudo transcribir — se reintentará</span>
+                            : <span>· Transcripción pendiente</span>}
                     </div>
                     {n.body && <p className="text-[14px] whitespace-pre-wrap mt-0.5" style={{ color: 'var(--ink)' }}>{n.body}</p>}
                   </div>
