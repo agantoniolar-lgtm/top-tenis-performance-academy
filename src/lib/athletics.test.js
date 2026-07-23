@@ -3,6 +3,7 @@ import {
   calcCat, calcEdad, isRecruitmentRelevant,
   avg, ocTo5, ocAvgLabel, score5Color, fmtSign, fmtPeriod,
   SCORE5_LABEL, CHAR_LABEL,
+  noteValidationError, fmtRelativeTime,
 } from './athletics.js';
 
 // ─── calcCat ─────────────────────────────────────────────────────────────────
@@ -770,5 +771,78 @@ describe('filterGapsForDigest', () => {
   it('respeta un graceDays custom', () => {
     const out = filterGapsForDigest(allGaps, '2026-07-20', '2026-07-21', 1); // 1 día, gracia de 1
     expect(out.map(g => g.key)).toEqual(allGaps.map(g => g.key));
+  });
+});
+
+// ─── noteValidationError (T148) ────────────────────────────────────────────────
+
+describe('noteValidationError', () => {
+  it('nota general válida → null', () => {
+    expect(noteValidationError({ body: 'Buen saque hoy', segment: 'general' })).toBeNull();
+  });
+  it('nota de entrenamiento válida → null', () => {
+    expect(noteValidationError({ body: 'Trabajó volea', segment: 'training' })).toBeNull();
+  });
+  it('nota de torneo con torneo → null', () => {
+    expect(noteValidationError({ body: 'Ganó 3 sets', segment: 'tournament', tournamentId: 't1' })).toBeNull();
+  });
+  it('body vacío → error', () => {
+    expect(noteValidationError({ body: '', segment: 'general' })).toMatch(/vac/i);
+  });
+  it('body solo espacios → error (trim)', () => {
+    expect(noteValidationError({ body: '   ', segment: 'general' })).toMatch(/vac/i);
+  });
+  it('body null → error', () => {
+    expect(noteValidationError({ body: null, segment: 'general' })).toMatch(/vac/i);
+  });
+  it('segmento inválido → error', () => {
+    expect(noteValidationError({ body: 'x', segment: 'otro' })).toMatch(/segmento/i);
+  });
+  it('segmento null → error', () => {
+    expect(noteValidationError({ body: 'x', segment: null })).toMatch(/segmento/i);
+  });
+  it('torneo sin tournamentId → error', () => {
+    expect(noteValidationError({ body: 'x', segment: 'tournament', tournamentId: null })).toMatch(/torneo/i);
+  });
+  it('segmento no-torneo con tournamentId → error (espeja el CHECK)', () => {
+    expect(noteValidationError({ body: 'x', segment: 'general', tournamentId: 't1' })).toMatch(/torneo/i);
+  });
+  it('note null → error de vacío (no revienta)', () => {
+    expect(noteValidationError(null)).toMatch(/vac/i);
+  });
+});
+
+// ─── fmtRelativeTime (T148) ────────────────────────────────────────────────────
+
+describe('fmtRelativeTime', () => {
+  const now = Date.parse('2026-07-23T12:00:00Z');
+  const ago = (ms) => new Date(now - ms).toISOString();
+  it('menos de 1 min → "hace un momento"', () => {
+    expect(fmtRelativeTime(ago(30 * 1000), now)).toBe('hace un momento');
+  });
+  it('minutos', () => {
+    expect(fmtRelativeTime(ago(5 * 60 * 1000), now)).toBe('hace 5 min');
+  });
+  it('límite inferior de horas (justo 60 min → "hace 1 h")', () => {
+    expect(fmtRelativeTime(ago(60 * 60 * 1000), now)).toBe('hace 1 h');
+  });
+  it('horas', () => {
+    expect(fmtRelativeTime(ago(3 * 60 * 60 * 1000), now)).toBe('hace 3 h');
+  });
+  it('límite inferior de días (justo 24 h → "hace 1 d")', () => {
+    expect(fmtRelativeTime(ago(24 * 60 * 60 * 1000), now)).toBe('hace 1 d');
+  });
+  it('días dentro de la semana', () => {
+    expect(fmtRelativeTime(ago(3 * 24 * 60 * 60 * 1000), now)).toBe('hace 3 d');
+  });
+  it('7 días o más → fecha absoluta corta', () => {
+    // 8 días antes de 2026-07-23 = 2026-07-15
+    expect(fmtRelativeTime(ago(8 * 24 * 60 * 60 * 1000), now)).toMatch(/15 jul/);
+  });
+  it('iso null → cadena vacía', () => {
+    expect(fmtRelativeTime(null, now)).toBe('');
+  });
+  it('iso inválido → cadena vacía (no NaN)', () => {
+    expect(fmtRelativeTime('no-es-fecha', now)).toBe('');
   });
 });

@@ -550,3 +550,58 @@ export function buildPriorBundle(plan, objectives) {
     athlete_retrospective: plan.athlete_retrospective ?? null,
   };
 }
+
+// ── Notas del atleta (T148 fase 1) ────────────────────────────────────────────
+
+/** Segmentos válidos de una nota (coincide con el CHECK de athlete_notes.segment). */
+export const NOTE_SEGMENTS = ['general', 'training', 'tournament'];
+
+/** Label legible por segmento, para el composer y el timeline. */
+export const SEGMENT_LABELS = {
+  general: 'General',
+  training: 'Entrenamiento',
+  tournament: 'Torneo',
+};
+
+/**
+ * Valida el payload de una nota de texto (T148 fase 1) antes de mandarlo a Supabase — espeja los
+ * CHECK de la tabla `athlete_notes` (`chk_text_has_body`, `chk_tournament_segment`) para dar
+ * feedback inmediato sin round-trip. Devuelve el mensaje de error, o null si es válida.
+ * @param {{ body?: string|null, segment?: string|null, tournamentId?: string|null }} note
+ * @returns {string|null}
+ */
+export function noteValidationError(note) {
+  const body = (note?.body ?? '').trim();
+  const segment = note?.segment ?? null;
+  const tournamentId = note?.tournamentId ?? null;
+  if (!body) return 'La nota no puede estar vacía.';
+  if (!NOTE_SEGMENTS.includes(segment)) return 'Selecciona un segmento válido.';
+  if (segment === 'tournament' && !tournamentId) return 'Selecciona el torneo de la nota.';
+  if (segment !== 'tournament' && tournamentId) return 'Solo las notas de torneo llevan torneo.';
+  return null;
+}
+
+/**
+ * Fecha de una nota en texto relativo corto para el timeline (T148): "hace un momento",
+ * "hace N min", "hace N h", "hace N d"; a partir de 7 días, fecha absoluta corta ("14 jul").
+ * Pura: recibe el "ahora" en ms como parámetro para poder testearla. Solo display — no decide
+ * acceso, así que usar la timezone local del coach en la rama absoluta es correcto.
+ * @param {string|null} iso timestamp ISO de created_at
+ * @param {number} nowMs Date.now() del momento de render
+ * @returns {string}
+ */
+export function fmtRelativeTime(iso, nowMs) {
+  if (!iso) return '';
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return '';
+  const diffMin = Math.floor((nowMs - then) / 60000);
+  if (diffMin < 1)  return 'hace un momento';
+  if (diffMin < 60) return `hace ${diffMin} min`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24)   return `hace ${diffH} h`;
+  const diffD = Math.floor(diffH / 24);
+  if (diffD < 7)    return `hace ${diffD} d`;
+  const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  const d = new Date(then);
+  return `${d.getDate()} ${MESES[d.getMonth()]}`;
+}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
+import { useAuth } from '../../../hooks/useAuth';
 import {
   calcCat, avg, ocAvgLabel, fmtSign, fmtPeriod, fmtPeriodLong, winLossRecord,
   STROKE_KEYS as OC_STROKE_KEYS,
@@ -10,6 +11,7 @@ import {
   TACTIC_DESCS,
   OC_LABEL,
   onboardingGaps, hasPendingPTF,
+  NOTE_SEGMENTS, SEGMENT_LABELS, noteValidationError, fmtRelativeTime,
 } from '../../../lib/athletics.js';
 
 const OC_ALL_KEYS = [...OC_STROKE_KEYS, ...OC_TACTIC_KEYS];
@@ -24,6 +26,7 @@ function scoreColor(v) {
 export default function AlumnoDetalle() {
   const { id }    = useParams();
   const navigate  = useNavigate();
+  const { user }  = useAuth();
   const [athlete, setAth]   = useState(null);
   const [reports, setRep]   = useState([]);   // raw reports
   const [ocMap,   setOcMap] = useState({});   // report_id → on_court row
@@ -37,6 +40,16 @@ export default function AlumnoDetalle() {
   const [hasPhysicalBaseline,  setHasPhysicalBaseline]  = useState(true);
   const [loading, setLoad]  = useState(true);
   const [error,   setErr]   = useState(null);
+
+  // Notas del atleta (T148 fase 1)
+  const [notes,       setNotes]       = useState([]);
+  const [athTourns,   setAthTourns]   = useState([]); // torneos del atleta, para el dropdown del composer
+  const [noteBody,    setNoteBody]    = useState('');
+  const [noteSegment, setNoteSegment] = useState('general');
+  const [noteTournId, setNoteTournId] = useState('');
+  const [noteSaving,  setNoteSaving]  = useState(false);
+  const [noteErr,     setNoteErr]     = useState(null);
+  const [nowMs]       = useState(() => Date.now()); // estable por render (regla de pureza), para fechas relativas
 
   useEffect(() => {
     if (!id) return;
@@ -52,7 +65,7 @@ export default function AlumnoDetalle() {
 
       // 2. Reports (last 6) + record de torneos (con fecha/PTF, T161) + AMTP últimos 2 períodos
       //    + perfil de reclutamiento + todos los report ids (para saber si ya hay baseline físico, T166)
-      const [{ data: reps, error: e2 }, { data: tourns }, { data: amtpData }, { data: rec }, { data: allReps }] = await Promise.all([
+      const [{ data: reps, error: e2 }, { data: tourns }, { data: amtpData }, { data: rec }, { data: allReps }, { data: notesData }, { data: athTournData }] = await Promise.all([
         supabase.from('reports').select('id, period, created_at')
           .eq('athlete_id', id).order('period', { ascending: false }).limit(6),
         supabase.from('athlete_tournaments')
@@ -62,6 +75,11 @@ export default function AlumnoDetalle() {
         supabase.from('athlete_recruitment_profile')
           .select('division_objetivo, grad_year, english_level').eq('athlete_id', id).maybeSingle(),
         supabase.from('reports').select('id').eq('athlete_id', id),
+        supabase.from('athlete_notes')
+          .select('id, coach_id, segment, tournament_id, body, created_at, coaches(nombre), tournaments(nombre)')
+          .eq('athlete_id', id).order('created_at', { ascending: false }),
+        supabase.from('athlete_tournaments')
+          .select('tournaments(id, nombre, fecha)').eq('athlete_id', id),
       ]);
       if (e2) { setErr(e2.message); setLoad(false); return; }
       if (!cancelled) {
@@ -71,6 +89,15 @@ export default function AlumnoDetalle() {
           (tourns ?? []).map(t => ({ fecha: t.tournaments?.fecha ?? null, hasForm: (t.post_tournament_forms?.length ?? 0) > 0 })),
           new Date().toISOString().slice(0, 10),
         ));
+        setNotes(notesData ?? []);
+        // Torneos únicos del atleta, más reciente primero, para el dropdown del composer.
+        const uniqTourns = Object.values(Object.fromEntries(
+          (athTournData ?? [])
+            .map(t => t.tournaments)
+            .filter(Boolean)
+            .map(t => [t.id, t]),
+        )).sort((a, b) => (b.fecha ?? '').localeCompare(a.fecha ?? ''));
+        setAthTourns(uniqTourns);
       }
 
       const repIds = (reps ?? []).map(r => r.id);
@@ -149,6 +176,45 @@ export default function AlumnoDetalle() {
   const amtpDeltaPos = amtpCur && amtpPrev ? amtpPrev.posicion - amtpCur.posicion : null;
 
   const gaps = onboardingGaps({ athlete, recruitment, pendingPTF, hasPhysicalBaseline });
+
+  // ── Notas (T148 fase 1) ───────────────────────────────────────────────────
+  const changeSegment = (seg) => {
+    setNoteSegment(seg);
+    if (seg !== 'tournament') setNoteTournId(''); // torneo solo aplica al segmento 'tournament'
+    setNoteErr(null);
+  };
+
+  const handleSaveNote = async () => {
+    const payload = { body: noteBody, segment: noteSegment, tournamentId: noteTournId || null };
+    const err = noteValidationError(payload);
+    if (err) { setNoteErr(err); return; }
+    if (!user?.coach_id) { setNoteErr('No se pudo identificar al coach.'); return; }
+
+    setNoteSaving(true); setNoteErr(null);
+    const { data, error: e } = await supabase
+      .from('athlete_notes')
+      .insert({
+        athlete_id: id,
+        coach_id: user.coach_id,
+        kind: 'text',
+        segment: noteSegment,
+        tournament_id: noteSegment === 'tournament' ? noteTournId : null,
+        body: noteBody.trim(),
+      })
+      .select('id, coach_id, segment, tournament_id, body, created_at, coaches(nombre), tournaments(nombre)')
+      .single();
+    setNoteSaving(false);
+    if (e) { setNoteErr(e.message); return; }
+    setNotes(prev => [data, ...prev]);
+    setNoteBody(''); setNoteSegment('general'); setNoteTournId('');
+  };
+
+  const handleDeleteNote = async (noteId) => {
+    const prev = notes;
+    setNotes(prev.filter(n => n.id !== noteId)); // optimista
+    const { error: e } = await supabase.from('athlete_notes').delete().eq('id', noteId);
+    if (e) { setNotes(prev); setNoteErr('No se pudo borrar la nota.'); } // revertir si falla
+  };
 
   return (
     <Shell>
@@ -347,6 +413,94 @@ export default function AlumnoDetalle() {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+      </div>
+
+      {/* Notas (T148 fase 1) — captura ligera de texto + timeline */}
+      <div className="mt-6">
+        <h2 className="font-display font-bold text-[18px] mb-3">Notas</h2>
+
+        {/* Composer */}
+        <div className="hairline bg-[var(--paper)] p-4 mb-4">
+          <textarea
+            value={noteBody}
+            onChange={e => { setNoteBody(e.target.value); setNoteErr(null); }}
+            rows={3}
+            placeholder={`Escribe una nota sobre ${athlete.nombre}… lo que observaste en cancha, en un torneo o en entrenamiento.`}
+            className="w-full text-[14px] p-3 hairline bg-[var(--cream)] resize-y focus:outline-none"
+            style={{ color: 'var(--ink)' }}
+          />
+          <div className="flex flex-wrap items-center gap-2 mt-3">
+            {NOTE_SEGMENTS.map(seg => {
+              const active = noteSegment === seg;
+              return (
+                <button key={seg} type="button" onClick={() => changeSegment(seg)}
+                  className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] hairline transition"
+                  style={active
+                    ? { background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)' }
+                    : { color: 'var(--ink-soft)' }}>
+                  {SEGMENT_LABELS[seg]}
+                </button>
+              );
+            })}
+            {noteSegment === 'tournament' && (
+              <select
+                value={noteTournId}
+                onChange={e => { setNoteTournId(e.target.value); setNoteErr(null); }}
+                className="px-3 py-1.5 text-[12px] hairline bg-[var(--cream)] focus:outline-none"
+                style={{ color: 'var(--ink)' }}>
+                <option value="">¿Qué torneo?</option>
+                {athTourns.map(t => (
+                  <option key={t.id} value={t.id}>{t.nombre}</option>
+                ))}
+              </select>
+            )}
+            <button type="button" onClick={handleSaveNote} disabled={noteSaving}
+              className="ml-auto px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-white hover:opacity-90 transition disabled:opacity-50"
+              style={{ background: 'var(--accent)' }}>
+              {noteSaving ? 'Guardando…' : 'Guardar nota'}
+            </button>
+          </div>
+          {noteSegment === 'tournament' && athTourns.length === 0 && (
+            <p className="mt-2 text-[11px]" style={{ color: 'var(--ink-mute)' }}>
+              Este atleta no tiene torneos registrados todavía.
+            </p>
+          )}
+          {noteErr && <p className="mt-2 text-[12px]" style={{ color: 'var(--bad)' }}>{noteErr}</p>}
+        </div>
+
+        {/* Timeline */}
+        {notes.length === 0 ? (
+          <div className="hairline bg-[var(--paper)] p-4 md:p-8 text-center">
+            <p className="text-[var(--ink-mute)] text-[13px]">Sin notas todavía.</p>
+          </div>
+        ) : (
+          <div className="hairline bg-[var(--paper)]">
+            {notes.map(n => (
+              <div key={n.id} className="px-5 py-4 hairline-b last:border-b-0">
+                <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                  <span className="tag text-[9px]" style={{ background: 'var(--cream)', color: 'var(--ink-soft)' }}>
+                    {SEGMENT_LABELS[n.segment] ?? n.segment}
+                  </span>
+                  {n.segment === 'tournament' && n.tournaments?.nombre && (
+                    <span className="text-[11px] font-medium" style={{ color: 'var(--ink-soft)' }}>
+                      {n.tournaments.nombre}
+                    </span>
+                  )}
+                  <span className="text-[11px] ml-auto" style={{ color: 'var(--ink-mute)' }}>
+                    {n.coaches?.nombre ? `${n.coaches.nombre} · ` : ''}{fmtRelativeTime(n.created_at, nowMs)}
+                  </span>
+                </div>
+                <p className="text-[14px] whitespace-pre-wrap" style={{ color: 'var(--ink)' }}>{n.body}</p>
+                {user?.coach_id === n.coach_id && (
+                  <button type="button" onClick={() => handleDeleteNote(n.id)}
+                    className="mt-2 text-[11px] font-mono uppercase hover:underline" style={{ color: 'var(--ink-mute)' }}>
+                    Borrar
+                  </button>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>
