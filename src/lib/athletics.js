@@ -582,6 +582,30 @@ export function noteValidationError(note) {
 }
 
 /**
+ * Tope de intentos de transcripción (T148 fase 2c): la Edge Function `transcribe-note` incrementa
+ * `transcription_attempts` en cada corrida; pasado este tope, la barrida diaria deja de reintentar
+ * una nota que sigue fallando, para no reintentar infinito.
+ */
+export const MAX_TRANSCRIPTION_ATTEMPTS = 5;
+
+/**
+ * Notas de voz que la barrida diaria (2c) debe reintentar transcribir: `pending` o `failed`, con
+ * audio ya subido, y por debajo del tope de intentos. Pura, para testear el predicado y usarla
+ * tanto en el script de barrida como en cualquier vista futura. Las `done` nunca entran.
+ * @param {{kind?: string, audio_path?: string|null, transcription_status?: string|null, transcription_attempts?: number|null}[]|null} notes
+ * @param {number} maxAttempts
+ * @returns {object[]}
+ */
+export function notesNeedingTranscription(notes, maxAttempts = MAX_TRANSCRIPTION_ATTEMPTS) {
+  return (notes ?? []).filter(n =>
+    n?.kind === 'voice' &&
+    !!n?.audio_path &&
+    (n?.transcription_status === 'pending' || n?.transcription_status === 'failed') &&
+    (n?.transcription_attempts ?? 0) < maxAttempts,
+  );
+}
+
+/**
  * Extensión de archivo a partir del mime de `MediaRecorder` (T148 fase 2). Safari iOS graba
  * `audio/mp4`, Chrome `audio/webm` — no asumir uno. Ignora los parámetros del mime (`;codecs=…`).
  * @param {string|null} mime

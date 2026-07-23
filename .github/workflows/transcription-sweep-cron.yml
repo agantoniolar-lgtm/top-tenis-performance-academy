@@ -1,0 +1,35 @@
+name: Transcription Sweep
+
+on:
+  schedule:
+    # Diario 3am CDMX = 09:00 UTC (México sin horario de verano en la mayoría del país).
+    # Hora de bajo tráfico — recupera notas de voz que quedaron pending/failed durante el día.
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Solo listar lo que se reintentaría, sin invocar transcribe-note'
+        type: boolean
+        default: false
+
+jobs:
+  sweep:
+    name: Reintentar transcripciones pendientes/fallidas
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Barrida de transcripción
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: node scripts/transcription_sweep.mjs ${{ inputs.dry_run == true && '--dry-run' || '' }}

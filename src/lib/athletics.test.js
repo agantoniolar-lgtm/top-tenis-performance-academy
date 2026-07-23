@@ -5,6 +5,7 @@ import {
   SCORE5_LABEL, CHAR_LABEL,
   noteValidationError, fmtRelativeTime,
   mimeToExt, noteAudioPath, fmtDuration,
+  notesNeedingTranscription, MAX_TRANSCRIPTION_ATTEMPTS,
 } from './athletics.js';
 
 // ─── calcCat ─────────────────────────────────────────────────────────────────
@@ -881,5 +882,42 @@ describe('fmtDuration', () => {
     expect(fmtDuration(null)).toBe('0:00');
     expect(fmtDuration(NaN)).toBe('0:00');
     expect(fmtDuration(-3)).toBe('0:00');
+  });
+});
+
+// ─── notesNeedingTranscription (T148 fase 2c) ──────────────────────────────────
+
+describe('notesNeedingTranscription', () => {
+  const voice = (over) => ({ kind: 'voice', audio_path: 'x.webm', transcription_status: 'pending', transcription_attempts: 0, ...over });
+
+  it('incluye pending y failed con audio y bajo el tope', () => {
+    const notes = [voice({ transcription_status: 'pending' }), voice({ transcription_status: 'failed' })];
+    expect(notesNeedingTranscription(notes)).toHaveLength(2);
+  });
+  it('excluye las done', () => {
+    expect(notesNeedingTranscription([voice({ transcription_status: 'done' })])).toHaveLength(0);
+  });
+  it('excluye notas de texto', () => {
+    expect(notesNeedingTranscription([{ kind: 'text', transcription_status: 'pending' }])).toHaveLength(0);
+  });
+  it('excluye voz sin audio_path (todavía no subió)', () => {
+    expect(notesNeedingTranscription([voice({ audio_path: null })])).toHaveLength(0);
+  });
+  it('excluye las que llegaron al tope de intentos', () => {
+    expect(notesNeedingTranscription([voice({ transcription_status: 'failed', transcription_attempts: MAX_TRANSCRIPTION_ATTEMPTS })])).toHaveLength(0);
+  });
+  it('incluye una que está justo debajo del tope', () => {
+    expect(notesNeedingTranscription([voice({ transcription_status: 'failed', transcription_attempts: MAX_TRANSCRIPTION_ATTEMPTS - 1 })])).toHaveLength(1);
+  });
+  it('respeta un maxAttempts custom', () => {
+    expect(notesNeedingTranscription([voice({ transcription_attempts: 2 })], 2)).toHaveLength(0);
+    expect(notesNeedingTranscription([voice({ transcription_attempts: 1 })], 2)).toHaveLength(1);
+  });
+  it('attempts null cuenta como 0', () => {
+    expect(notesNeedingTranscription([voice({ transcription_attempts: null })])).toHaveLength(1);
+  });
+  it('null/lista vacía → []', () => {
+    expect(notesNeedingTranscription(null)).toEqual([]);
+    expect(notesNeedingTranscription([])).toEqual([]);
   });
 });
