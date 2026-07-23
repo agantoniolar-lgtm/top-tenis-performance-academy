@@ -17,7 +17,7 @@ Any approved task from `scope` that has a data-structure component, a UI compone
 4. Confirm the design against {{STACK_LANGUAGE}} strict-mode constraints before moving on — if the type checker would reject the shape, fix it here, not during build.
 
 ### If the task involves a new or changed UI surface
-1. Invoke the relevant installed design skill(s) before writing any component code — typically `design-system` (consistency with existing patterns), `ux-copy` (any new microcopy, labels, error states), and `accessibility-review` (for anything non-trivial). Use `design-critique` if there's an existing mockup or screen to react to.
+1. Invoke the relevant kit design skill(s) before writing any component code — typically `design-system` (consistency with existing patterns) and `ux-copy` (any new microcopy, labels, error states). Use `design-critique` instead of, or after, `design-system`'s Extend mode when there's an existing mockup or screen to react to rather than a blank page. Use `user-research` only when the task's blueprint from `scope` flagged real uncertainty about user need or behavior — most UI work doesn't need it.
 2. This is not optional or a nice-to-have step reserved for polish passes — a UI-touching task that skips this runs the risk of shipping something inconsistent that only gets caught in the `verify-ui` walkthrough, which is a more expensive place to catch it.
 3. Record the design decisions in the task's `TASKS.md` entry in plain English (what the UI does, not implementation detail) so the eventual `verify-ui` walkthrough has something to check against.
 

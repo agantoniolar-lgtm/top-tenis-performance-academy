@@ -21,6 +21,7 @@ Not every project has every piece of the stack from day one — a project that's
 - [ ] `CLAUDE.md` generated and present at repo root
 - [ ] Plan-first rule confirmed in `CLAUDE.md`
 - [ ] Architectural pattern stated (what it is: ___)
+- [ ] `.ae-kit-version` present at repo root and matches `ae-setup/kit/VERSION` (see `CLAUDE.md` rule 12) — confirms this project's skills/templates aren't running a stale copy of the kit
 
 ## 2. Git discipline
 - [ ] Branch policy confirmed and recorded in `CLAUDE.md` → Git conventions (branch-per-task, or this project's actual direct-to-main convention — which: ___)

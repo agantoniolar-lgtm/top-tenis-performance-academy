@@ -11,17 +11,24 @@ description: Use when starting a brand new project, or retrofitting an already-r
 
 Both cases use the same skill; only step 2 differs.
 
-## Before this skill can even be read: the one-time manual copy
+## Before this skill can even be read: getting the kit files into the project
 
-This skill only exists in a project because two folders were copied there from the `ae-setup` kit, as plain files — no Claude session needed for this part. **Check for existing `.claude/` and `templates/` folders in the target project before copying — don't blindly overwrite either.**
+This skill only exists in a project because the kit's `.claude/skills/` and `templates/` folders were copied there first. Two ways to do that — pick whichever fits the situation:
 
-**If the target project has no `.claude/` folder yet:** copy `kit/.claude/` wholesale to the project root as its own `.claude/`. No conflict possible.
+- **Option A — direct copy**, when `ae-setup` is reachable on the same machine (locally, or connected as a folder in this session). Fast, no intermediate artifact.
+- **Option B — install from the bundle (new in v0.9)**, when it isn't — a different machine, a session where only `ae-setup/kit/AE_KIT_BUNDLE.md` got attached or pasted, or just to get deterministic checksum-verified installs instead of hand-run `cp`. Also the right choice any time you want the guaranteed-no-silent-clobber behavior of a script instead of manual commands.
 
-**If the target project already has a `.claude/` folder** (settings, hooks, other project-level config, or its own skills): do NOT replace the folder. Only copy `kit/.claude/skills/*` — each individual skill folder (`setup/`, `scope/`, `design/`, `build/`, `verify-tests/`, `verify-evals/`, `verify-ui/`, `verify-rls/`, `commit/`, `session-log/`) — into the existing `<project>/.claude/skills/` (creating that subfolder if it doesn't exist yet). Everything else already under `.claude/` — `settings.json`, `hooks/`, `commands/`, any unrelated existing skills — stays untouched. **Check for overlap before copying any individual skill folder in — both by name and by purpose.** A name collision (the project already has its own `scope/` or `commit/` for something unrelated) is the easy case: flag it and rename the kit's version instead (e.g. `ae-commit/`). The harder, easy-to-miss case is *purpose* overlap under a different name — read every existing skill's full `SKILL.md` body, not just its frontmatter name and description, and compare its actual procedure against what each of the 10 incoming kit skills does. A project's own hand-built session-closing skill can cover exactly the same ground as this kit's `session-log` without either the name or the one-line description making that obvious — the only way to catch it is reading what each one actually does (a project's own hand-built RLS/access-control checklist and `verify-rls` is the same trap). Flag every apparent overlap to the project owner before finishing that skill's copy: keep the existing one, keep the kit's, or merge into one. Never let both silently coexist doing the same job — that's how a project ends up with two things updating the same task tracker or writing the same kind of session log, discovered only by accident weeks later.
+Both options land in the same place and both are merge-safe with an existing `.claude/`. **Check for existing `.claude/` and `templates/` folders in the target project before copying either way — don't blindly overwrite either.**
+
+**If the target project has no `.claude/` folder yet:** either option installs cleanly, no conflict possible.
+
+**If the target project already has a `.claude/` folder** (settings, hooks, other project-level config, or its own skills): do NOT replace the folder. Only bring in `kit/.claude/skills/*` — each individual skill folder (`setup/`, `scope/`, `design/`, `build/`, `verify-tests/`, `verify-evals/`, `verify-ui/`, `verify-rls/`, `commit/`, `session-log/`) — into the existing `<project>/.claude/skills/` (creating that subfolder if it doesn't exist yet). Everything else already under `.claude/` — `settings.json`, `hooks/`, `commands/`, any unrelated existing skills — stays untouched. **Check for overlap before copying any individual skill folder in — both by name and by purpose.** A name collision (the project already has its own `scope/` or `commit/` for something unrelated) is the easy case: flag it and rename the kit's version instead (e.g. `ae-commit/`). The harder, easy-to-miss case is *purpose* overlap under a different name — read every existing skill's full `SKILL.md` body, not just its frontmatter name and description, and compare its actual procedure against what each of the 10 incoming kit skills does. A project's own hand-built session-closing skill can cover exactly the same ground as this kit's `session-log` without either the name or the one-line description making that obvious — the only way to catch it is reading what each one actually does (a project's own hand-built RLS/access-control checklist and `verify-rls` is the same trap). Flag every apparent overlap to the project owner before finishing that skill's copy: keep the existing one, keep the kit's, or merge into one. Never let both silently coexist doing the same job — that's how a project ends up with two things updating the same task tracker or writing the same kind of session log, discovered only by accident weeks later.
 
 **`templates/`** → copied to the target project's root as its own `templates/` folder, sitting next to `.claude/` (so raw template sources end up at `<project>/templates/*.template`). Check for a name collision here too — a web app can plausibly already have a `templates/` folder for something unrelated (email templates, scaffolding). If so, use a different name (e.g. `ae-templates/`) and note the substitution wherever this file says `templates/` below.
 
-**Exact commands for the copy** — run these locally (Terminal, or `device_bash` from a Cowork session where the target folder is connected), after the overlap check above has already decided what's safe to bring in. Don't rely on a Finder drag-and-drop or an assistant-run tool for this step — both `device_commit_files` and any tool that isn't a raw shell are blocked from writing into `.claude/`, and a manual drag is easy to get partially wrong (missed dotfiles, wrong destination) with no way to verify it landed correctly:
+### Option A — exact commands for the direct copy
+
+Run these locally (Terminal, or `device_bash` from a Cowork session where the target folder is connected), after the overlap check above has already decided what's safe to bring in. Don't rely on a Finder drag-and-drop or an assistant-run tool for this step — both `device_commit_files` and any tool that isn't a raw shell are blocked from writing into `.claude/`, and a manual drag is easy to get partially wrong (missed dotfiles, wrong destination) with no way to verify it landed correctly:
 
 ```bash
 KIT=/absolute/path/to/ae-setup/kit
@@ -32,21 +39,54 @@ cp -r "$KIT/.claude" "$PROJECT/.claude"
 cp -r "$KIT/templates" "$PROJECT/templates"
 
 # Merge — .claude/ already exists (only after the overlap check above):
-mkdir -p "$PROJECT/.claude/skills"
-cp -r "$KIT/.claude/skills/"* "$PROJECT/.claude/skills/"
-cp -r "$KIT/templates" "$PROJECT/templates"
+# Use the trailing "/." on the source, not "/*" — a shell glob doesn't match
+# dotfiles (silently skips .env.example) and, when the destination directory
+# already exists, "cp -r src dst" nests src inside dst instead of merging
+# into it. "cp -r src/. dst/" copies all contents, dotfiles included, into
+# an already-existing destination correctly. Confirmed bug (2026-07-19):
+# the glob form shipped here initially and silently skipped .env.example
+# during a real Top Tennis sync.
+mkdir -p "$PROJECT/.claude/skills" "$PROJECT/templates"
+cp -r "$KIT/.claude/skills/." "$PROJECT/.claude/skills/"
+cp -r "$KIT/templates/." "$PROJECT/templates/"
 
 # Verify — should print nothing if the copy is complete and byte-identical:
 diff -rq "$KIT/.claude/skills" "$PROJECT/.claude/skills"
+diff -rq "$KIT/templates" "$PROJECT/templates"
+
+# Record which kit version this project is now running (new in v0.9) —
+# any future retrofit or staleness check reads this file:
+echo "$(cat "$KIT/VERSION") — installed $(date -u +%Y-%m-%d) via direct copy from $KIT" > "$PROJECT/.ae-kit-version"
 ```
 
 Once copied this way, `<project>/.claude/skills/` is read identically to any hand-authored `.claude/skills/` — Claude Code (CLI, and cloud sessions working on a cloned repo) discovers skills purely by filesystem path, not by where the content originated. **This copy does not, by itself, make the skill fire inside a live Cowork session.** Cowork sessions never read any project's `.claude/skills/`, copied or not — they only load skills enabled for the claude.ai account, synced at session start. See the framework's Cowork-vs-CLI skill-loading note for the full breakdown. The physical copy is still required regardless: it's what makes the skill real, portable, git-tracked infrastructure for Claude Code CLI and cloud sessions, independent of whatever happens to be enabled in any given Cowork session.
 
 A skill-level symlink (`.claude/skills/setup` → a directory elsewhere on disk) is also supported by Claude Code and would auto-propagate future kit updates without re-copying. It's intentionally not used here: the symlink target would be an absolute path on one machine, so cloning or sharing the project elsewhere leaves a dangling symlink instead of a working skill. A physical, committed copy is what survives `git clone`.
 
-After the copy, `.claude/skills/` (merged or fresh) and `templates/` (or its renamed equivalent) both exist at the project root. Everything below assumes that's already true.
+### Option B — install from the portable bundle (new in v0.9)
+
+`kit/AE_KIT_BUNDLE.md` is a single, generated, self-contained snapshot of the entire kit — every skill and every template concatenated with a version header and a sha256 checksum per file — regenerated by `kit/build_bundle.sh` whenever kit content changes (never hand-edited). It lets a project be set up **with zero dependency on `ae-setup` being locally reachable** — the bundle file alone is enough, even attached to a completely different session on a completely different machine.
+
+```bash
+# From wherever the bundle and installer scripts are reachable:
+bash /path/to/ae-setup/kit/install_from_bundle.sh /path/to/ae-setup/kit/AE_KIT_BUNDLE.md /absolute/path/to/target/project
+```
+
+The installer is deterministic and merge-safe by construction: it never overwrites a destination file that already exists and differs from the bundle's copy (reports it as a conflict for manual review instead — resolve the same way as the overlap check above, then rerun with `--force` if the kit's version should win), verifies every written file's sha256 against the checksum recorded in the bundle, and writes `.ae-kit-version` at the project root automatically once everything's clean. If neither the bundle nor the installer script is available in the current session — only `AE_KIT_BUNDLE.md`'s contents got pasted somewhere, say — the bundle's own header explains the manual fallback: for each `### FILE:` block, write its content to that path, verify the checksum, then write `.ae-kit-version` by hand.
+
+Either option's end state is the same: `.claude/skills/` (merged or fresh), `templates/` (or its renamed equivalent), and `.ae-kit-version` all exist at the project root. Everything below assumes that's already true.
 
 ## Procedure
+
+### 0. Confirm the kit copy is current (new in v0.9)
+
+`.ae-kit-version` at the project root (written automatically by Option B, or by the `echo` line in Option A's commands) records which kit version this project is running. Compare it against `ae-setup/kit/VERSION` before anything else:
+
+- **Missing entirely** → the copy step above wasn't run with the current kit's commands, or this project predates v0.9. Go back and run Option A or B before continuing — for an already-set-up project, this just backfills the marker without disturbing anything else.
+- **Present but older than `ae-setup/kit/VERSION`** → the project's skills/templates have drifted from the kit (a skill was fixed or a template changed since this project last synced — the same silent drift that let Top Tennis and investing run a stale `setup/SKILL.md` for a week, caught only by hand-running `diff -rq` on 2026-07-19). Re-run the copy step (Option A's merge commands, or Option B with `--force` after reviewing any reported conflicts) before proceeding, so the interview/retrofit below runs against current kit content, not a stale copy.
+- **Present and matching** → already current, continue.
+
+This is a fast, mechanical check — don't skip it just because the skill files look fine at a glance; the whole point of versioning the kit is that this kind of drift is silent until checked.
 
 ### 1. Run the interview (skip or shortcut anything already known)
 
@@ -87,4 +127,4 @@ Ask, or infer from the existing repo if retrofitting:
 Setup is only "done" once every box in `SETUP_CHECKLIST.md` is checked or legitimately left unchecked under a Not applicable / Deferred section-0 status — not when the interview finishes. If closing out setup reveals work that can't be completed in this session (e.g., a sandbox that needs to be created outside the agent's reach), leave those boxes unchecked and record them as the top priority in `STATUS.md`'s "Pending" section.
 
 ## Output
-`CLAUDE.md` (with Git conventions filled in, Stack fields marked `TBD — deferred` where genuinely undecided), `SETUP_CHECKLIST.md` (section 0's tri-state markers set honestly, and the rest accurately reflecting real state), `.env.example` and a confirmed `.gitignore` entry, `COWORK_PROJECT_INSTRUCTIONS.md` (with an explicit reminder that pasting it into Cowork Settings is a manual step), the already-copied `.claude/skills` directory, and (for greenfield) empty task-tracking files — `TASKS.md`, `BACKLOG.md`, `TASKS_ARCHIVE.md`, `TASKS_ARCHIVE_INDEX.md`, `/logs/`, `STATUS.md` — ready to use, or (for retrofit) a concrete, prioritized list of what's actually missing right now, distinct from what's simply deferred to a later stage of the project.
+`CLAUDE.md` (with Git conventions filled in, Stack fields marked `TBD — deferred` where genuinely undecided), `SETUP_CHECKLIST.md` (section 0's tri-state markers set honestly, and the rest accurately reflecting real state), `.env.example` and a confirmed `.gitignore` entry, `COWORK_PROJECT_INSTRUCTIONS.md` (with an explicit reminder that pasting it into Cowork Settings is a manual step), the already-copied `.claude/skills` directory, `.ae-kit-version` confirmed present and current (new in v0.9 — written by step 0 or the copy step, not regenerated here), and (for greenfield) empty task-tracking files — `TASKS.md`, `BACKLOG.md`, `TASKS_ARCHIVE.md`, `TASKS_ARCHIVE_INDEX.md`, `/logs/`, `STATUS.md` — ready to use, or (for retrofit) a concrete, prioritized list of what's actually missing right now, distinct from what's simply deferred to a later stage of the project.

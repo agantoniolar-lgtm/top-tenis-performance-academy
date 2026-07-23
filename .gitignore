@@ -29,3 +29,7 @@ dist-ssr
 # Python
 __pycache__/
 *.pyc
+
+# Capa personal de permisos de Claude Code — se reescribe en cada sesion,
+# no se comparte (la capa compartida seria .claude/settings.json).
+.claude/settings.local.json
