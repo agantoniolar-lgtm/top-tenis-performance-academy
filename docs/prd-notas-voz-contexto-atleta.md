@@ -90,11 +90,13 @@ Cerrar las decisiones bloqueantes de §7, la convención de evals (T150), y apro
   - Estados en el schema (creados ya en la migración de fase 1): `pending` → `done` | `failed`.
 - Verificación: `verify-tests` (lógica pura de estados/reintento) + `verify-ui`. La transcripción en sí no es evaluable con un test determinista pero **tampoco es Tier B** (no es output generativo que juzgamos por calidad — es un servicio externo de STT; se verifica que el pipeline funcione, no la "calidad" del modelo).
 
-### Fase 3 — Curación / edición del bundle
-- Vista donde el coach **revisa y agrupa** las notas de un atleta de un periodo: seleccionar cuáles entran, agruparlas por tema/foco, editar/condensar.
-- El output es un bundle curado, editable, listo para alimentar un plan — **el antídoto al mega-dump** (§4).
-- Esta fase puede ser mayormente manual (el coach cura a mano) **antes** de meter LLM — decisión de diseño a validar: ¿la primera versión de la agrupación la hace el coach, o la sugiere un modelo?
-- Verificación: `verify-tests` + `verify-ui`. Si la agrupación la sugiere un modelo → cae en fase 4.
+### Fase 3 — Curación / edición del bundle (tagging + agrupación **manual**)
+**Decisión (24 Jul 2026, Marco): la agrupación de fase 3 la hace el coach a mano, con un tagging system manual.** Sin LLM → no toca `verify-evals`, no depende de T150, se envía a producción ya. El auto-tagging por LLM se difiere a fase 4+ (ver el PRD del engine).
+- **Tagging manual:** el coach etiqueta cada nota con una **taxonomía facetada de vocabulario cerrado** (dimensión / sub-dimensión reusando la taxonomía canónica del plan; `note_type`: observacion/failure/setback/intencion/progreso/hito). Ver **`docs/prd-context-tagging-engine.md` (T174)** — el diseño del vocabulario y del engine vive ahí; esta fase es su **primer productor** de datos.
+- **Tabla nueva `note_tags`** (decidido con Marco, 24 Jul): los tags van en su propia tabla, aislados de `athlete_notes`, para no arriesgar corrupción de la tabla de notas ni sus datos. Ver engine §4.
+- **Curación:** vista donde el coach revisa/agrupa/edita las notas de un atleta de un periodo (filtrando por facetas) → bundle curado, editable, **antídoto al mega-dump** (§4).
+- **Por qué manual primero:** los tags manuales se vuelven (a) el corpus/eval dataset de T150 para el auto-tagger futuro, y (b) el índice de recuperación estructurada (RAG v0). Cimiento ladrillo por ladrillo.
+- Verificación: **`verify-rls`** (tabla nueva `note_tags`, contra sandbox antes de construir la UI) + `verify-tests` + `verify-ui`.
 
 ### Fase 4 — Wiring al plan (LLM) — **GATED por T150**
 - Expandir `buildPriorBundle` / el input de `generate-quarterly-plan` para incorporar el bundle curado de notas.
